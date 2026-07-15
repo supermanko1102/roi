@@ -6,11 +6,11 @@ import { db, buildings, projects } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-// 重劃區/生活圈:靜態示意邊界 + 圈內建案/棟級點聚合統計
+// 重劃區/生活圈:官方 GIS 邊界(etl/build-zones.ts 產出)+ 圈內建案/棟級點聚合統計
 // 圈內樣本少(點位僅數百~數千)直接在 JS 做 point-in-polygon,不動用 PostGIS
 
 type Ring = [number, number][];
-function inPoly(lng: number, lat: number, ring: Ring): boolean {
+function inRing(lng: number, lat: number, ring: Ring): boolean {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
     const [xi, yi] = ring[i], [xj, yj] = ring[j];
@@ -18,6 +18,24 @@ function inPoly(lng: number, lat: number, ring: Ring): boolean {
       inside = !inside;
   }
   return inside;
+}
+// Polygon / MultiPolygon,含挖洞;先過 bbox 再算,點多時省時間
+function makeContains(geom: any) {
+  const polys: Ring[][] = geom.type === "Polygon" ? [geom.coordinates] : geom.coordinates;
+  let w = 180, e = -180, s = 90, n = -90;
+  for (const rings of polys) for (const [x, y] of rings[0]) {
+    if (x < w) w = x; if (x > e) e = x; if (y < s) s = y; if (y > n) n = y;
+  }
+  return (lng: number, lat: number): boolean => {
+    if (lng < w || lng > e || lat < s || lat > n) return false;
+    for (const rings of polys) {
+      if (!inRing(lng, lat, rings[0])) continue;
+      let hole = false;
+      for (let i = 1; i < rings.length; i++) if (inRing(lng, lat, rings[i])) { hole = true; break; }
+      if (!hole) return true;
+    }
+    return false;
+  };
 }
 const median = (xs: number[]) => {
   if (!xs.length) return null;
@@ -32,7 +50,7 @@ export async function GET() {
 
   const [projs, bldgs] = await Promise.all([
     db.select({ lat: projects.lat, lng: projects.lng, unit_price: projects.unit_price,
-                est_roi: projects.est_roi, deal_count: projects.deal_count })
+                est_roi: projects.est_roi_market, deal_count: projects.deal_count })
       .from(projects).where(isNotNull(projects.lat)),
     db.select({ lat: buildings.lat, lng: buildings.lng,
                 median_unit_price: buildings.median_unit_price, deal_count: buildings.deal_count })
@@ -40,9 +58,9 @@ export async function GET() {
   ]);
 
   for (const f of geo.features) {
-    const ring = f.geometry.coordinates[0] as Ring;
-    const zp = projs.filter((p) => inPoly(p.lng!, p.lat!, ring));
-    const zb = bldgs.filter((b) => inPoly(b.lng!, b.lat!, ring));
+    const contains = makeContains(f.geometry);
+    const zp = projs.filter((p) => contains(p.lng!, p.lat!));
+    const zb = bldgs.filter((b) => contains(b.lng!, b.lat!));
     f.properties = {
       ...f.properties,
       presale_unit_price: median(zp.map((p) => p.unit_price).filter((v): v is number => v != null)),

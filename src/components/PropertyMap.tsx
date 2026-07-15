@@ -4,8 +4,7 @@ import Map, { Source, Layer, Marker, Popup, MapRef } from "react-map-gl/maplibre
 import type { FeatureCollection } from "geojson";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-type Metric = "price" | "roi";
-type Basis = "mix" | "market"; // 混合(含社宅)vs 排除社會住宅包租代管件
+type Metric = "price" | "roi"; // 使用者自選:看單價或看租金投報比
 type BldgDeal = {
   address: string; deal_date: string | null;
   total_price: string; area_ping: string; unit_price: string | null;
@@ -49,29 +48,27 @@ const DETAIL_ZOOM = 12;
 const ZONE_FADE = 13.9;
 
 const PRICE_STOPS: [number, string][] = [[20, "#e2ebf5"], [32, "#7aa7cf"], [44, "#184a7c"]];
-const ROI_STOPS: [number, string][] = [[1.8, "#d64541"], [2.2, "#e0a92e"], [2.6, "#2f9e6e"]];
-// 市場件租金約為混合口徑兩倍,色階範圍跟著平移
-const ROI_STOPS_MARKET: [number, string][] = [[2.6, "#d64541"], [3.4, "#e0a92e"], [5.0, "#2f9e6e"]];
+// 投報率一律用市場行情口徑(排除社會住宅包租代管件,租金受政策壓低不具參考性)
+const ROI_STOPS: [number, string][] = [[2.6, "#d64541"], [3.4, "#e0a92e"], [5.0, "#2f9e6e"]];
+const ROI_FIELD = "est_roi_market";
 
-const roiField = (basis: Basis) => (basis === "market" ? "est_roi_market" : "est_roi");
-const roiStops = (basis: Basis) => (basis === "market" ? ROI_STOPS_MARKET : ROI_STOPS);
-
-function fillExpr(metric: Metric, basis: Basis): any {
-  const prop = metric === "price" ? "median_unit_price" : roiField(basis);
-  const stops = metric === "price" ? PRICE_STOPS : roiStops(basis);
+function fillExpr(metric: Metric): any {
+  const prop = metric === "price" ? "median_unit_price" : ROI_FIELD;
+  const stops = metric === "price" ? PRICE_STOPS : ROI_STOPS;
   return [
     "case",
     ["==", ["get", prop], null], "#cfd6da",
     ["interpolate", ["linear"], ["get", prop], ...stops.flat()],
   ];
 }
-function roiColor(v: number | null, basis: Basis): string {
+function stopColor(v: number | null, s: [number, string][]): string {
   if (v == null) return "#9aa5ad";
-  const s = roiStops(basis);
   if (v <= s[0][0]) return s[0][1];
   if (v >= s[2][0]) return s[2][1];
   return v < s[1][0] ? mix(s[0], s[1], v) : mix(s[1], s[2], v);
 }
+const roiColor = (v: number | null) => stopColor(v, ROI_STOPS);
+const priceColor = (v: number | null) => stopColor(v, PRICE_STOPS);
 function mix(a: [number, string], b: [number, string], v: number): string {
   const t = (v - a[0]) / (b[0] - a[0]);
   const pa = hex(a[1]), pb = hex(b[1]);
@@ -83,7 +80,6 @@ export default function PropertyMap() {
   const mapRef = useRef<MapRef>(null);
   const [districts, setDistricts] = useState<FeatureCollection | null>(null);
   const [metric, setMetric] = useState<Metric>("price");
-  const [basis, setBasis] = useState<Basis>("mix");
   const [zoom, setZoom] = useState(10.3);
   const [projects, setProjects] = useState<Project[]>([]);
   const [popup, setPopup] = useState<Project | null>(null);
@@ -117,12 +113,13 @@ export default function PropertyMap() {
     });
   }, [districts]);
 
-  // 重劃區標籤放矩形邊界中心
+  // 重劃區標籤放邊界框中心(邊界是官方圖資的 Polygon/MultiPolygon)
   const zoneLabels = useMemo(() => {
     if (!zones) return [];
     return zones.features.map((f: any) => {
-      const ring = f.geometry.coordinates[0] as [number, number][];
-      const xs = ring.map((p) => p[0]), ys = ring.map((p) => p[1]);
+      const pos: [number, number][] = f.geometry.type === "Polygon"
+        ? f.geometry.coordinates.flat() : f.geometry.coordinates.flat(2);
+      const xs = pos.map((p) => p[0]), ys = pos.map((p) => p[1]);
       return {
         name: f.properties.name,
         lng: (Math.min(...xs) + Math.max(...xs)) / 2,
@@ -135,15 +132,15 @@ export default function PropertyMap() {
 
   function zoomToZone(name: string) {
     const z = zoneLabels.find((l) => l.name === name);
-    if (z) mapRef.current?.fitBounds(z.bounds, { padding: 40, duration: 600 });
+    if (!z) return;
+    loadDetail([z.bounds[0][0], z.bounds[0][1], z.bounds[1][0], z.bounds[1][1]]); // 與飛行動畫並行抓資料
+    mapRef.current?.fitBounds(z.bounds, { padding: 40, duration: 600 });
   }
 
   // 視窗載入:zoom 進入細節層級後按目前視窗(外擴 40%)抓建案與棟級點;
   // 新視窗仍在上次抓過的範圍內就不重抓
   const fetchedBbox = useRef<[number, number, number, number] | null>(null);
-  async function loadDetail(map: any) {
-    const b = map.getBounds();
-    const view = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+  async function loadDetail(view: [number, number, number, number]) {
     const fb = fetchedBbox.current;
     if (fb && view[0] >= fb[0] && view[1] >= fb[1] && view[2] <= fb[2] && view[3] <= fb[3]) return;
     const padX = (view[2] - view[0]) * 0.4, padY = (view[3] - view[1]) * 0.4;
@@ -170,6 +167,7 @@ export default function PropertyMap() {
       if (x < minX) minX = x; if (x > maxX) maxX = x;
       if (y < minY) minY = y; if (y > maxY) maxY = y;
     }
+    loadDetail([minX, minY, maxX, maxY]); // 與飛行動畫並行抓資料,動畫結束即有點位
     // 面積大的區 fitBounds 後可能還不到細節門檻,保底跨過去
     const map = mapRef.current?.getMap();
     const cam = map?.cameraForBounds([[minX, minY], [maxX, maxY]], { padding: 60 });
@@ -208,7 +206,10 @@ export default function PropertyMap() {
         }}
         onMoveEnd={(e) => {
           setZoom(e.viewState.zoom);
-          if (e.viewState.zoom >= DETAIL_ZOOM) loadDetail(e.target);
+          if (e.viewState.zoom >= DETAIL_ZOOM) {
+            const b = e.target.getBounds();
+            loadDetail([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
+          }
         }}
         onClick={(e) => {
           const f = e.features?.[0];
@@ -234,7 +235,7 @@ export default function PropertyMap() {
           <Source id="districts" type="geojson" data={districts}>
             <Layer id="district-fill" type="fill"
               paint={{
-                "fill-color": fillExpr(metric, basis) as any,
+                "fill-color": fillExpr(metric) as any,
                 // 放大進細節層級時色塊淡出,只留區界
                 "fill-opacity": ["interpolate", ["linear"], ["zoom"],
                   DETAIL_ZOOM - 0.6, 0.34, DETAIL_ZOOM + 0.8, 0.04] as any,
@@ -252,12 +253,15 @@ export default function PropertyMap() {
           <Source id="zones" type="geojson" data={zones}>
             <Layer id="zone-fill" type="fill"
               paint={{
-                "fill-color": ["case",
-                  ["==", ["coalesce", ["get", "presale_unit_price"], ["get", "resale_unit_price"]], null], "#cfd6da",
-                  ["interpolate", ["linear"],
-                    ["coalesce", ["get", "presale_unit_price"], ["get", "resale_unit_price"]],
-                    ...PRICE_STOPS.flat()],
-                ] as any,
+                "fill-color": (metric === "price"
+                  ? ["case",
+                      ["==", ["coalesce", ["get", "presale_unit_price"], ["get", "resale_unit_price"]], null], "#cfd6da",
+                      ["interpolate", ["linear"],
+                        ["coalesce", ["get", "presale_unit_price"], ["get", "resale_unit_price"]],
+                        ...PRICE_STOPS.flat()]]
+                  : ["case",
+                      ["==", ["get", "est_roi"], null], "#cfd6da",
+                      ["interpolate", ["linear"], ["get", "est_roi"], ...ROI_STOPS.flat()]]) as any,
                 "fill-opacity": ["interpolate", ["linear"], ["zoom"],
                   DETAIL_ZOOM - 0.4, 0, DETAIL_ZOOM + 0.3, 0.22,
                   ZONE_FADE - 0.7, 0.22, ZONE_FADE, 0] as any,
@@ -322,35 +326,41 @@ export default function PropertyMap() {
               <span className="dval num">
                 {l.props.median_unit_price == null ? "資料不足"
                   : metric === "price" ? `$${(+l.props.median_unit_price).toFixed(1)}`
-                  : l.props[roiField(basis)] == null ? "樣本不足" : `${(+l.props[roiField(basis)]).toFixed(2)}%`}
+                  : l.props[ROI_FIELD] == null ? "樣本不足" : `${(+l.props[ROI_FIELD]).toFixed(2)}%`}
               </span>
             </div>
           </Marker>
         ))}
 
         {zoneLevel && zoneLabels.map((l) => {
-          const v = l.props.presale_unit_price ?? l.props.resale_unit_price;
+          const v = metric === "price"
+            ? (l.props.presale_unit_price ?? l.props.resale_unit_price)
+            : l.props.est_roi;
           return (
             <Marker key={l.name} longitude={l.lng} latitude={l.lat} anchor="center">
               <div className="zlabel" onClick={(e) => { e.stopPropagation(); zoomToZone(l.name); }}
                 title={`${l.name}:預售 ${l.props.project_count} 案/${l.props.presale_deals} 筆・中古 ${l.props.resale_deals} 筆`}>
                 <span className="zname">{l.name}</span>
-                <span className="zval num">{v == null ? "—" : `$${(+v).toFixed(1)}`}</span>
+                <span className="zval num">
+                  {v == null ? "—" : metric === "price" ? `$${(+v).toFixed(1)}` : `${(+v).toFixed(2)}%`}
+                </span>
               </div>
             </Marker>
           );
         })}
 
         {detail && projects.filter((p) => p.lat && p.lng).map((p) => {
-          const roiRaw = basis === "market" ? p.est_roi_market : p.est_roi;
-          const roi = roiRaw == null ? null : +roiRaw;
+          // 點色跟著使用者選的指標:單價模式看價位、投報模式看報酬
+          const color = metric === "price"
+            ? priceColor(p.unit_price == null ? null : +p.unit_price)
+            : roiColor(p.est_roi_market == null ? null : +p.est_roi_market);
           return (
             <Marker key={p.id} longitude={+p.lng!} latitude={+p.lat!} anchor="center">
               <div
                 onClick={(e) => { e.stopPropagation(); setPopup(p); }}
                 style={{
                   width: 20, height: 20, borderRadius: "50%",
-                  background: roiColor(roi, basis), border: "2.5px solid #fff",
+                  background: color, border: "2.5px solid #fff",
                   boxShadow: "0 1px 4px rgba(0,0,0,.3)", cursor: "pointer",
                 }}
                 title={p.name}
@@ -360,26 +370,36 @@ export default function PropertyMap() {
         })}
 
         {popup && popup.lat && popup.lng && (() => {
-          const roi = basis === "market" ? popup.est_roi_market : popup.est_roi;
-          const rent = basis === "market" ? popup.est_rent_market : popup.est_rent;
-          const samples = basis === "market" ? popup.rent_samples_market : popup.rent_samples;
+          const roi = popup.est_roi_market == null ? null : +popup.est_roi_market;
+          const rent = popup.est_rent_market;
+          const samples = popup.rent_samples_market;
+          const showRoi = metric === "roi"; // 使用者選了投報比才呈現租金推估
           return (
             <Popup longitude={+popup.lng} latitude={+popup.lat} anchor="bottom"
               onClose={() => setPopup(null)} closeButton maxWidth="280px" offset={14}>
               <div className="popup-card">
                 <h3>{popup.name}</h3>
                 <div style={{ color: "var(--ink-soft)", fontSize: 11 }}>{popup.district}・{popup.deal_count} 筆成交</div>
-                <div className="roi" style={{ background: roiColor(roi == null ? null : +roi, basis) }}>
-                  <b className="num">{roi == null ? "—" : `${(+roi).toFixed(2)}%`}</b>
-                  <span>推估年投報{basis === "market" ? "(排除社宅)" : ""}{samples < 5 ? "(樣本不足)" : ""}</span>
-                </div>
+                {showRoi ? (
+                  <div className="roi" style={{ background: roiColor(roi) }}>
+                    <b className="num">{roi == null ? "—" : `${roi.toFixed(2)}%`}</b>
+                    <span>推估年投報{samples < 5 ? "(樣本不足)" : ""}</span>
+                  </div>
+                ) : (
+                  <div className="roi" style={{ background: priceColor(+popup.unit_price) }}>
+                    <b className="num">{(+popup.unit_price).toFixed(1)}</b>
+                    <span>扣車位單價(萬/坪)</span>
+                  </div>
+                )}
                 <dl>
                   <div><dt>中位總價</dt><dd className="num">{(+popup.median_total).toLocaleString()} 萬</dd></div>
                   <div><dt>中位坪數</dt><dd className="num">{(+popup.median_area).toFixed(1)} 坪</dd></div>
-                  <div><dt>扣車位單價</dt><dd className="num">{(+popup.unit_price).toFixed(1)} 萬/坪</dd></div>
-                  <div><dt>推估月租</dt><dd className="num">{rent ? (+rent).toLocaleString() + " 元" : "—"}</dd></div>
+                  {showRoi && <div><dt>扣車位單價</dt><dd className="num">{(+popup.unit_price).toFixed(1)} 萬/坪</dd></div>}
+                  {showRoi && <div><dt>推估月租</dt><dd className="num">{rent ? (+rent).toLocaleString() + " 元" : "—"}</dd></div>}
                 </dl>
-                <div className="note">租金推估:區內租賃中位數 × 坪數 × 0.85(n={samples}{basis === "market" ? ",排除社宅包租代管件" : ",含社宅件"})</div>
+                {showRoi && (
+                  <div className="note">租金推估:區內市場租賃中位數 × 坪數 × 0.85(n={samples},不含社宅包租代管件)</div>
+                )}
               </div>
             </Popup>
           );
@@ -425,16 +445,10 @@ export default function PropertyMap() {
 
       <div id="topbar">
         <span className="title">桃園預售屋投報率地圖</span>
-        <div className="toggle" role="group">
-          <button className={metric === "price" ? "on" : ""} onClick={() => setMetric("price")}>預售單價</button>
-          <button className={metric === "roi" ? "on" : ""} onClick={() => setMetric("roi")}>推估投報率</button>
+        <div className="toggle" role="group" title="租金投報比以市場租賃行情推估(不含社宅包租代管件)">
+          <button className={metric === "price" ? "on" : ""} onClick={() => setMetric("price")}>看單價</button>
+          <button className={metric === "roi" ? "on" : ""} onClick={() => setMetric("roi")}>看租金投報比</button>
         </div>
-        {(metric === "roi" || detail) && (
-          <div className="toggle" role="group" title="社會住宅包租代管件租金受政策壓低,約為市場價一半">
-            <button className={basis === "mix" ? "on" : ""} onClick={() => setBasis("mix")}>含社宅</button>
-            <button className={basis === "market" ? "on" : ""} onClick={() => setBasis("market")}>排除社宅</button>
-          </div>
-        )}
       </div>
       {detail && <button className="backbtn" onClick={back}>← 返回全市</button>}
       {!detail && <div className="zoomhint">滾輪放大或點擊行政區,可看建案與中古成交點位</div>}

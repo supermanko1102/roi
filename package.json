@@ -16,6 +16,7 @@
     "etl:stats": "tsx etl/compute-stats.ts",
     "etl:geocode-projects": "tsx etl/geocode-projects.ts",
     "etl:communities": "tsx etl/match-communities.ts",
+    "etl:zones": "tsx etl/build-zones.ts",
     "etl:all": "pnpm etl:download && pnpm etl:parse && pnpm etl:geocode && pnpm etl:stats && pnpm etl:geocode-projects && pnpm etl:communities"
   },
   "dependencies": {
@@ -36,6 +37,7 @@
     "adm-zip": "^0.5.14",
     "csv-parse": "^5.5.6",
     "drizzle-kit": "^0.31.10",
+    "mapshaper": "^0.7.45",
     "tsx": "^4.16.2",
     "typescript": "^5.5.3"
   }
