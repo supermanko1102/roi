@@ -12,8 +12,8 @@ import AdmZip from "adm-zip";
 
 const OUT = path.join(import.meta.dirname, "downloads");
 // h = 桃園市;要擴市就加代碼(a台北 f新北 b台中 e高雄...)
-// a=中古買賣 b=預售 c=租賃
-const WANTED = ["h_lvr_land_a.csv", "h_lvr_land_b.csv", "h_lvr_land_c.csv"];
+// a=中古買賣 b=預售 c=租賃;a_land=買賣交易的坐落地號(社區歸戶用)
+const WANTED = ["h_lvr_land_a.csv", "h_lvr_land_b.csv", "h_lvr_land_c.csv", "h_lvr_land_a_land.csv"];
 
 async function download(season: string | null) {
   const label = season ?? "latest";

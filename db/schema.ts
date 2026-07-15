@@ -88,6 +88,27 @@ export const rent_deals = pgTable("rent_deals", {
   index("idx_rent_district").on(t.district),
 ]);
 
+// 預售建案備查(plvr「預售備查建案下載」;實登 2.0 之後才有,match-communities 重建)
+export const communities = pgTable("communities", {
+  case_no: text("case_no").primaryKey(),      // 備查編號
+  name: text("name").notNull(),               // 建案名稱
+  district: text("district").notNull(),
+  households: integer("households"),          // 戶數
+  street: text("street"),                     // 坐落街道(工地位置描述)
+  permit_no: text("permit_no"),               // 建造執照字號
+  first_reg: date("first_reg"),               // 第1次登記日期(≈完工/交屋)
+  declare_date: date("declare_date"),         // 申報備查日期
+}, (t) => [
+  index("idx_communities_district").on(t.district),
+]);
+
+// 門牌 → 建案歸戶(中古交易地號 × 建案坐落地號交集;match-communities 重建)
+export const building_community = pgTable("building_community", {
+  addr_key: text("addr_key").primaryKey(),
+  case_no: text("case_no").notNull(),
+  matched_parcels: integer("matched_parcels").default(0), // 交集地號數(信心參考)
+});
+
 // 彙總層(compute-stats 重算;seed 先塞示範值)
 export const district_stats = pgTable("district_stats", {
   district: text("district").primaryKey(),

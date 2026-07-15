@@ -21,6 +21,13 @@ const RESIDENTIAL = "^(住宅大樓|華廈|透天厝|公寓|套房)";
 async function main() {
   const { db, pool } = createDb();
 
+  // 有真中古交易時先清掉 seed 的 demo 件,避免混入區級/棟級統計;
+  // 只有 demo 資料時保留,讓 buildings 不被洗成空表
+  const [{ n: realSales }] = (await db.execute(sql`
+    SELECT count(*)::int AS n FROM sale_deals WHERE raw_season IS DISTINCT FROM 'demo'
+  `)).rows as { n: number }[];
+  if (realSales > 0) await db.execute(sql`DELETE FROM sale_deals WHERE raw_season = 'demo'`);
+
   await db.execute(sql`
     WITH p AS (
       SELECT district,
@@ -125,21 +132,24 @@ async function main() {
       deal_count   = EXCLUDED.deal_count,
       is_demo      = false;
   `);
-  // 棟級彙總:中古交易按門牌歸戶 + geocode 座標(只收已定位的)
-  await db.delete(buildings);
-  await db.execute(sql`
-    INSERT INTO buildings(addr_key, district, lat, lng, deal_count,
-                          median_unit_price, median_total, building_type, build_year, last_deal)
-    SELECT s.addr_key, min(s.district), g.lat, g.lng, count(*),
-           percentile_cont(0.5) WITHIN GROUP (ORDER BY s.unit_price),
-           percentile_cont(0.5) WITHIN GROUP (ORDER BY s.total_price),
-           mode() WITHIN GROUP (ORDER BY s.building_type),
-           max(s.build_year), max(s.deal_date)
-    FROM sale_deals s
-    JOIN geocode_cache g ON g.addr_key = s.addr_key AND g.precision = 'door'
-    WHERE s.unit_price > 0
-    GROUP BY s.addr_key, g.lat, g.lng;
-  `);
+  // 棟級彙總:中古交易按門牌歸戶 + geocode 座標(只收已定位的)。
+  // 僅在有真資料時重建,否則保留 seed 直插的 demo 棟級點位
+  if (realSales > 0) {
+    await db.delete(buildings);
+    await db.execute(sql`
+      INSERT INTO buildings(addr_key, district, lat, lng, deal_count,
+                            median_unit_price, median_total, building_type, build_year, last_deal)
+      SELECT s.addr_key, min(s.district), g.lat, g.lng, count(*),
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY s.unit_price),
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY s.total_price),
+             mode() WITHIN GROUP (ORDER BY s.building_type),
+             max(s.build_year), max(s.deal_date)
+      FROM sale_deals s
+      JOIN geocode_cache g ON g.addr_key = s.addr_key AND g.precision = 'door'
+      WHERE s.unit_price > 0
+      GROUP BY s.addr_key, g.lat, g.lng;
+    `);
+  }
 
   // 有真資料後把 demo 清掉
   const [{ n }] = (await db.execute(sql`SELECT count(*)::int AS n FROM district_stats WHERE is_demo = false`)).rows as { n: number }[];

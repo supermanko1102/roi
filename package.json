@@ -14,7 +14,9 @@
     "etl:parse": "tsx etl/parse-lvr.ts",
     "etl:geocode": "tsx etl/geocode.ts",
     "etl:stats": "tsx etl/compute-stats.ts",
-    "etl:all": "pnpm etl:download && pnpm etl:parse && pnpm etl:geocode && pnpm etl:stats"
+    "etl:geocode-projects": "tsx etl/geocode-projects.ts",
+    "etl:communities": "tsx etl/match-communities.ts",
+    "etl:all": "pnpm etl:download && pnpm etl:parse && pnpm etl:geocode && pnpm etl:stats && pnpm etl:geocode-projects && pnpm etl:communities"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
