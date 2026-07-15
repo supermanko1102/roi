@@ -1,9 +1,8 @@
-# 本地開發一條龍:起 DB → 套 migration → 塞示範資料 → 起 Next dev
+# 起本地環境:DB → migration → 示範資料(dev server 自己跑 pnpm dev)
 local-dev:
     docker compose up -d
-    npm run db:migrate
-    npm run db:seed
-    npm run dev
+    pnpm db:migrate
+    pnpm db:seed
 
 # 收掉本地環境(DB 資料保留在 volume,下次 local-dev 原樣回來)
 local-down:

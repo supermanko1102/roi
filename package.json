@@ -14,7 +14,7 @@
     "etl:parse": "tsx etl/parse-lvr.ts",
     "etl:geocode": "tsx etl/geocode.ts",
     "etl:stats": "tsx etl/compute-stats.ts",
-    "etl:all": "npm run etl:download && npm run etl:parse && npm run etl:geocode && npm run etl:stats"
+    "etl:all": "pnpm etl:download && pnpm etl:parse && pnpm etl:geocode && pnpm etl:stats"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
@@ -27,6 +27,7 @@
   },
   "devDependencies": {
     "@types/adm-zip": "^0.5.8",
+    "@types/geojson": "^7946.0.16",
     "@types/node": "^20.14.0",
     "@types/pg": "^8.11.6",
     "@types/react": "^18.3.3",

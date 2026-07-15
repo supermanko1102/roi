@@ -6,18 +6,31 @@
 
 ```bash
 cp .env.example .env
-npm install
-npm run db:up        # 起 PostgreSQL,自動建 schema + 示範種子資料
-npm run dev          # http://localhost:3000
+pnpm install
+just local-dev       # 起 PostgreSQL → 套 migration → 塞示範種子資料
+pnpm dev             # http://localhost:3000
+```
+
+沒裝 [just](https://github.com/casey/just) 的話等價於 `pnpm db:up && pnpm db:migrate && pnpm db:seed`。
+收環境:`just local-down`(資料保留);連 DB 資料一起刪:`just local-nuke`。
+
+## Schema 管理(Drizzle)
+
+`db/schema.ts` 是唯一的 schema 來源,ETL 與 API 共用同一份表定義與型別。
+
+```bash
+# 改表流程:編輯 db/schema.ts →
+pnpm db:generate     # 產生 migration SQL(db/migrations/)
+pnpm db:migrate      # 套用到 DATABASE_URL 指到的 DB
 ```
 
 ## 灌真實資料
 
 ```bash
-npm run etl:download            # 抓最新一期(或指定:tsx etl/download-lvr.ts 115S1 115S2)
-npm run etl:parse               # CSV → sale_deals / presale_deals / rent_deals
-npm run etl:geocode             # 門牌 → 座標(NLSC,首次全量約 2 小時,之後增量幾分鐘)
-npm run etl:stats               # 重算 district_stats / projects / buildings,自動清除示範資料
+pnpm etl:download            # 抓最新一期(或指定:tsx etl/download-lvr.ts 115S1 115S2)
+pnpm etl:parse               # CSV → sale_deals / presale_deals / rent_deals
+pnpm etl:geocode             # 門牌 → 座標(NLSC,平行查詢,首次全量約 20~30 分,之後增量幾分鐘)
+pnpm etl:stats               # 重算 district_stats / projects / buildings,自動清除示範資料
 ```
 
 實價登錄每月 1、11、21 日更新,`etl:all` 排進 cron 或 GitHub Actions 即可。
