@@ -1,0 +1,56 @@
+:root {
+  --ink: #22303a;
+  --ink-soft: #5c6b76;
+  --line: #d8dee2;
+  --teal: #16606b;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+  color: var(--ink);
+  overflow: hidden;
+}
+.num { font-variant-numeric: tabular-nums; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+
+#topbar {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 10;
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(255,255,255,.95); border: 1px solid var(--line); border-radius: 12px;
+  padding: 8px 12px; box-shadow: 0 2px 12px rgba(0,0,0,.10);
+}
+#topbar .title { font-size: 13.5px; font-weight: 700; }
+.toggle { display: flex; background: #eef1f2; border-radius: 8px; padding: 3px; }
+.toggle button {
+  border: none; background: transparent; padding: 5px 14px; font-size: 12.5px;
+  border-radius: 6px; cursor: pointer; color: var(--ink-soft); font-weight: 600;
+}
+.toggle button.on { background: var(--teal); color: #fff; }
+.backbtn {
+  position: absolute; top: 70px; left: 14px; z-index: 10;
+  background: #fff; border: 1px solid var(--line); border-radius: 8px;
+  padding: 7px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,.10);
+}
+.dlabel {
+  display: flex; box-shadow: 0 1px 6px rgba(0,0,0,.22); border-radius: 6px;
+  overflow: hidden; white-space: nowrap; cursor: pointer;
+  font-size: 12.5px; font-weight: 700; line-height: 1;
+}
+.dlabel .dname { background: #fff; color: var(--ink); padding: 6px 8px; }
+.dlabel .dval  { background: #f6d35b; color: #43390f; padding: 6px 8px; }
+.dlabel.nodata .dval { background: #cfd6da; color: #5c6b76; }
+.popup-card { font-size: 12.5px; min-width: 210px; }
+.popup-card h3 { font-size: 14.5px; margin-bottom: 2px; }
+.popup-card .roi { margin: 8px 0; padding: 7px 10px; border-radius: 8px; color: #fff;
+  display: flex; justify-content: space-between; align-items: baseline; }
+.popup-card .roi b { font-size: 18px; }
+.popup-card dl { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
+.popup-card dt { color: var(--ink-soft); font-size: 10.5px; }
+.popup-card dd { font-weight: 600; }
+.popup-card .note { margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--line);
+  font-size: 10px; color: var(--ink-soft); line-height: 1.5; }
+.popup-card table.deals { width: 100%; border-collapse: collapse; margin-top: 4px; font-size: 11px; }
+.popup-card table.deals th { text-align: left; color: var(--ink-soft); font-size: 10px;
+  font-weight: 600; padding: 2px 4px; border-bottom: 1px solid var(--line); }
+.popup-card table.deals td { padding: 3px 4px; border-bottom: 1px dashed #edf0f2; }
