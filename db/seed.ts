@@ -247,11 +247,15 @@ async function main() {
   for (let i = 0; i < bldgRows.length; i += 300)
     await db.insert(buildings).values(bldgRows.slice(i, i + 300)).onConflictDoNothing();
 
-  // 示範用「排除社宅」口徑:以混合值粗放大(真資料由 compute-stats 重算)
+  // 示範用「排除社宅」與「中古屋」口徑:以混合值粗放大(真資料由 compute-stats 重算)
   await db.update(district_stats).set({
     median_rent_ping_market: sql`round(median_rent_ping * 1.9)`,
     est_roi_market: sql`round((est_roi * 1.9)::numeric, 2)`,
     rent_samples_market: sql`ceil(rent_samples * 0.4)`,
+    median_unit_price_resale: sql`round((median_unit_price * 0.9)::numeric, 1)`,
+    est_roi_resale: sql`round((est_roi * 1.1)::numeric, 2)`,
+    est_roi_resale_market: sql`round((est_roi * 1.1 * 1.9)::numeric, 2)`,
+    resale_count: sql`presale_count * 3`,
   }).where(eq(district_stats.is_demo, true));
   await db.update(projects).set({
     est_rent_market: sql`round(est_rent * 1.9)`,

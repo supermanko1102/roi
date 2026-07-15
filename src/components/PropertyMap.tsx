@@ -5,6 +5,7 @@ import type { FeatureCollection } from "geojson";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 type Metric = "price" | "roi"; // 使用者自選:看單價或看租金投報比
+type Market = "presale" | "resale"; // 預售屋 vs 中古屋(屋齡≤8年住宅,與租金池同屋齡帶)
 type BldgDeal = {
   address: string; deal_date: string | null;
   total_price: string; area_ping: string; unit_price: string | null;
@@ -50,10 +51,16 @@ const ZONE_FADE = 13.9;
 const PRICE_STOPS: [number, string][] = [[20, "#e2ebf5"], [32, "#7aa7cf"], [44, "#184a7c"]];
 // 投報率一律用市場行情口徑(排除社會住宅包租代管件,租金受政策壓低不具參考性)
 const ROI_STOPS: [number, string][] = [[2.6, "#d64541"], [3.4, "#e0a92e"], [5.0, "#2f9e6e"]];
-const ROI_FIELD = "est_roi_market";
+// 行政區統計欄位:預售/中古各一套(中古=屋齡≤8年,單價與投報範圍相近,色階共用)
+const PRICE_FIELD: Record<Market, string> = {
+  presale: "median_unit_price", resale: "median_unit_price_resale",
+};
+const ROI_FIELD: Record<Market, string> = {
+  presale: "est_roi_market", resale: "est_roi_resale_market",
+};
 
-function fillExpr(metric: Metric): any {
-  const prop = metric === "price" ? "median_unit_price" : ROI_FIELD;
+function fillExpr(metric: Metric, market: Market): any {
+  const prop = metric === "price" ? PRICE_FIELD[market] : ROI_FIELD[market];
   const stops = metric === "price" ? PRICE_STOPS : ROI_STOPS;
   return [
     "case",
@@ -80,6 +87,7 @@ export default function PropertyMap() {
   const mapRef = useRef<MapRef>(null);
   const [districts, setDistricts] = useState<FeatureCollection | null>(null);
   const [metric, setMetric] = useState<Metric>("price");
+  const [market, setMarket] = useState<Market>("presale");
   const [zoom, setZoom] = useState(10.3);
   const [projects, setProjects] = useState<Project[]>([]);
   const [popup, setPopup] = useState<Project | null>(null);
@@ -235,7 +243,7 @@ export default function PropertyMap() {
           <Source id="districts" type="geojson" data={districts}>
             <Layer id="district-fill" type="fill"
               paint={{
-                "fill-color": fillExpr(metric) as any,
+                "fill-color": fillExpr(metric, market) as any,
                 // 放大進細節層級時色塊淡出,只留區界
                 "fill-opacity": ["interpolate", ["linear"], ["zoom"],
                   DETAIL_ZOOM - 0.6, 0.34, DETAIL_ZOOM + 0.8, 0.04] as any,
@@ -253,12 +261,14 @@ export default function PropertyMap() {
           <Source id="zones" type="geojson" data={zones}>
             <Layer id="zone-fill" type="fill"
               paint={{
+                // 生活圈投報率目前只有預售口徑(圈內建案中位);中古模式看投報時以灰色呈現
                 "fill-color": (metric === "price"
                   ? ["case",
-                      ["==", ["coalesce", ["get", "presale_unit_price"], ["get", "resale_unit_price"]], null], "#cfd6da",
+                      ["==", ["get", market === "presale" ? "presale_unit_price" : "resale_unit_price"], null], "#cfd6da",
                       ["interpolate", ["linear"],
-                        ["coalesce", ["get", "presale_unit_price"], ["get", "resale_unit_price"]],
+                        ["get", market === "presale" ? "presale_unit_price" : "resale_unit_price"],
                         ...PRICE_STOPS.flat()]]
+                  : market === "resale" ? "#cfd6da"
                   : ["case",
                       ["==", ["get", "est_roi"], null], "#cfd6da",
                       ["interpolate", ["linear"], ["get", "est_roi"], ...ROI_STOPS.flat()]]) as any,
@@ -319,14 +329,14 @@ export default function PropertyMap() {
         {!detail && labels.map((l) => (
           <Marker key={l.name} longitude={l.lng} latitude={l.lat} anchor="center">
             <div
-              className={`dlabel ${l.props.median_unit_price == null ? "nodata" : ""}`}
+              className={`dlabel ${l.props[PRICE_FIELD[market]] == null ? "nodata" : ""}`}
               onClick={(e) => { e.stopPropagation(); drill(l.name); }}
             >
               <span className="dname">{l.name}</span>
               <span className="dval num">
-                {l.props.median_unit_price == null ? "資料不足"
-                  : metric === "price" ? `$${(+l.props.median_unit_price).toFixed(1)}`
-                  : l.props[ROI_FIELD] == null ? "樣本不足" : `${(+l.props[ROI_FIELD]).toFixed(2)}%`}
+                {l.props[PRICE_FIELD[market]] == null ? "資料不足"
+                  : metric === "price" ? `$${(+l.props[PRICE_FIELD[market]]).toFixed(1)}`
+                  : l.props[ROI_FIELD[market]] == null ? "樣本不足" : `${(+l.props[ROI_FIELD[market]]).toFixed(2)}%`}
               </span>
             </div>
           </Marker>
@@ -334,8 +344,8 @@ export default function PropertyMap() {
 
         {zoneLevel && zoneLabels.map((l) => {
           const v = metric === "price"
-            ? (l.props.presale_unit_price ?? l.props.resale_unit_price)
-            : l.props.est_roi;
+            ? (market === "presale" ? l.props.presale_unit_price : l.props.resale_unit_price)
+            : (market === "presale" ? l.props.est_roi : null);
           return (
             <Marker key={l.name} longitude={l.lng} latitude={l.lat} anchor="center">
               <div className="zlabel" onClick={(e) => { e.stopPropagation(); zoomToZone(l.name); }}
@@ -349,7 +359,7 @@ export default function PropertyMap() {
           );
         })}
 
-        {detail && projects.filter((p) => p.lat && p.lng).map((p) => {
+        {detail && market === "presale" && projects.filter((p) => p.lat && p.lng).map((p) => {
           // 點色跟著使用者選的指標:單價模式看價位、投報模式看報酬
           const color = metric === "price"
             ? priceColor(p.unit_price == null ? null : +p.unit_price)
@@ -444,7 +454,11 @@ export default function PropertyMap() {
       </Map>
 
       <div id="topbar">
-        <span className="title">桃園預售屋投報率地圖</span>
+        <span className="title">桃園房價投報地圖</span>
+        <div className="toggle" role="group" title="中古=屋齡8年內住宅(與租金推估池同屋齡帶)">
+          <button className={market === "presale" ? "on" : ""} onClick={() => { setMarket("presale"); }}>預售</button>
+          <button className={market === "resale" ? "on" : ""} onClick={() => { setMarket("resale"); setPopup(null); }}>中古</button>
+        </div>
         <div className="toggle" role="group" title="租金投報比以市場租賃行情推估(不含社宅包租代管件)">
           <button className={metric === "price" ? "on" : ""} onClick={() => setMetric("price")}>看單價</button>
           <button className={metric === "roi" ? "on" : ""} onClick={() => setMetric("roi")}>看租金投報比</button>

@@ -18,6 +18,11 @@ export async function GET() {
       median_unit_price: s?.median_unit_price ?? null,
       est_roi: s?.est_roi ?? null,
       est_roi_market: s?.est_roi_market ?? null,
+      median_unit_price_resale: s?.median_unit_price_resale ?? null, // 中古(屋齡≤8年)
+      est_roi_resale: s?.est_roi_resale ?? null,
+      est_roi_resale_market: s?.est_roi_resale_market ?? null,
+      resale_count: s?.resale_count ?? 0,
+      presale_premium: s?.presale_premium ?? null,
       presale_count: s?.presale_count ?? 0,
       rent_samples: s?.rent_samples ?? 0,
       rent_samples_market: s?.rent_samples_market ?? 0,
