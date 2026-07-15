@@ -8,8 +8,10 @@
  * 中古屋:住宅類、屋齡≤MAX_BUILDING_AGE(與租金池同一屋齡帶),扣車位價與車位坪;
  *   presale_premium = 預售中位單價 vs 中古新古屋中位單價之溢價 %。
  * 樣本 < MIN_SAMPLES 時 est_roi 存 null,前端顯示「資料不足」。
+ * 彙總 SQL(percentile_cont/CTE)刻意保留原生寫法,經 drizzle sql template 參數化執行。
  */
-import { Client } from "pg";
+import { eq, sql } from "drizzle-orm";
+import { createDb, district_stats, projects, buildings } from "../db/client";
 
 const MIN_SAMPLES = 5;
 const MAX_BUILDING_AGE = 8;
@@ -17,10 +19,9 @@ const AREA_DISCOUNT = 0.85;
 const RESIDENTIAL = "^(住宅大樓|華廈|透天厝|公寓|套房)";
 
 async function main() {
-  const c = new Client({ connectionString: process.env.DATABASE_URL ?? "postgres://roi:roi@localhost:5432/taoyuan_roi" });
-  await c.connect();
+  const { db, pool } = createDb();
 
-  await c.query(`
+  await db.execute(sql`
     WITH p AS (
       SELECT district,
              percentile_cont(0.5) WITHIN GROUP (ORDER BY unit_price) AS mup,
@@ -35,7 +36,7 @@ async function main() {
              count(*) FILTER (WHERE NOT is_social) AS rc_mkt
       FROM rent_deals
       WHERE (build_year IS NULL OR build_year >= extract(year FROM now()) - ${MAX_BUILDING_AGE})
-        AND (building_type IS NULL OR building_type ~ '${RESIDENTIAL}')
+        AND (building_type IS NULL OR building_type ~ ${RESIDENTIAL})
       GROUP BY district
     ),
     sa AS (
@@ -43,7 +44,7 @@ async function main() {
              percentile_cont(0.5) WITHIN GROUP (ORDER BY unit_price) AS mup_resale,
              count(*) AS sc
       FROM sale_deals
-      WHERE building_type ~ '${RESIDENTIAL}'
+      WHERE building_type ~ ${RESIDENTIAL}
         AND build_year IS NOT NULL AND build_year >= extract(year FROM now()) - ${MAX_BUILDING_AGE}
         AND unit_price > 0
       GROUP BY district
@@ -87,8 +88,8 @@ async function main() {
       updated_at        = now();
   `);
 
-  await c.query(`DELETE FROM projects WHERE is_demo = false;`);
-  await c.query(`
+  await db.delete(projects).where(eq(projects.is_demo, false));
+  await db.execute(sql`
     INSERT INTO projects(name, district, median_total, median_area, unit_price,
                          est_rent, est_roi, est_rent_market, est_roi_market,
                          rent_samples, rent_samples_market, deal_count, is_demo)
@@ -125,8 +126,8 @@ async function main() {
       is_demo      = false;
   `);
   // 棟級彙總:中古交易按門牌歸戶 + geocode 座標(只收已定位的)
-  await c.query(`DELETE FROM buildings;`);
-  await c.query(`
+  await db.delete(buildings);
+  await db.execute(sql`
     INSERT INTO buildings(addr_key, district, lat, lng, deal_count,
                           median_unit_price, median_total, building_type, build_year, last_deal)
     SELECT s.addr_key, min(s.district), g.lat, g.lng, count(*),
@@ -141,12 +142,12 @@ async function main() {
   `);
 
   // 有真資料後把 demo 清掉
-  const real = await c.query("SELECT count(*) FROM district_stats WHERE is_demo=false");
-  if (+real.rows[0].count > 0) {
-    await c.query("DELETE FROM district_stats WHERE is_demo=true");
-    await c.query("DELETE FROM projects WHERE is_demo=true");
+  const [{ n }] = (await db.execute(sql`SELECT count(*)::int AS n FROM district_stats WHERE is_demo = false`)).rows as { n: number }[];
+  if (n > 0) {
+    await db.delete(district_stats).where(eq(district_stats.is_demo, true));
+    await db.delete(projects).where(eq(projects.is_demo, true));
   }
   console.log("stats updated");
-  await c.end();
+  await pool.end();
 }
 main().catch(e => { console.error(e); process.exit(1); });

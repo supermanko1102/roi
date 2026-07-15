@@ -6,10 +6,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parse } from "csv-parse/sync";
-import { Client } from "pg";
+import { eq } from "drizzle-orm";
+import { createDb, sale_deals, presale_deals, rent_deals } from "../db/client";
 
 const PING = 3.305785; // m² per 坪
 const DL = path.join(import.meta.dirname, "downloads");
+const BATCH = 500;
 
 const rocDate = (s?: string): string | null => {
   if (!s || s.length < 6) return null;
@@ -32,9 +34,12 @@ function readCsv(file: string): string[][] {
   return rows.filter((_, i) => i !== 1); // 第 2 列是英文表頭
 }
 
+async function insertBatched<T>(insert: (chunk: T[]) => Promise<unknown>, rows: T[]) {
+  for (let i = 0; i < rows.length; i += BATCH) await insert(rows.slice(i, i + BATCH));
+}
+
 async function main() {
-  const client = new Client({ connectionString: process.env.DATABASE_URL ?? "postgres://roi:roi@localhost:5432/taoyuan_roi" });
-  await client.connect();
+  const { db, pool } = createDb();
 
   for (const season of fs.readdirSync(DL)) {
     const dir = path.join(DL, season);
@@ -49,8 +54,7 @@ async function main() {
       const iTotal = col(h, "總價元"), iPark = col(h, "車位總價");
       const iParkArea = col(h, "車位移轉總面積");
       const iType = col(h, "建物型態"), iBuilt = col(h, "建築完成年月");
-      await client.query("DELETE FROM sale_deals WHERE raw_season=$1", [season]);
-      let n = 0;
+      const out: (typeof sale_deals.$inferInsert)[] = [];
       for (const r of rows) {
         if (!(r[iTarget] ?? "").includes("建物")) continue; // 濾掉純土地/車位
         const total = num(r[iTotal]), park = num(r[iPark]) ?? 0;
@@ -65,15 +69,18 @@ async function main() {
         const buildYear = /^\d{2,3}$/.test(builtRoc) ? +builtRoc + 1911 : null;
         const addr = r[iAddr] ?? "";
         const addrKey = addr.includes("號") ? addr.replace(/號.*$/, "號") : null;
-        await client.query(
-          `INSERT INTO sale_deals(district,address,deal_date,total_price,parking_price,area_ping,parking_area_ping,main_area_ping,unit_price,unit_price_main,building_type,build_year,addr_key,raw_season)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-          [r[iDist], addr, rocDate(r[iDate]), total / 10000, park / 10000,
-           areaPing, parkAreaPing, mainAreaPing, unit, unitMain,
-           iType >= 0 ? r[iType] || null : null, buildYear, addrKey, season]);
-        n++;
+        out.push({
+          district: r[iDist], address: addr, deal_date: rocDate(r[iDate]),
+          total_price: total / 10000, parking_price: park / 10000,
+          area_ping: areaPing, parking_area_ping: parkAreaPing, main_area_ping: mainAreaPing,
+          unit_price: unit, unit_price_main: unitMain,
+          building_type: iType >= 0 ? r[iType] || null : null,
+          build_year: buildYear, addr_key: addrKey, raw_season: season,
+        });
       }
-      console.log(`[${season}] 買賣 ${n} 筆`);
+      await db.delete(sale_deals).where(eq(sale_deals.raw_season, season));
+      await insertBatched((c) => db.insert(sale_deals).values(c), out);
+      console.log(`[${season}] 買賣 ${out.length} 筆`);
     }
 
     // ---- 預售屋 (b) ----
@@ -84,21 +91,22 @@ async function main() {
       const iDate = col(h, "交易年月日"), iArea = col(h, "建物移轉總面積");
       const iTotal = col(h, "總價元"), iPark = col(h, "車位總價");
       const iProj = col(h, "建案名稱");
-      await client.query("DELETE FROM presale_deals WHERE raw_season=$1", [season]);
-      let n = 0;
+      const out: (typeof presale_deals.$inferInsert)[] = [];
       for (const r of rows) {
         const total = num(r[iTotal]), park = num(r[iPark]) ?? 0;
         const areaPing = num(r[iArea]) ? num(r[iArea])! / PING : null;
         if (!total || !areaPing || areaPing <= 0) continue;
         const unit = (total - park) / 10000 / areaPing; // 萬/坪(粗估:未扣車位坪)
-        await client.query(
-          `INSERT INTO presale_deals(district,project_name,address,deal_date,total_price,parking_price,area_ping,unit_price,raw_season)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-          [r[iDist], iProj >= 0 ? r[iProj] : null, r[iAddr], rocDate(r[iDate]),
-           total / 10000, park / 10000, areaPing, unit, season]);
-        n++;
+        out.push({
+          district: r[iDist], project_name: iProj >= 0 ? r[iProj] : null,
+          address: r[iAddr], deal_date: rocDate(r[iDate]),
+          total_price: total / 10000, parking_price: park / 10000,
+          area_ping: areaPing, unit_price: unit, raw_season: season,
+        });
       }
-      console.log(`[${season}] 預售 ${n} 筆`);
+      await db.delete(presale_deals).where(eq(presale_deals.raw_season, season));
+      await insertBatched((c) => db.insert(presale_deals).values(c), out);
+      console.log(`[${season}] 預售 ${out.length} 筆`);
     }
 
     // ---- 租賃 (c) ----
@@ -109,25 +117,26 @@ async function main() {
       const iDate = col(h, "租賃年月日"), iArea = col(h, "建物總面積");
       const iRent = col(h, "總額元"), iBuilt = col(h, "建築完成年月");
       const iType = col(h, "建物型態"), iSvc = col(h, "租賃住宅服務");
-      await client.query("DELETE FROM rent_deals WHERE raw_season=$1", [season]);
-      let n = 0;
+      const out: (typeof rent_deals.$inferInsert)[] = [];
       for (const r of rows) {
         const rent = num(r[iRent]);
         const areaPing = num(r[iArea]) ? num(r[iArea])! / PING : null;
         if (!rent || !areaPing || areaPing <= 0) continue;
         const builtRoc = (r[iBuilt] ?? "").slice(0, 3);
         const buildYear = /^\d{2,3}$/.test(builtRoc) ? +builtRoc + 1911 : null;
-        const buildingType = iType >= 0 ? r[iType] || null : null;
-        const isSocial = iSvc >= 0 && (r[iSvc] ?? "").includes("社會住宅");
-        await client.query(
-          `INSERT INTO rent_deals(district,address,deal_date,monthly_rent,area_ping,rent_per_ping,build_year,building_type,is_social,raw_season)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-          [r[iDist], r[iAddr], rocDate(r[iDate]), rent, areaPing, rent / areaPing, buildYear, buildingType, isSocial, season]);
-        n++;
+        out.push({
+          district: r[iDist], address: r[iAddr], deal_date: rocDate(r[iDate]),
+          monthly_rent: rent, area_ping: areaPing, rent_per_ping: rent / areaPing,
+          build_year: buildYear, building_type: iType >= 0 ? r[iType] || null : null,
+          is_social: iSvc >= 0 && (r[iSvc] ?? "").includes("社會住宅"),
+          raw_season: season,
+        });
       }
-      console.log(`[${season}] 租賃 ${n} 筆`);
+      await db.delete(rent_deals).where(eq(rent_deals.raw_season, season));
+      await insertBatched((c) => db.insert(rent_deals).values(c), out);
+      console.log(`[${season}] 租賃 ${out.length} 筆`);
     }
   }
-  await client.end();
+  await pool.end();
 }
 main().catch(e => { console.error(e); process.exit(1); });

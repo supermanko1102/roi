@@ -1,15 +1,18 @@
 /**
  * 門牌 → 座標(NLSC 國土測繪中心 TextQueryMap,免費、需帶 Referer)
  * 撈 sale_deals 中尚未在 geocode_cache 的 addr_key,逐筆查詢後寫入快取。
- * 可中斷續跑(只查缺的)。禮貌速率 ~3 req/s。
+ * 可中斷續跑(只查缺的)。平行 worker,整體約 15~20 req/s(再高怕被封)。
  * 用法:
  *   tsx etl/geocode.ts                 # 全部缺的
  *   tsx etl/geocode.ts --district 八德區
- *   tsx etl/geocode.ts --limit 30
+ *   tsx etl/geocode.ts --limit 200
+ *   tsx etl/geocode.ts --concurrency 4 # 降速
  */
-import { Client } from "pg";
+import { and, eq, isNull, isNotNull } from "drizzle-orm";
+import { createDb, sale_deals, geocode_cache } from "../db/client";
 
-const RATE_MS = 300;
+const RATE_MS = 150;        // 每個 worker 自己的間隔
+const DEFAULT_CONCURRENCY = 6;
 const NLSC = "https://api.nlsc.gov.tw/idc/TextQueryMap/";
 
 // 全形數字/符號 → 半形(NLSC 查詢用半形,回傳 CONTENT 是全形)
@@ -44,44 +47,63 @@ async function main() {
   const args = process.argv.slice(2);
   const district = args.includes("--district") ? args[args.indexOf("--district") + 1] : null;
   const limit = args.includes("--limit") ? +args[args.indexOf("--limit") + 1] : null;
+  const concurrency = args.includes("--concurrency")
+    ? Math.max(1, +args[args.indexOf("--concurrency") + 1]) : DEFAULT_CONCURRENCY;
 
-  const c = new Client({ connectionString: process.env.DATABASE_URL ?? "postgres://roi:roi@localhost:5432/taoyuan_roi" });
-  await c.connect();
+  const { db, pool } = createDb();
 
-  const { rows } = await c.query(
-    `SELECT DISTINCT ON (s.addr_key) s.addr_key, s.district FROM sale_deals s
-     LEFT JOIN geocode_cache g ON g.addr_key = s.addr_key
-     WHERE s.addr_key IS NOT NULL AND g.addr_key IS NULL
-       ${district ? "AND s.district = $1" : ""}
-     ORDER BY s.addr_key ${limit ? `LIMIT ${limit}` : ""}`,
-    district ? [district] : []
-  );
-  console.log(`[geocode] 待查 ${rows.length} 筆${district ? `(${district})` : ""}`);
+  const base = db.selectDistinctOn([sale_deals.addr_key], {
+    addr_key: sale_deals.addr_key,
+    district: sale_deals.district,
+  }).from(sale_deals)
+    .leftJoin(geocode_cache, eq(geocode_cache.addr_key, sale_deals.addr_key))
+    .where(and(
+      isNotNull(sale_deals.addr_key),
+      isNull(geocode_cache.addr_key),
+      district ? eq(sale_deals.district, district) : undefined,
+    ))
+    .orderBy(sale_deals.addr_key);
+  const rows = limit ? await base.limit(limit) : await base;
+  console.log(`[geocode] 待查 ${rows.length} 筆${district ? `(${district})` : ""},${concurrency} 路平行`);
 
-  let hit = 0, miss = 0, fail = 0;
-  for (const [i, { addr_key, district: d }] of rows.entries()) {
-    try {
-      const loc = await lookup(addr_key, d);
-      if (loc) {
-        await c.query(
-          `INSERT INTO geocode_cache(addr_key, lat, lng, precision) VALUES($1,$2,$3,'door')
-           ON CONFLICT (addr_key) DO NOTHING`, [addr_key, loc.lat, loc.lng]);
-        hit++;
-      } else {
-        await c.query(
-          `INSERT INTO geocode_cache(addr_key, precision) VALUES($1,'none')
-           ON CONFLICT (addr_key) DO NOTHING`, [addr_key]);
-        miss++;
+  const t0 = Date.now();
+  let next = 0, done = 0, hit = 0, miss = 0, fail = 0;
+  async function worker() {
+    while (true) {
+      const i = next++;
+      if (i >= rows.length) return;
+      const { addr_key, district: d } = rows[i];
+      if (!addr_key) { done++; continue; }
+      try {
+        const loc = await lookup(addr_key, d);
+        if (loc) {
+          await db.insert(geocode_cache)
+            .values({ addr_key, lat: loc.lat, lng: loc.lng, precision: "door" })
+            .onConflictDoNothing();
+          hit++;
+        } else {
+          await db.insert(geocode_cache)
+            .values({ addr_key, precision: "none" })
+            .onConflictDoNothing();
+          miss++;
+        }
+      } catch (e) {
+        fail++; // 網路/限流錯誤不寫快取,下次續跑會重試
+        if (fail % 10 === 1) console.warn(`  [warn] ${addr_key}: ${e}`);
+        await sleep(3000);
       }
-    } catch (e) {
-      fail++; // 網路/限流錯誤不寫快取,下次續跑會重試
-      if (fail % 10 === 1) console.warn(`  [warn] ${addr_key}: ${e}`);
-      await sleep(3000);
+      done++;
+      if (done % 500 === 0) {
+        const rps = done / ((Date.now() - t0) / 1000);
+        const etaMin = (rows.length - done) / rps / 60;
+        console.log(`  ${done}/${rows.length} hit=${hit} miss=${miss} fail=${fail}(${rps.toFixed(1)}/s,約剩 ${etaMin.toFixed(0)} 分)`);
+      }
+      await sleep(RATE_MS);
     }
-    if ((i + 1) % 200 === 0) console.log(`  ${i + 1}/${rows.length} hit=${hit} miss=${miss} fail=${fail}`);
-    await sleep(RATE_MS);
   }
-  console.log(`[geocode] 完成:hit=${hit} miss=${miss} fail=${fail}(命中率 ${(hit / Math.max(1, hit + miss) * 100).toFixed(1)}%)`);
-  await c.end();
+  await Promise.all(Array.from({ length: concurrency }, worker));
+  const secs = (Date.now() - t0) / 1000;
+  console.log(`[geocode] 完成:hit=${hit} miss=${miss} fail=${fail}(命中率 ${(hit / Math.max(1, hit + miss) * 100).toFixed(1)}%,${secs.toFixed(0)}s,${(done / secs).toFixed(1)}/s)`);
+  await pool.end();
 }
 main().catch((e) => { console.error(e); process.exit(1); });
