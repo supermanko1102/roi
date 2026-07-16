@@ -29,6 +29,8 @@ body {
 .cancelbtn.on { background: #b02a37; border-color: #b02a37; color: #fff; }
 .cancelbtn.metro { border-color: #bcd4c8; color: #146c4c; }
 .cancelbtn.metro.on { background: #146c4c; border-color: #146c4c; color: #fff; }
+.cancelbtn.ic { border-color: #c3ccd2; color: #37474f; }
+.cancelbtn.ic.on { background: #37474f; border-color: #37474f; color: #fff; }
 .toggle { display: flex; background: #eef1f2; border-radius: 8px; padding: 3px; }
 .toggle button {
   border: none; background: transparent; padding: 5px 14px; font-size: 12.5px;
@@ -69,6 +71,8 @@ body {
   background: #e8f1f2; color: var(--teal);
 }
 .chip.presale { background: var(--teal); color: #fff; }
+.chip.metro { background: #e2f3ea; color: #146c4c; }
+.chip.ic { background: #e8ecef; color: #37474f; }
 /* 價格主視覺:一眼看到「一坪多少、一戶多少、貴還是便宜」 */
 .hero {
   background: #f6f8f9; border-radius: 12px; padding: 14px 16px; margin-bottom: 10px;

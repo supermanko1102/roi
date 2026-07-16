@@ -47,8 +47,12 @@ export const priceColor = (v: number | null) => rampColor(PRICE_STOPS, v);
 export const devColor = (v: number | null) => rampColor(DEV_STOPS, v);
 // 發散色階兩端深色配白字、中段淺色配深字
 export const devTextColor = (v: number | null) => (v != null && Math.abs(v) >= 7 ? "#fff" : "#43390f");
-export const fmtDev = (v: number | null, digits = 1) =>
-  v == null ? null : `${v > 0 ? "+" : ""}${v.toFixed(digits)}%`;
+// 先取位數再判斷正負,避免 -0.4 顯示成「-0%」
+export const fmtDev = (v: number | null, digits = 1) => {
+  if (v == null) return null;
+  const r = +v.toFixed(digits);
+  return `${r > 0 ? "+" : ""}${r.toFixed(digits)}%`;
+};
 
 // API 回應的 city(全市各帶基準)→ 每個 feature 補 dev_<band>(%)
 export function augmentDev(geo: any) {

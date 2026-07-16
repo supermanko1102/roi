@@ -8,9 +8,10 @@ import { type BandFilter } from "@/lib/age";
 import { ROOM_BANDS, ROOM_LABEL, type RoomFilter } from "@/lib/rooms";
 import { makeContains, haversineM, geomBbox } from "@/lib/geo";
 import {
-  type ColorMode, LINE_COLOR, PRICE_INTERP, DEV_INTERP,
+  type ColorMode, LINE_COLOR,
   fillExpr, priceProp, devProp, priceColor, devColor, devTextColor, fmtDev, augmentDev,
 } from "@/lib/map-colors";
+import { addMapIcons, houseIconExpr, pillTextColorExpr } from "@/lib/map-icons";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 // 預售 only:地圖上只有建案點;中古成交仍留在區/圈聚合裡當「行情基準」,但不再是可瀏覽的點位
@@ -31,6 +32,7 @@ type PresalePopup = {
   band: string; build_year: number | null;
   cancel_count: number;
   st_name: string | null; st_line: string | null; st_m: number | null; // 最近車站
+  ic_name: string | null; ic_m: number | null;                          // 最近交流道
 };
 
 // CARTO Positron 淺色底圖:極簡資料視覺化風格,CDN 快(NLSC 官方圖磚較慢且視覺雜訊多)
@@ -63,6 +65,7 @@ export default function PropertyMap() {
   const [rooms, setRooms] = useState<RoomFilter>("all");
   const [totalBand, setTotalBand] = useState("all");
   const [nearMetro, setNearMetro] = useState(false);
+  const [nearIC, setNearIC] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
   const [zoom, setZoom] = useState(10.3);
   const [points, setPoints] = useState<FeatureCollection | null>(null);
@@ -126,12 +129,15 @@ export default function PropertyMap() {
     return m;
   }, [districts]);
 
-  // 車站索引(最近車站距離用)
-  const stationIdx = useMemo(() => (stations?.features ?? []).map((f: any) => ({
+  // 車站/交流道索引(最近距離用;stations.geojson 用 kind 區分)
+  const transportIdx = useMemo(() => (stations?.features ?? []).map((f: any) => ({
     name: f.properties.name as string, line: f.properties.line as string,
     status: f.properties.status as string,
+    kind: (f.properties.kind ?? "station") as string,
     lng: f.geometry.coordinates[0] as number, lat: f.geometry.coordinates[1] as number,
   })), [stations]);
+  const railIdx = useMemo(() => transportIdx.filter((t) => t.kind === "station"), [transportIdx]);
+  const icIdx = useMemo(() => transportIdx.filter((t) => t.kind === "interchange"), [transportIdx]);
 
   // 篩選在前端做(cluster 聚合發生在 source 層,layer filter 濾不掉 cluster 內容):
   // 總價帶 → 補 dev(%)(基準=所在生活圈同帶中位,圈外退回行政區)→ 補最近車站 → 近捷運
@@ -154,18 +160,25 @@ export default function PropertyMap() {
         if (base == null) base = distProps[p.district]?.[`price_${key}`] ?? null;
         const dev = base && p.price != null ? +((p.price / base - 1) * 100).toFixed(1) : null;
         let st: { name: string; line: string; m: number } | null = null;
-        for (const s of stationIdx) {
+        for (const s of railIdx) {
           const m = haversineM(lat, lng, s.lat, s.lng);
           if (!st || m < st.m) st = { name: s.name, line: s.line, m };
+        }
+        let ic: { name: string; m: number } | null = null;
+        for (const s of icIdx) {
+          const m = haversineM(lat, lng, s.lat, s.lng);
+          if (!ic || m < ic.m) ic = { name: s.name, m };
         }
         return { ...f, properties: {
           ...p, dev, dev_label: fmtDev(dev, 0) ?? "",
           ...(st ? { st_name: st.name, st_line: st.line, st_m: Math.round(st.m) } : {}),
+          ...(ic ? { ic_name: ic.name, ic_m: Math.round(ic.m) } : {}),
         } };
       })
-      .filter((f) => !nearMetro || (f.properties.st_m != null && f.properties.st_m <= 800));
+      .filter((f) => !nearMetro || (f.properties.st_m != null && f.properties.st_m <= 800))
+      .filter((f) => !nearIC || (f.properties.ic_m != null && f.properties.ic_m <= 2000));
     return { ...points, features: feats };
-  }, [points, totalBand, nearMetro, zoneIndex, distProps, stationIdx]);
+  }, [points, totalBand, nearMetro, nearIC, zoneIndex, distProps, railIdx, icIdx]);
 
   // 解約標記:獨立於屋齡帶篩選,永遠拿全部點位過濾
   const cancelPoints = useMemo(() => {
@@ -243,6 +256,7 @@ export default function PropertyMap() {
       median_area: p.median_area ?? null, band: p.band, build_year: p.build_year ?? null,
       cancel_count: p.cancel_count ?? 0,
       st_name: p.st_name ?? null, st_line: p.st_line ?? null, st_m: p.st_m ?? null,
+      ic_name: p.ic_name ?? null, ic_m: p.ic_m ?? null,
     });
   }
 
@@ -252,7 +266,10 @@ export default function PropertyMap() {
         ref={mapRef}
         mapStyle={BASE_STYLE}
         initialViewState={{ longitude: 121.25, latitude: 24.94, zoom: 10.3 }}
-        onLoad={(e) => e.target.resize()} // 容器尺寸就緒前 canvas 可能只畫一角
+        onLoad={(e) => {
+          e.target.resize(); // 容器尺寸就緒前 canvas 可能只畫一角
+          addMapIcons(e.target); // 房屋/膠囊/交流道圖示(canvas 現畫)
+        }}
         onMove={(e) => {
           // 動畫/拖曳中只在跨越門檻時更新,避免每幀重繪 DOM markers
           const z = e.viewState.zoom;
@@ -273,7 +290,7 @@ export default function PropertyMap() {
             const src: any = mapRef.current?.getSource("points");
             src?.getClusterExpansionZoom(f.properties!.cluster_id).then((z: number) =>
               mapRef.current?.easeTo({ center: (f.geometry as any).coordinates, zoom: z + 0.5, duration: 500 }));
-          } else if (f.layer.id === "pt-point") {
+          } else if (f.layer.id === "pt-icon" || f.layer.id === "pt-pill") {
             openPoint(f);
           } else if (f.layer.id === "zone-fill") {
             zoomToZone((f.properties as any).name);
@@ -282,7 +299,7 @@ export default function PropertyMap() {
           }
         }}
         interactiveLayerIds={detail
-          ? (zoneLevel ? ["pt-cluster", "pt-point", "zone-fill"] : ["pt-cluster", "pt-point"])
+          ? (zoneLevel ? ["pt-cluster", "pt-icon", "pt-pill", "zone-fill"] : ["pt-cluster", "pt-icon", "pt-pill"])
           : ["district-fill"]}
       >
         {districts && (
@@ -338,39 +355,40 @@ export default function PropertyMap() {
                 "text-font": ["Open Sans Semibold"], "text-size": 13,
               }}
               paint={{ "text-color": "#fff" }} />
-            {/* 預售(未完工)空心圓、已完工實心圓;rel 模式以偏離%上色 */}
-            <Layer id="pt-point" type="circle" filter={["!", ["has", "point_count"]]}
-              paint={{
-                "circle-color": [
-                  "case",
-                  ["==", ["get", "band"], "presale"], "#ffffff",
-                  ["==", ["get", mode === "rel" ? "dev" : "price"], null], "#9aa5ad",
-                  mode === "rel" ? DEV_INTERP : PRICE_INTERP,
-                ] as any,
-                "circle-stroke-color": [
-                  "case",
-                  ["!=", ["get", "band"], "presale"], "#ffffff",
-                  ["==", ["get", mode === "rel" ? "dev" : "price"], null], "#9aa5ad",
-                  mode === "rel" ? DEV_INTERP : PRICE_INTERP,
-                ] as any,
-                "circle-radius": 8,
-                "circle-stroke-width": ["case", ["==", ["get", "band"], "presale"], 3, 2] as any,
+            {/* 建案=房屋圖示:預售中空心、已完工實心;顏色依模式分桶(15 起讓位給價格膠囊) */}
+            <Layer id="pt-icon" type="symbol" filter={["!", ["has", "point_count"]]}
+              maxzoom={15}
+              layout={{
+                "icon-image": houseIconExpr(mode) as any,
+                "icon-size": ["interpolate", ["linear"], ["zoom"], 12, 0.72, 15, 1] as any,
+                "icon-allow-overlap": true,
               }} />
-            <Layer id="pt-label" type="symbol" filter={["!", ["has", "point_count"]]}
+            {/* 價格膠囊:白底圓角、文字色帶判讀;rel=±%、abs=單價(格局篩選時改總價) */}
+            <Layer id="pt-pill" type="symbol" filter={["!", ["has", "point_count"]]}
               minzoom={15}
               layout={{
-                // 有社區/建案名就一併顯示;rel=偏離%、abs=單價(格局篩選時改中位總價,找總價帶用)
+                "icon-image": "pill",
+                "icon-text-fit": "both",
                 "text-field": (() => {
-                  const val: any = mode === "rel" ? ["get", "dev_label"]
+                  const val: any = mode === "rel"
+                    ? ["case", ["==", ["get", "dev"], null],
+                       ["concat", "$", ["to-string", ["get", "price"]]], ["get", "dev_label"]]
                     : rooms !== "all" ? ["concat", ["to-string", ["get", "median_total"]], "萬"]
                     : ["concat", "$", ["to-string", ["get", "price"]]];
-                  return ["case", ["has", "name"], ["concat", ["get", "name"], "\n", val], val];
+                  return val;
                 })() as any,
-                "text-font": ["Open Sans Semibold"], "text-size": 12,
-                "text-offset": [0, 1.3], "text-anchor": "top",
+                "text-font": ["Open Sans Semibold"], "text-size": 12.5,
+              }}
+              paint={{ "text-color": pillTextColorExpr(mode) as any }} />
+            <Layer id="pt-name" type="symbol" filter={["!", ["has", "point_count"]]}
+              minzoom={15}
+              layout={{
+                "text-field": ["get", "name"] as any,
+                "text-font": ["Open Sans Semibold"], "text-size": 11,
+                "text-offset": [0, 1.5], "text-anchor": "top",
                 "text-optional": true,
               }}
-              paint={{ "text-color": "#184a7c", "text-halo-color": "#fff", "text-halo-width": 1.6 }} />
+              paint={{ "text-color": "#22303a", "text-halo-color": "#fff", "text-halo-width": 1.5 }} />
           </Source>
         )}
 
@@ -432,16 +450,18 @@ export default function PropertyMap() {
           );
         })}
 
-        {/* 車站圖層:營運實心、施工空心;放大到細節層才出現 */}
+        {/* 車站+交流道圖層:車站圓點(營運實心、施工空心)、交流道菱形;放大到細節層才出現 */}
         {stations && detail && (
           <Source id="stations" type="geojson" data={stations}>
-            <Layer id="st-pt" type="circle"
+            <Layer id="st-pt" type="circle" filter={["!=", ["get", "kind"], "interchange"]}
               paint={{
                 "circle-color": ["case", ["==", ["get", "status"], "construction"], "#ffffff",
                   ["match", ["get", "line"], ...Object.entries(LINE_COLOR).flat(), "#666"]] as any,
                 "circle-stroke-color": ["match", ["get", "line"], ...Object.entries(LINE_COLOR).flat(), "#666"] as any,
                 "circle-radius": 5.5, "circle-stroke-width": 2.5,
               }} />
+            <Layer id="ic-pt" type="symbol" filter={["==", ["get", "kind"], "interchange"]}
+              layout={{ "icon-image": "ic-diamond", "icon-size": 0.6, "icon-allow-overlap": true }} />
             <Layer id="st-label" type="symbol" minzoom={13}
               layout={{
                 "text-field": ["case", ["==", ["get", "status"], "construction"],
@@ -450,7 +470,8 @@ export default function PropertyMap() {
                 "text-offset": [0, -1.4], "text-anchor": "bottom", "text-optional": true,
               }}
               paint={{
-                "text-color": ["match", ["get", "line"], ...Object.entries(LINE_COLOR).flat(), "#666"] as any,
+                "text-color": ["case", ["==", ["get", "kind"], "interchange"], "#37474f",
+                  ["match", ["get", "line"], ...Object.entries(LINE_COLOR).flat(), "#666"]] as any,
                 "text-halo-color": "#fff", "text-halo-width": 1.6,
               }} />
           </Source>
@@ -477,9 +498,13 @@ export default function PropertyMap() {
                 <div><dt>坪數大約</dt><dd className="num">
                   {presalePopup.median_area == null ? "—" : (+presalePopup.median_area).toFixed(0) + " 坪"}</dd></div>
               </dl>
-              {presalePopup.st_name && presalePopup.st_m != null && presalePopup.st_m <= 2400 && (
+              {((presalePopup.st_m != null && presalePopup.st_m <= 2400) ||
+                (presalePopup.ic_m != null && presalePopup.ic_m <= 3000)) && (
                 <div className="note" style={{ borderTop: "none", marginTop: 5, paddingTop: 0 }}>
-                  🚉 {presalePopup.st_name}({presalePopup.st_line})步行約 {Math.max(1, Math.round(presalePopup.st_m * 1.3 / 80))} 分
+                  {presalePopup.st_name && presalePopup.st_m != null && presalePopup.st_m <= 2400 &&
+                    <>🚉 {presalePopup.st_name}({presalePopup.st_line})步行約 {Math.max(1, Math.round(presalePopup.st_m * 1.3 / 80))} 分<br /></>}
+                  {presalePopup.ic_name && presalePopup.ic_m != null && presalePopup.ic_m <= 3000 &&
+                    <>🛣️ {presalePopup.ic_name}約 {(presalePopup.ic_m / 1000).toFixed(1)} 公里</>}
                 </div>
               )}
               {presalePopup.cancel_count > 0 && (
@@ -527,10 +552,13 @@ export default function PropertyMap() {
           <button className={`cancelbtn metro ${nearMetro ? "on" : ""}`}
             onClick={() => { setNearMetro((v) => !v); setPresalePopup(null); }}
             title="只顯示步行約 10 分鐘(800 公尺)內有車站的建案(含施工中的綠線)">🚉 近捷運</button>
+          <button className={`cancelbtn ic ${nearIC ? "on" : ""}`}
+            onClick={() => { setNearIC((v) => !v); setPresalePopup(null); }}
+            title="只顯示 2 公里內有國道交流道的建案(開車通勤族用)">🛣️ 近國道</button>
         </div>
       </div>
 
-      <MapLegend mode={mode} rooms={rooms} nearMetro={nearMetro}
+      <MapLegend mode={mode} rooms={rooms} nearMetro={nearMetro} nearIC={nearIC}
         detail={detail} showStations={stations != null} />
 
       {detail && <button className="backbtn" onClick={back}>← 返回全市</button>}

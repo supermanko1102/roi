@@ -24,6 +24,7 @@ type PDetail = {
     first_reg: string | null; declare_date: string | null; phases: number;
   } | null;
   band: string; build_year: number | null;
+  transport: { bus_stops_500m: number } | null;
   deals: PDeal[];
 };
 
@@ -134,16 +135,19 @@ export default function ProjectDrawer({ district, name, zones, stations, onClose
 
   const households = detail?.community?.households ?? null;
 
-  // 最近車站前兩名(直線距離 ×1.3 當步行路徑,80m/分)
-  const nearStations = useMemo(() => {
-    if (!stations || !p?.lat || !p?.lng) return [];
-    return (stations.features as any[])
-      .map((f) => ({
-        name: f.properties.name as string, line: f.properties.line as string,
-        construction: f.properties.status === "construction",
-        m: haversineM(+p.lat!, +p.lng!, f.geometry.coordinates[1], f.geometry.coordinates[0]),
-      }))
-      .sort((a, b) => a.m - b.m).slice(0, 2);
+  // 最近車站前兩名(直線距離 ×1.3 當步行路徑,80m/分)與最近交流道
+  const { nearStations, nearIC } = useMemo(() => {
+    if (!stations || !p?.lat || !p?.lng) return { nearStations: [], nearIC: null as { name: string; m: number } | null };
+    const all = (stations.features as any[]).map((f) => ({
+      name: f.properties.name as string, line: f.properties.line as string,
+      kind: (f.properties.kind ?? "station") as string,
+      construction: f.properties.status === "construction",
+      m: haversineM(+p.lat!, +p.lng!, f.geometry.coordinates[1], f.geometry.coordinates[0]),
+    })).sort((a, b) => a.m - b.m);
+    return {
+      nearStations: all.filter((s) => s.kind === "station").slice(0, 2),
+      nearIC: all.find((s) => s.kind === "interchange") ?? null,
+    };
   }, [stations, p]);
 
   // 對比附近新古屋(0-5 年中古):中古資料不上地圖,但留著當「值不值得等三年」的基準
@@ -180,6 +184,8 @@ export default function ProjectDrawer({ district, name, zones, stations, onClose
             <span className={`chip ${presale ? "presale" : ""}`}>
               {presale ? "預售" : age != null && age <= 1 ? "新成屋" : `${age} 年屋`}
             </span>
+            {nearStations[0] && nearStations[0].m <= 800 && <span className="chip metro">捷運宅</span>}
+            {nearIC && nearIC.m <= 2000 && <span className="chip ic">近國道</span>}
           </h2>
           <div className="dsub">
             {p.district}
@@ -219,9 +225,9 @@ export default function ProjectDrawer({ district, name, zones, stations, onClose
               <KeyPoint icon="⚠️">有 <b className="rich">{cancelled.length} 筆</b>買了之後解約</KeyPoint>}
           </div>
 
-          {nearStations.length > 0 && (
+          {(nearStations.length > 0 || nearIC || detail.transport) && (
             <div className="sec">
-              <div className="sechead">交通</div>
+              <div className="sechead">交通機能</div>
               <div className="sechint">步行時間以直線距離估算,實際路線可能更遠</div>
               {nearStations.map((s) => {
                 const walk = Math.max(1, Math.round(s.m * 1.3 / 80));
@@ -235,6 +241,22 @@ export default function ProjectDrawer({ district, name, zones, stations, onClose
                   </div>
                 );
               })}
+              {nearIC && nearIC.m <= 6000 && (
+                <div className="kp" style={{ marginTop: 6 }}>
+                  <span className="ki">🛣️</span>
+                  <span>{nearIC.name}(國道)・約 {(nearIC.m / 1000).toFixed(1)} 公里</span>
+                </div>
+              )}
+              {detail.transport && (
+                <div className="kp" style={{ marginTop: 6 }}>
+                  <span className="ki">🚌</span>
+                  <span>
+                    {detail.transport.bus_stops_500m > 0
+                      ? <>走路 5 分鐘內有 <b>{detail.transport.bus_stops_500m} 個</b>公車站牌</>
+                      : <>500 公尺內沒有公車站牌</>}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
