@@ -22,6 +22,19 @@ export function inGeom(lng: number, lat: number, geom: any): boolean {
   return false;
 }
 
+// Polygon/MultiPolygon 的外框(標籤定位、fitBounds 用;遞迴走座標,不管深度)
+export function geomBbox(geom: any): [number, number, number, number] {
+  let w = 180, s = 90, e = -180, n = -90;
+  const walk = (c: any) => {
+    if (typeof c[0] === "number") {
+      if (c[0] < w) w = c[0]; if (c[0] > e) e = c[0];
+      if (c[1] < s) s = c[1]; if (c[1] > n) n = c[1];
+    } else for (const x of c) walk(x);
+  };
+  walk(geom.coordinates);
+  return [w, s, e, n];
+}
+
 // 兩點球面距離(公尺):算「最近車站」夠準了
 export function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000, r = Math.PI / 180;

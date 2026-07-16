@@ -1,32 +1,15 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import type { FeatureCollection } from "geojson";
-import { ageBand, BAND_LABEL, type BandFilter } from "@/lib/age";
-import { inGeom } from "@/lib/geo";
+import { type ReactNode } from "react";
 
-// 樂居式詳情,但走 Zillow 路線:側邊抽屜蓋在地圖上,不跳頁,地圖照常互動
+// 抽屜共用元件與白話文案工具。
+// 文案原則:給一般人看——不用「中位數/P25/口徑」,說「一坪約」「多數人成交在」「比附近便宜」。
 
-type Deal = {
-  addr_key: string | null; deal_date: string | null;
-  total_price: number | null; area_ping: number | null;
-  parking_area_ping: number | null; unit_price: number | null;
-  rooms: number | null; baths: number | null; floor_no: number | null;
-};
-type Detail = {
-  building: {
-    addr_key: string; district: string; lat: number | null; lng: number | null;
-    deal_count: number | null; median_unit_price: number | null; median_total: number | null;
-    building_type: string | null; build_year: number | null;
-  };
-  community: { name: string; households: number | null; first_reg: string | null; building_count: number } | null;
-  deals: Deal[];
-};
-
-// 點在多邊形內:找出所在生活圈,拿圈內中位當比較基準
-
-// 走勢圖/季中位的最小輸入形狀(建案抽屜也共用)
+// 走勢圖/季中位的最小輸入形狀
 export type PricePoint = { deal_date: string | null; unit_price: number | null };
 
-// 季中位數序列:走勢圖與一句話結論共用的口徑(n=季內筆數,下結論前先過樣本門檻)
+// 30 或 29.5:整數就不帶小數,少一點「報表感」
+export const fmtP = (v: number) => (Math.round(v * 10) / 10).toString();
+
+// 季中位數序列(n=季內筆數,下結論前先過樣本門檻)
 export function quarterMedians(deals: PricePoint[]): { t: number; v: number; n: number }[] {
   const median = (xs: number[]) => {
     const s = [...xs].sort((a, b) => a - b), m = s.length >> 1;
@@ -43,7 +26,7 @@ export function quarterMedians(deals: PricePoint[]): { t: number; v: number; n: 
   return [...byQ.values()].map((g) => ({ t: g.t, v: median(g.vs), n: g.vs.length })).sort((a, b) => a.t - b.t);
 }
 
-// 逐行重點:一行一件事,給一般人看的白話(共用給兩種抽屜)
+// 逐行重點:一行一件事
 export function KeyPoint({ icon, children }: { icon: string; children: ReactNode }) {
   return <div className="kp"><span className="ki">{icon}</span><span>{children}</span></div>;
 }
@@ -84,10 +67,7 @@ export function priceBadge(vsZone: number | null, zoneName: string | null, bandL
     : <span className="badge rich">比{ref}貴約 {v.toFixed(0)}%</span>;
 }
 
-// 30 或 29.5:整數就不帶小數,少一點「報表感」
-export const fmtP = (v: number) => (Math.round(v * 10) / 10).toString();
-
-// 房型卡:幾房、大概多少錢(兩種抽屜共用;總價帶取中間 50% 的成交)
+// 房型卡:幾房、大概多少錢(總價帶取中間 50% 的成交)
 type RoomDeal = { rooms: number | null; total_price: number | null; unit_price: number | null };
 const ROOM_GROUPS: { label: string; match: (r: number) => boolean }[] = [
   { label: "1房", match: (r) => r <= 1 },
@@ -135,10 +115,10 @@ export function RoomBreakdown({ deals }: { deals: RoomDeal[] }) {
 
 // 成交單價走勢:原始成交打點(淡),季中位數走深色實線;樣本太少只給點
 export function TrendChart({ deals }: { deals: PricePoint[] }) {
-  const pts = useMemo(() => deals
+  const pts = deals
     .filter((d) => d.deal_date && d.unit_price != null && d.unit_price > 0)
     .map((d) => ({ t: +new Date(d.deal_date!), v: d.unit_price!, label: `${d.deal_date}・${d.unit_price!.toFixed(1)} 萬/坪` }))
-    .sort((a, b) => a.t - b.t), [deals]);
+    .sort((a, b) => a.t - b.t);
   if (pts.length < 3) return null;
 
   const W = 404, H = 168, L = 34, R = 12, T = 10, B = 20;
@@ -148,19 +128,7 @@ export function TrendChart({ deals }: { deals: PricePoint[] }) {
   const x = (t: number) => L + ((t - t0) / (t1 - t0)) * (W - L - R);
   const y = (v: number) => T + (1 - (v - vmin) / Math.max(1e-9, vmax - vmin)) * (H - T - B);
 
-  const median = (xs: number[]) => {
-    const s = [...xs].sort((a, b) => a - b), m = s.length >> 1;
-    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-  };
-  const byQ = new Map<string, { t: number; vs: number[] }>();
-  for (const p of pts) {
-    const d = new Date(p.t), q = Math.floor(d.getMonth() / 3);
-    const key = `${d.getFullYear()}Q${q + 1}`;
-    const mid = +new Date(d.getFullYear(), q * 3 + 1, 15); // 季中當 x 座標
-    (byQ.get(key) ?? byQ.set(key, { t: mid, vs: [] }).get(key)!).vs.push(p.v);
-  }
-  const qs = [...byQ.values()].map((g) => ({ t: g.t, v: median(g.vs) })).sort((a, b) => a.t - b.t);
-
+  const qs = quarterMedians(deals);
   const yTicks = [vmin, (vmin + vmax) / 2, vmax];
   const years: number[] = [];
   for (let yr = new Date(t0).getFullYear() + 1; yr <= new Date(t1).getFullYear(); yr++)
@@ -200,115 +168,5 @@ export function TrendChart({ deals }: { deals: PricePoint[] }) {
           fill="#184a7c" textAnchor="end" className="num">{last.v.toFixed(1)}</text>
       )}
     </svg>
-  );
-}
-
-export default function BuildingDrawer({ addrKey, zones, onClose }: {
-  addrKey: string; zones: FeatureCollection | null; onClose: () => void;
-}) {
-  const [detail, setDetail] = useState<Detail | null>(null);
-  const [err, setErr] = useState(false);
-
-  useEffect(() => {
-    setDetail(null); setErr(false);
-    fetch(`/api/building-detail?addr=${encodeURIComponent(addrKey)}`)
-      .then((r) => { if (!r.ok) throw 0; return r.json(); })
-      .then(setDetail).catch(() => setErr(true));
-  }, [addrKey]);
-
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onClose]);
-
-  const b = detail?.building;
-  const zone = useMemo(() => {
-    if (!zones || !b?.lat || !b?.lng) return null;
-    const f: any = zones.features.find((f: any) => inGeom(+b.lng!, +b.lat!, f.geometry));
-    return f ? f.properties : null;
-  }, [zones, b]);
-
-  const unit = b?.median_unit_price ?? null;
-  // 比較基準:所在生活圈「同屋齡帶」中位;帶內樣本不足(null)退回圈內全部
-  const band = ageBand(b?.build_year ?? null);
-  const zoneRef = zone == null ? null
-    : (band !== "unknown" && zone[`price_${band}`] != null
-        ? { v: +zone[`price_${band}`], label: BAND_LABEL[band as BandFilter] }
-        : zone.price_all != null ? { v: +zone.price_all, label: "全部" } : null);
-  const vsZone = unit && zoneRef ? (unit / zoneRef.v - 1) * 100 : null;
-  const age = b?.build_year ? new Date().getFullYear() - b.build_year : null;
-  const shortAddr = (s: string) => s.replace(/^桃園市[^區]+區/, "");
-
-  return (
-    <aside className="drawer">
-      <button className="dclose" onClick={onClose} aria-label="關閉">✕</button>
-      {err && <div className="note">載入失敗,請重試。</div>}
-      {!detail && !err && <div className="note">載入中…</div>}
-      {detail && b && (
-        <>
-          <h2>
-            <span>{detail.community?.name ?? shortAddr(b.addr_key)}</span>
-            {age != null && <span className="chip">{age <= 1 ? "新成屋" : `${age} 年屋`}</span>}
-          </h2>
-          <div className="dsub">
-            {detail.community && `${shortAddr(b.addr_key)}・`}
-            {b.building_type ?? ""}
-            {detail.community?.households ? `・${detail.community.households} 戶` : ""}
-            {detail.community && detail.community.building_count > 1 ? `・${detail.community.building_count} 個門牌` : ""}
-          </div>
-
-          <div className="hero">
-            <div className="hprice">一坪約<b className="num">{unit == null ? "—" : fmtP(unit)}</b>萬</div>
-            <div className="hsub">
-              {b.median_total != null && `一戶大約 ${Math.round(b.median_total).toLocaleString()} 萬・`}
-              共 {detail.deals.length} 筆成交
-            </div>
-            {priceBadge(vsZone, zone?.name ?? null, zoneRef?.label ?? null)}
-          </div>
-
-          <div className="keypoints">
-            {trendPoint(detail.deals, "這裡的成交價")}
-            {recentPoint(detail.deals)}
-          </div>
-
-          <RoomBreakdown deals={detail.deals} />
-
-          <div className="sec">
-            <div className="sechead">價格走勢</div>
-            <div className="sechint">每個淡點是一筆實際成交,深色線是每一季的行情</div>
-            <TrendChart deals={detail.deals} />
-          </div>
-
-          <div className="sec">
-            <div className="sechead">成交紀錄
-              <span className="secval num">{detail.deals.length} 筆</span>
-            </div>
-            <table className="deals num" style={{ marginTop: 6 }}>
-              <thead><tr><th>日期</th><th>門牌</th><th>格局/樓</th><th>總價</th><th>一坪</th></tr></thead>
-              <tbody>
-                {detail.deals.slice(0, 120).map((d, i) => (
-                  <tr key={i}>
-                    <td>{d.deal_date ?? "—"}</td>
-                    <td className="addr" title={d.addr_key ?? ""}>{d.addr_key ? shortAddr(d.addr_key) : "—"}</td>
-                    <td>{[d.rooms != null ? `${d.rooms}房` : null, d.floor_no != null ? `${d.floor_no}F` : null]
-                          .filter(Boolean).join("/") || "—"}</td>
-                    <td>{d.total_price == null ? "—" : `${Math.round(d.total_price).toLocaleString()} 萬`}</td>
-                    <td>{d.unit_price == null ? "—" : fmtP(d.unit_price)} 萬</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {detail.deals.length > 120 && <div className="note">僅列最近 120 筆</div>}
-          </div>
-
-          <div className="note" style={{ marginTop: 14 }}>
-            所有價格都已扣掉車位。
-            {zone && zoneRef ? `「附近行情」指 ${zone.name} 生活圈${zoneRef.label !== "全部" ? `同屋齡(${zoneRef.label})` : ""}房子的成交行情(一坪約 ${fmtP(zoneRef.v)} 萬)。` : ""}
-            資料來源:內政部實價登錄。
-          </div>
-        </>
-      )}
-    </aside>
   );
 }

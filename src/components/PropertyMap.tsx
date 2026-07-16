@@ -3,9 +3,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Map, { Source, Layer, Marker, Popup, MapRef } from "react-map-gl/maplibre";
 import type { FeatureCollection } from "geojson";
 import ProjectDrawer from "./ProjectDrawer";
-import { AGE_BANDS, type BandFilter } from "@/lib/age";
+import MapLegend from "./MapLegend";
+import { type BandFilter } from "@/lib/age";
 import { ROOM_BANDS, ROOM_LABEL, type RoomFilter } from "@/lib/rooms";
-import { makeContains, haversineM } from "@/lib/geo";
+import { makeContains, haversineM, geomBbox } from "@/lib/geo";
+import {
+  type ColorMode, LINE_COLOR, PRICE_INTERP, DEV_INTERP,
+  fillExpr, priceProp, devProp, priceColor, devColor, devTextColor, fmtDev, augmentDev,
+} from "@/lib/map-colors";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 // 預售 only:地圖上只有建案點;中古成交仍留在區/圈聚合裡當「行情基準」,但不再是可瀏覽的點位
@@ -18,11 +23,6 @@ const TOTAL_FILTERS: { key: string; label: string; min?: number; max?: number }[
   { key: "2000", label: "1,500–2,000萬", min: 1500, max: 2000 },
   { key: "2000p", label: "2,000萬+", min: 2000 },
 ];
-
-// 車站路線色:機捷紫、台鐵藍、綠線綠(施工中空心)
-const LINE_COLOR: Record<string, string> = {
-  "機場捷運": "#8e24aa", "台鐵": "#1a5fb4", "桃園捷運綠線": "#2e7d32",
-};
 
 type PresalePopup = {
   lng: number; lat: number;
@@ -54,60 +54,6 @@ const BASE_STYLE: any = {
 const DETAIL_ZOOM = 12;
 // 重劃區/生活圈層:DETAIL_ZOOM ~ ZONE_FADE 之間顯示,更放大就淡出讓位給點位
 const ZONE_FADE = 13.9;
-
-const PRICE_STOPS: [number, string][] = [[20, "#e2ebf5"], [32, "#7aa7cf"], [44, "#184a7c"]];
-// 相對行情發散色階(%):紅=比同屋齡帶行情貴、綠=便宜(沿用台灣紅漲綠跌慣例)
-const DEV_STOPS: [number, string][] = [[-15, "#1a7f5c"], [0, "#ece7dd"], [15, "#c2452d"]];
-
-type ColorMode = "rel" | "abs";
-
-const priceProp = (band: BandFilter) => `price_${band}`;
-const devProp = (band: BandFilter) => `dev_${band}`;
-
-// 區/圈色塊:rel=偏離全市同帶中位 %;abs=所選帶中位單價;無資料灰
-function fillExpr(band: BandFilter, mode: ColorMode): any {
-  const prop = mode === "rel" ? devProp(band) : priceProp(band);
-  const stops = mode === "rel" ? DEV_STOPS : PRICE_STOPS;
-  return [
-    "case",
-    ["==", ["get", prop], null], "#cfd6da",
-    ["interpolate", ["linear"], ["get", prop], ...stops.flat()],
-  ];
-}
-const PRICE_INTERP: any = ["interpolate", ["linear"], ["get", "price"], ...PRICE_STOPS.flat()];
-const DEV_INTERP: any = ["interpolate", ["linear"], ["get", "dev"], ...DEV_STOPS.flat()];
-function rampColor(stops: [number, string][], v: number | null): string {
-  const s = stops;
-  if (v == null) return "#9aa5ad";
-  if (v <= s[0][0]) return s[0][1];
-  if (v >= s[2][0]) return s[2][1];
-  return v < s[1][0] ? mix(s[0], s[1], v) : mix(s[1], s[2], v);
-}
-const priceColor = (v: number | null) => rampColor(PRICE_STOPS, v);
-const devColor = (v: number | null) => rampColor(DEV_STOPS, v);
-// 發散色階兩端深色配白字、中段淺色配深字
-const devTextColor = (v: number | null) => (v != null && Math.abs(v) >= 7 ? "#fff" : "#43390f");
-const fmtDev = (v: number | null, digits = 1) =>
-  v == null ? null : `${v > 0 ? "+" : ""}${v.toFixed(digits)}%`;
-
-// API 回應的 city(全市各帶基準)→ 每個 feature 補 dev_<band>(%)
-function augmentDev(geo: any) {
-  const city = geo.city ?? {};
-  for (const f of geo.features) {
-    for (const key of ["all", ...AGE_BANDS]) {
-      const base = city[`price_${key}`], v = f.properties[`price_${key}`];
-      f.properties[`dev_${key}`] =
-        base > 0 && v != null ? +((v / base - 1) * 100).toFixed(1) : null;
-    }
-  }
-  return geo;
-}
-function mix(a: [number, string], b: [number, string], v: number): string {
-  const t = (v - a[0]) / (b[0] - a[0]);
-  const pa = hex(a[1]), pb = hex(b[1]);
-  return `rgb(${pa.map((x, i) => Math.round(x + (pb[i] - x) * t)).join(",")})`;
-}
-const hex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 
 export default function PropertyMap() {
   const mapRef = useRef<MapRef>(null);
@@ -227,33 +173,23 @@ export default function PropertyMap() {
     return { ...points, features: (points.features as any[]).filter((f) => (f.properties.cancel_count ?? 0) > 0) };
   }, [points]);
 
+  // 標籤放邊界框中心(粗略但夠用;更準可預算 pole of inaccessibility)
   const labels = useMemo(() => {
     if (!districts) return [];
     return districts.features.map((f: any) => {
-      // 標籤放邊界框中心(粗略但夠用;更準可預算 pole of inaccessibility)
-      const flat = JSON.stringify(f.geometry.coordinates).match(/\[(-?[\d.]+),(-?[\d.]+)\]/g) ?? [];
-      let minX = 180, maxX = 0, minY = 90, maxY = 0;
-      for (const pt of flat) {
-        const [x, y] = pt.slice(1, -1).split(",").map(Number);
-        if (x < minX) minX = x; if (x > maxX) maxX = x;
-        if (y < minY) minY = y; if (y > maxY) maxY = y;
-      }
-      return { name: f.properties.name, lng: (minX + maxX) / 2, lat: (minY + maxY) / 2, props: f.properties };
+      const [w, s, e, n] = geomBbox(f.geometry);
+      return { name: f.properties.name, lng: (w + e) / 2, lat: (s + n) / 2, props: f.properties };
     });
   }, [districts]);
 
-  // 重劃區標籤放邊界框中心(邊界是官方圖資的 Polygon/MultiPolygon)
+  // 重劃區標籤同樣放邊界框中心(邊界是官方圖資的 Polygon/MultiPolygon)
   const zoneLabels = useMemo(() => {
     if (!zones) return [];
     return zones.features.map((f: any) => {
-      const pos: [number, number][] = f.geometry.type === "Polygon"
-        ? f.geometry.coordinates.flat() : f.geometry.coordinates.flat(2);
-      const xs = pos.map((p) => p[0]), ys = pos.map((p) => p[1]);
+      const [w, s, e, n] = geomBbox(f.geometry);
       return {
-        name: f.properties.name,
-        lng: (Math.min(...xs) + Math.max(...xs)) / 2,
-        lat: (Math.min(...ys) + Math.max(...ys)) / 2,
-        bounds: [[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]] as [[number, number], [number, number]],
+        name: f.properties.name, lng: (w + e) / 2, lat: (s + n) / 2,
+        bounds: [[w, s], [e, n]] as [[number, number], [number, number]],
         props: f.properties,
       };
     });
@@ -283,19 +219,13 @@ export default function PropertyMap() {
 
   // 點行政區 → 縮放到該區;顯示什麼由 zoom 門檻決定,與滾輪放大走同一條路
   function drill(name: string) {
-    const feats = (districts?.features ?? []).find((f: any) => f.properties.name === name) as any;
-    if (!feats) return;
-    const flat = JSON.stringify(feats.geometry.coordinates).match(/\[(-?[\d.]+),(-?[\d.]+)\]/g) ?? [];
-    let minX = 180, maxX = 0, minY = 90, maxY = 0;
-    for (const pt of flat) {
-      const [x, y] = pt.slice(1, -1).split(",").map(Number);
-      if (x < minX) minX = x; if (x > maxX) maxX = x;
-      if (y < minY) minY = y; if (y > maxY) maxY = y;
-    }
-    loadDetail([minX, minY, maxX, maxY]); // 與飛行動畫並行抓資料,動畫結束即有點位
+    const feat = (districts?.features ?? []).find((f: any) => f.properties.name === name) as any;
+    if (!feat) return;
+    const [w, s, e, n] = geomBbox(feat.geometry);
+    loadDetail([w, s, e, n]); // 與飛行動畫並行抓資料,動畫結束即有點位
     // 面積大的區 fitBounds 後可能還不到細節門檻,保底跨過去
     const map = mapRef.current?.getMap();
-    const cam = map?.cameraForBounds([[minX, minY], [maxX, maxY]], { padding: 60 });
+    const cam = map?.cameraForBounds([[w, s], [e, n]], { padding: 60 });
     if (map && cam) map.easeTo({ ...cam, zoom: Math.max(cam.zoom ?? DETAIL_ZOOM, DETAIL_ZOOM + 0.1), duration: 700 });
   }
   function back() {
@@ -600,34 +530,8 @@ export default function PropertyMap() {
         </div>
       </div>
 
-      <div className="legend">
-        <div className="ltitle">
-          {mode === "rel" ? "預售案和附近行情相比" : "預售一坪價格(萬)"}
-        </div>
-        <div className="lgrad" style={{
-          background: `linear-gradient(to right, ${(mode === "rel" ? DEV_STOPS : PRICE_STOPS).map((s) => s[1]).join(",")})`,
-        }} />
-        <div className="lticks">
-          {mode === "rel"
-            ? <><span>便宜 15%</span><span>差不多</span><span>貴 15%</span></>
-            : <><span>$20</span><span>$32</span><span>$44</span></>}
-        </div>
-        <div className="lnote">
-          {[
-            mode === "rel" ? "色塊=跟全市比・圓點=跟它所在的生活圈比" : null,
-            detail ? "○ 預售中 ● 已完工建案" : null,
-            rooms !== "all" ? `圓點只計 ${ROOM_LABEL[rooms]} 的成交` : null,
-            nearMetro ? "只顯示步行 10 分內有站的建案" : null,
-          ].filter(Boolean).join("・")}
-        </div>
-        {detail && stations && (
-          <div className="lnote">
-            <span style={{ color: LINE_COLOR["機場捷運"] }}>●</span> 機捷{" "}
-            <span style={{ color: LINE_COLOR["台鐵"] }}>●</span> 台鐵{" "}
-            <span style={{ color: LINE_COLOR["桃園捷運綠線"] }}>○</span> 綠線(施工中)
-          </div>
-        )}
-      </div>
+      <MapLegend mode={mode} rooms={rooms} nearMetro={nearMetro}
+        detail={detail} showStations={stations != null} />
 
       {detail && <button className="backbtn" onClick={back}>← 返回全市</button>}
       {!detail && <div className="zoomhint">滾輪放大或點擊行政區,可看各建案的成交點位</div>}
