@@ -1,0 +1,1 @@
+ALTER TABLE "presale_deals" ADD COLUMN "parking_area_ping" numeric DEFAULT 0;

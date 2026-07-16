@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FeatureCollection } from "geojson";
+import { ageBand, BAND_LABEL, type BandFilter } from "@/lib/age";
 
 // 樂居式詳情,但走 Zillow 路線:側邊抽屜蓋在地圖上,不跳頁,地圖照常互動
 
@@ -16,10 +17,6 @@ type Detail = {
   };
   community: { name: string; households: number | null; first_reg: string | null; building_count: number } | null;
   deals: Deal[];
-  rent: {
-    community_rent_ping: number | null; community_samples: number;
-    rent_ping_market: number | null; rent_samples_market: number | null;
-  } | null;
 };
 
 // 點在多邊形內(含 MultiPolygon 與挖洞):找出所在生活圈,拿圈內中位當比較基準
@@ -139,19 +136,14 @@ export default function BuildingDrawer({ addrKey, zones, onClose }: {
   }, [zones, b]);
 
   const unit = b?.median_unit_price ?? null;
-  // 租金行情三層備援:社區自己的租賃件(n≥5)→ 生活圈行情 → 區級行情
-  const rentPick = useMemo(() => {
-    const r = detail?.rent;
-    if (r?.community_rent_ping != null && r.community_samples >= 5)
-      return { v: r.community_rent_ping, n: r.community_samples, src: "社區" };
-    if (zone?.rent_ping_market != null)
-      return { v: +zone.rent_ping_market, n: zone.rent_samples_market ?? 0, src: "圈內" };
-    if (r?.rent_ping_market != null)
-      return { v: r.rent_ping_market, n: r.rent_samples_market ?? 0, src: "區內" };
-    return null;
-  }, [detail, zone]);
-  const roi = unit && rentPick ? (rentPick.v * 12) / (unit * 10000) * 100 : null;
-  const vsZone = unit && zone?.resale_unit_price ? (unit / zone.resale_unit_price - 1) * 100 : null;
+  // 比較基準:所在生活圈「同屋齡帶」中位;帶內樣本不足(null)退回圈內全部
+  const band = ageBand(b?.build_year ?? null);
+  const zoneRef = zone == null ? null
+    : (band !== "unknown" && zone[`price_${band}`] != null
+        ? { v: +zone[`price_${band}`], label: BAND_LABEL[band as BandFilter] }
+        : zone.price_all != null ? { v: +zone.price_all, label: "全部" } : null);
+  const vsZone = unit && zoneRef ? (unit / zoneRef.v - 1) * 100 : null;
+  const age = b?.build_year ? new Date().getFullYear() - b.build_year : null;
   const shortAddr = (s: string) => s.replace(/^桃園市[^區]+區/, "");
 
   return (
@@ -176,19 +168,19 @@ export default function BuildingDrawer({ addrKey, zones, onClose }: {
               <span>中位單價(萬/坪)</span>
             </div>
             <div className="stat">
-              <b className="num">{roi == null ? "—" : `${roi.toFixed(2)}%`}</b>
-              <span>推估投報({rentPick ? `${rentPick.src}租金 n=${rentPick.n}` : "無租金行情"})</span>
+              <b className="num">{age == null ? "—" : `${age} 年`}</b>
+              <span>屋齡{b.build_year ? `(${b.build_year} 完工)` : ""}</span>
             </div>
             <div className="stat">
               <b className="num">{vsZone == null ? "—" : `${vsZone > 0 ? "+" : ""}${vsZone.toFixed(1)}%`}</b>
-              <span>{zone ? `vs ${zone.name}中位` : "vs 生活圈(圈外)"}</span>
+              <span>{zone ? `vs ${zone.name}${zoneRef ? `(${zoneRef.label})` : ""}中位` : "vs 生活圈(圈外)"}</span>
             </div>
           </div>
 
           <TrendChart deals={detail.deals} />
           <div className="note" style={{ marginTop: 2 }}>
             {detail.community ? "全社區" : "本門牌"}成交 {detail.deals.length} 筆・淡點=單筆成交、深線=季中位
-            {zone ? `・所在生活圈:${zone.name}(中古中位 $${(+zone.resale_unit_price).toFixed(1)})` : ""}
+            {zone && zoneRef ? `・所在生活圈:${zone.name}(${zoneRef.label}中位 $${zoneRef.v.toFixed(1)})` : ""}
           </div>
 
           <table className="deals num" style={{ marginTop: 10 }}>
@@ -205,9 +197,7 @@ export default function BuildingDrawer({ addrKey, zones, onClose }: {
             </tbody>
           </table>
           {detail.deals.length > 120 && <div className="note">僅列最近 120 筆(共 {detail.deals.length} 筆)</div>}
-          <div className="note">
-            單價皆為扣車位口徑(萬/坪);投報推估:{rentPick?.src ?? "區內"}市場租金中位({rentPick ? `${Math.round(rentPick.v)} 元/坪/月` : "—"})× 12 ÷ 單價,不含社宅包租代管件。
-          </div>
+          <div className="note">單價皆為扣車位口徑(萬/坪)。</div>
         </>
       )}
     </aside>

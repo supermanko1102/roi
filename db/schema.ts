@@ -18,7 +18,8 @@ export const presale_deals = pgTable("presale_deals", {
   total_price: money("total_price"),             // 總價(萬)
   parking_price: money("parking_price").default(0), // 車位總價(萬)
   area_ping: money("area_ping"),                 // 建物移轉總面積(坪)
-  unit_price: money("unit_price"),               // 扣車位單價(萬/坪)
+  parking_area_ping: money("parking_area_ping").default(0), // 車位移轉總面積(坪)
+  unit_price: money("unit_price"),               // 扣車位單價(萬/坪,分母亦扣車位坪)
   raw_season: text("raw_season"),
 }, (t) => [
   index("idx_presale_district").on(t.district),

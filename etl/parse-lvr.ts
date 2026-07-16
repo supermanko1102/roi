@@ -90,18 +90,22 @@ async function main() {
       const iDist = col(h, "鄉鎮市區"), iAddr = col(h, "土地位置");
       const iDate = col(h, "交易年月日"), iArea = col(h, "建物移轉總面積");
       const iTotal = col(h, "總價元"), iPark = col(h, "車位總價");
+      const iParkArea = col(h, "車位移轉總面積");
       const iProj = col(h, "建案名稱");
       const out: (typeof presale_deals.$inferInsert)[] = [];
       for (const r of rows) {
         const total = num(r[iTotal]), park = num(r[iPark]) ?? 0;
         const areaPing = num(r[iArea]) ? num(r[iArea])! / PING : null;
         if (!total || !areaPing || areaPing <= 0) continue;
-        const unit = (total - park) / 10000 / areaPing; // 萬/坪(粗估:未扣車位坪)
+        const parkAreaPing = (num(r[iParkArea]) ?? 0) / PING;
+        const netArea = areaPing - parkAreaPing;
+        const unit = netArea > 0 ? (total - park) / 10000 / netArea : null;
         out.push({
           district: r[iDist], project_name: iProj >= 0 ? r[iProj] : null,
           address: r[iAddr], deal_date: rocDate(r[iDate]),
           total_price: total / 10000, parking_price: park / 10000,
-          area_ping: areaPing, unit_price: unit, raw_season: season,
+          area_ping: areaPing, parking_area_ping: parkAreaPing,
+          unit_price: unit, raw_season: season,
         });
       }
       await db.delete(presale_deals).where(eq(presale_deals.raw_season, season));
