@@ -124,11 +124,13 @@ async function main() {
         if (!rent || !areaPing || areaPing <= 0) continue;
         const builtRoc = (r[iBuilt] ?? "").slice(0, 3);
         const buildYear = /^\d{2,3}$/.test(builtRoc) ? +builtRoc + 1911 : null;
+        const rAddr = r[iAddr] ?? "";
         out.push({
-          district: r[iDist], address: r[iAddr], deal_date: rocDate(r[iDate]),
+          district: r[iDist], address: rAddr, deal_date: rocDate(r[iDate]),
           monthly_rent: rent, area_ping: areaPing, rent_per_ping: rent / areaPing,
           build_year: buildYear, building_type: iType >= 0 ? r[iType] || null : null,
           is_social: iSvc >= 0 && (r[iSvc] ?? "").includes("社會住宅"),
+          addr_key: rAddr.includes("號") ? rAddr.replace(/號.*$/, "號") : null,
           raw_season: season,
         });
       }

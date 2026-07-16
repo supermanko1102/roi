@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Map, { Source, Layer, Marker, Popup, MapRef } from "react-map-gl/maplibre";
 import type { FeatureCollection } from "geojson";
+import BuildingDrawer from "./BuildingDrawer";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 type Metric = "price" | "roi"; // 使用者自選:看單價或看租金投報比
@@ -94,13 +95,31 @@ export default function PropertyMap() {
   const [buildings, setBuildings] = useState<FeatureCollection | null>(null);
   const [bldgPopup, setBldgPopup] = useState<BldgPopup | null>(null);
   const [zones, setZones] = useState<FeatureCollection | null>(null);
+  const [drawerAddr, setDrawerAddr] = useState<string | null>(null);
   const detail = zoom >= DETAIL_ZOOM;
   const zoneLevel = zoom >= DETAIL_ZOOM && zoom < ZONE_FADE;
 
   useEffect(() => {
     fetch("/api/districts").then((r) => r.json()).then(setDistricts);
     fetch("/api/zones").then((r) => r.json()).then(setZones);
+    // 深連結:?bldg=門牌 直接開抽屜(可分享)
+    const b = new URLSearchParams(location.search).get("bldg");
+    if (b) setDrawerAddr(b);
   }, []);
+
+  // 抽屜開關同步到網址,重整/分享都能還原
+  function openDrawer(addr: string) {
+    setDrawerAddr(addr); setBldgPopup(null);
+    const u = new URL(location.href);
+    u.searchParams.set("bldg", addr);
+    history.replaceState(null, "", u);
+  }
+  function closeDrawer() {
+    setDrawerAddr(null);
+    const u = new URL(location.href);
+    u.searchParams.delete("bldg");
+    history.replaceState(null, "", u);
+  }
 
   useEffect(() => {
     if (!detail) { setPopup(null); setBldgPopup(null); }
@@ -228,7 +247,9 @@ export default function PropertyMap() {
             src?.getClusterExpansionZoom(f.properties!.cluster_id).then((z: number) =>
               mapRef.current?.easeTo({ center: (f.geometry as any).coordinates, zoom: z + 0.5, duration: 500 }));
           } else if (f.layer.id === "bldg-point") {
-            openBuilding(f);
+            // 抽屜開著時點別棟直接切換內容,維持「掃描→查看→再掃描」的節奏
+            if (drawerAddr) openDrawer((f.properties as any).addr_key);
+            else openBuilding(f);
           } else if (f.layer.id === "zone-fill") {
             zoomToZone((f.properties as any).name);
           } else if (!detail) {
@@ -261,17 +282,17 @@ export default function PropertyMap() {
           <Source id="zones" type="geojson" data={zones}>
             <Layer id="zone-fill" type="fill"
               paint={{
-                // 生活圈投報率目前只有預售口徑(圈內建案中位);中古模式看投報時以灰色呈現
                 "fill-color": (metric === "price"
                   ? ["case",
                       ["==", ["get", market === "presale" ? "presale_unit_price" : "resale_unit_price"], null], "#cfd6da",
                       ["interpolate", ["linear"],
                         ["get", market === "presale" ? "presale_unit_price" : "resale_unit_price"],
                         ...PRICE_STOPS.flat()]]
-                  : market === "resale" ? "#cfd6da"
                   : ["case",
-                      ["==", ["get", "est_roi"], null], "#cfd6da",
-                      ["interpolate", ["linear"], ["get", "est_roi"], ...ROI_STOPS.flat()]]) as any,
+                      ["==", ["get", market === "presale" ? "est_roi" : "est_roi_resale"], null], "#cfd6da",
+                      ["interpolate", ["linear"],
+                        ["get", market === "presale" ? "est_roi" : "est_roi_resale"],
+                        ...ROI_STOPS.flat()]]) as any,
                 "fill-opacity": ["interpolate", ["linear"], ["zoom"],
                   DETAIL_ZOOM - 0.4, 0, DETAIL_ZOOM + 0.3, 0.22,
                   ZONE_FADE - 0.7, 0.22, ZONE_FADE, 0] as any,
@@ -345,7 +366,7 @@ export default function PropertyMap() {
         {zoneLevel && zoneLabels.map((l) => {
           const v = metric === "price"
             ? (market === "presale" ? l.props.presale_unit_price : l.props.resale_unit_price)
-            : (market === "presale" ? l.props.est_roi : null);
+            : (market === "presale" ? l.props.est_roi : l.props.est_roi_resale);
           return (
             <Marker key={l.name} longitude={l.lng} latitude={l.lat} anchor="center">
               <div className="zlabel" onClick={(e) => { e.stopPropagation(); zoomToZone(l.name); }}
@@ -448,10 +469,15 @@ export default function PropertyMap() {
               {bldgPopup.deals && bldgPopup.deals.length > 8 && (
                 <div className="note">僅列最近 8 筆(共 {bldgPopup.deals.length} 筆)</div>
               )}
+              <button className="detailbtn" onClick={() => openDrawer(bldgPopup.addr_key)}>
+                查看詳情(走勢與全部成交)→
+              </button>
             </div>
           </Popup>
         )}
       </Map>
+
+      {drawerAddr && <BuildingDrawer addrKey={drawerAddr} zones={zones} onClose={closeDrawer} />}
 
       <div id="topbar">
         <span className="title">桃園房價投報地圖</span>

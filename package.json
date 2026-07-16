@@ -17,7 +17,9 @@
     "etl:geocode-projects": "tsx etl/geocode-projects.ts",
     "etl:communities": "tsx etl/match-communities.ts",
     "etl:zones": "tsx etl/build-zones.ts",
-    "etl:all": "pnpm etl:download && pnpm etl:parse && pnpm etl:geocode && pnpm etl:stats && pnpm etl:geocode-projects && pnpm etl:communities"
+    "etl:zones-leju": "tsx etl/leju-zones.ts",
+    "etl:zone-rents": "tsx etl/compute-zone-rents.ts",
+    "etl:all": "pnpm etl:download && pnpm etl:parse && pnpm etl:geocode && pnpm etl:stats && pnpm etl:geocode-projects && pnpm etl:communities && pnpm etl:zone-rents"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

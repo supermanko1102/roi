@@ -1,0 +1,215 @@
+import { useEffect, useMemo, useState } from "react";
+import type { FeatureCollection } from "geojson";
+
+// 樂居式詳情,但走 Zillow 路線:側邊抽屜蓋在地圖上,不跳頁,地圖照常互動
+
+type Deal = {
+  addr_key: string | null; deal_date: string | null;
+  total_price: number | null; area_ping: number | null;
+  parking_area_ping: number | null; unit_price: number | null;
+};
+type Detail = {
+  building: {
+    addr_key: string; district: string; lat: number | null; lng: number | null;
+    deal_count: number | null; median_unit_price: number | null; median_total: number | null;
+    building_type: string | null; build_year: number | null;
+  };
+  community: { name: string; households: number | null; first_reg: string | null; building_count: number } | null;
+  deals: Deal[];
+  rent: {
+    community_rent_ping: number | null; community_samples: number;
+    rent_ping_market: number | null; rent_samples_market: number | null;
+  } | null;
+};
+
+// 點在多邊形內(含 MultiPolygon 與挖洞):找出所在生活圈,拿圈內中位當比較基準
+type Ring = [number, number][];
+function inRing(lng: number, lat: number, ring: Ring): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j];
+    if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi)
+      inside = !inside;
+  }
+  return inside;
+}
+function inGeom(lng: number, lat: number, geom: any): boolean {
+  const polys: Ring[][] = geom.type === "Polygon" ? [geom.coordinates] : geom.coordinates;
+  for (const rings of polys) {
+    if (!inRing(lng, lat, rings[0])) continue;
+    if (!rings.slice(1).some((h) => inRing(lng, lat, h))) return true;
+  }
+  return false;
+}
+
+// 成交單價走勢:原始成交打點(淡),季中位數走深色實線;樣本太少只給點
+function TrendChart({ deals }: { deals: Deal[] }) {
+  const pts = useMemo(() => deals
+    .filter((d) => d.deal_date && d.unit_price != null && d.unit_price > 0)
+    .map((d) => ({ t: +new Date(d.deal_date!), v: d.unit_price!, label: `${d.deal_date}・${d.unit_price!.toFixed(1)} 萬/坪` }))
+    .sort((a, b) => a.t - b.t), [deals]);
+  if (pts.length < 3) return null;
+
+  const W = 404, H = 168, L = 34, R = 12, T = 10, B = 20;
+  const t0 = pts[0].t, t1 = Math.max(pts[pts.length - 1].t, t0 + 1);
+  const vs = pts.map((p) => p.v);
+  const vmin = Math.floor(Math.min(...vs) * 0.96), vmax = Math.ceil(Math.max(...vs) * 1.04);
+  const x = (t: number) => L + ((t - t0) / (t1 - t0)) * (W - L - R);
+  const y = (v: number) => T + (1 - (v - vmin) / Math.max(1e-9, vmax - vmin)) * (H - T - B);
+
+  const median = (xs: number[]) => {
+    const s = [...xs].sort((a, b) => a - b), m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  };
+  const byQ = new Map<string, { t: number; vs: number[] }>();
+  for (const p of pts) {
+    const d = new Date(p.t), q = Math.floor(d.getMonth() / 3);
+    const key = `${d.getFullYear()}Q${q + 1}`;
+    const mid = +new Date(d.getFullYear(), q * 3 + 1, 15); // 季中當 x 座標
+    (byQ.get(key) ?? byQ.set(key, { t: mid, vs: [] }).get(key)!).vs.push(p.v);
+  }
+  const qs = [...byQ.values()].map((g) => ({ t: g.t, v: median(g.vs) })).sort((a, b) => a.t - b.t);
+
+  const yTicks = [vmin, (vmin + vmax) / 2, vmax];
+  const years: number[] = [];
+  for (let yr = new Date(t0).getFullYear() + 1; yr <= new Date(t1).getFullYear(); yr++)
+    years.push(+new Date(yr, 0, 1));
+  const last = qs[qs.length - 1];
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} role="img"
+      aria-label="成交單價走勢(明細見下表)">
+      {yTicks.map((v) => (
+        <g key={v}>
+          <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke="#edf0f2" />
+          <text x={L - 5} y={y(v) + 3.5} textAnchor="end" fontSize={10} fill="#8a97a0" className="num">{v.toFixed(0)}</text>
+        </g>
+      ))}
+      {years.map((t) => (
+        <text key={t} x={x(t)} y={H - 6} textAnchor="middle" fontSize={10} fill="#8a97a0" className="num">
+          {new Date(t).getFullYear()}
+        </text>
+      ))}
+      {pts.map((p, i) => (
+        <circle key={i} cx={x(p.t)} cy={y(p.v)} r={3} fill="#7aa7cf" fillOpacity={0.5}>
+          <title>{p.label}</title>
+        </circle>
+      ))}
+      {qs.length >= 2 && (
+        <polyline points={qs.map((q) => `${x(q.t)},${y(q.v)}`).join(" ")}
+          fill="none" stroke="#184a7c" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      )}
+      {qs.length >= 2 && qs.map((q, i) => (
+        <circle key={i} cx={x(q.t)} cy={y(q.v)} r={3.2} fill="#184a7c" stroke="#fff" strokeWidth={1.5}>
+          <title>季中位 {q.v.toFixed(1)} 萬/坪</title>
+        </circle>
+      ))}
+      {qs.length >= 2 && (
+        <text x={Math.min(x(last.t) + 6, W - 2)} y={y(last.v) - 7} fontSize={11} fontWeight={700}
+          fill="#184a7c" textAnchor="end" className="num">{last.v.toFixed(1)}</text>
+      )}
+    </svg>
+  );
+}
+
+export default function BuildingDrawer({ addrKey, zones, onClose }: {
+  addrKey: string; zones: FeatureCollection | null; onClose: () => void;
+}) {
+  const [detail, setDetail] = useState<Detail | null>(null);
+  const [err, setErr] = useState(false);
+
+  useEffect(() => {
+    setDetail(null); setErr(false);
+    fetch(`/api/building-detail?addr=${encodeURIComponent(addrKey)}`)
+      .then((r) => { if (!r.ok) throw 0; return r.json(); })
+      .then(setDetail).catch(() => setErr(true));
+  }, [addrKey]);
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+
+  const b = detail?.building;
+  const zone = useMemo(() => {
+    if (!zones || !b?.lat || !b?.lng) return null;
+    const f: any = zones.features.find((f: any) => inGeom(+b.lng!, +b.lat!, f.geometry));
+    return f ? f.properties : null;
+  }, [zones, b]);
+
+  const unit = b?.median_unit_price ?? null;
+  // 租金行情三層備援:社區自己的租賃件(n≥5)→ 生活圈行情 → 區級行情
+  const rentPick = useMemo(() => {
+    const r = detail?.rent;
+    if (r?.community_rent_ping != null && r.community_samples >= 5)
+      return { v: r.community_rent_ping, n: r.community_samples, src: "社區" };
+    if (zone?.rent_ping_market != null)
+      return { v: +zone.rent_ping_market, n: zone.rent_samples_market ?? 0, src: "圈內" };
+    if (r?.rent_ping_market != null)
+      return { v: r.rent_ping_market, n: r.rent_samples_market ?? 0, src: "區內" };
+    return null;
+  }, [detail, zone]);
+  const roi = unit && rentPick ? (rentPick.v * 12) / (unit * 10000) * 100 : null;
+  const vsZone = unit && zone?.resale_unit_price ? (unit / zone.resale_unit_price - 1) * 100 : null;
+  const shortAddr = (s: string) => s.replace(/^桃園市[^區]+區/, "");
+
+  return (
+    <aside className="drawer">
+      <button className="dclose" onClick={onClose} aria-label="關閉">✕</button>
+      {err && <div className="note">載入失敗,請重試。</div>}
+      {!detail && !err && <div className="note">載入中…</div>}
+      {detail && b && (
+        <>
+          <h2>{detail.community?.name ?? shortAddr(b.addr_key)}</h2>
+          <div className="dsub">
+            {detail.community && `${shortAddr(b.addr_key)}・`}
+            {b.building_type ?? "—"}
+            {b.build_year ? `・${new Date().getFullYear() - b.build_year} 年屋` : ""}
+            {detail.community?.households ? `・${detail.community.households} 戶` : ""}
+            {detail.community && detail.community.building_count > 1 ? `・${detail.community.building_count} 個門牌` : ""}
+          </div>
+
+          <div className="statrow">
+            <div className="stat">
+              <b className="num">{unit == null ? "—" : unit.toFixed(1)}</b>
+              <span>中位單價(萬/坪)</span>
+            </div>
+            <div className="stat">
+              <b className="num">{roi == null ? "—" : `${roi.toFixed(2)}%`}</b>
+              <span>推估投報({rentPick ? `${rentPick.src}租金 n=${rentPick.n}` : "無租金行情"})</span>
+            </div>
+            <div className="stat">
+              <b className="num">{vsZone == null ? "—" : `${vsZone > 0 ? "+" : ""}${vsZone.toFixed(1)}%`}</b>
+              <span>{zone ? `vs ${zone.name}中位` : "vs 生活圈(圈外)"}</span>
+            </div>
+          </div>
+
+          <TrendChart deals={detail.deals} />
+          <div className="note" style={{ marginTop: 2 }}>
+            {detail.community ? "全社區" : "本門牌"}成交 {detail.deals.length} 筆・淡點=單筆成交、深線=季中位
+            {zone ? `・所在生活圈:${zone.name}(中古中位 $${(+zone.resale_unit_price).toFixed(1)})` : ""}
+          </div>
+
+          <table className="deals num" style={{ marginTop: 10 }}>
+            <thead><tr><th>日期</th><th>門牌</th><th>總價</th><th>單價</th></tr></thead>
+            <tbody>
+              {detail.deals.slice(0, 120).map((d, i) => (
+                <tr key={i}>
+                  <td>{d.deal_date ?? "—"}</td>
+                  <td className="addr" title={d.addr_key ?? ""}>{d.addr_key ? shortAddr(d.addr_key) : "—"}</td>
+                  <td>{d.total_price == null ? "—" : `${Math.round(d.total_price).toLocaleString()} 萬`}</td>
+                  <td>{d.unit_price == null ? "—" : d.unit_price.toFixed(1)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {detail.deals.length > 120 && <div className="note">僅列最近 120 筆(共 {detail.deals.length} 筆)</div>}
+          <div className="note">
+            單價皆為扣車位口徑(萬/坪);投報推估:{rentPick?.src ?? "區內"}市場租金中位({rentPick ? `${Math.round(rentPick.v)} 元/坪/月` : "—"})× 12 ÷ 單價,不含社宅包租代管件。
+          </div>
+        </>
+      )}
+    </aside>
+  );
+}

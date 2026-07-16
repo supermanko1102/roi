@@ -83,9 +83,11 @@ export const rent_deals = pgTable("rent_deals", {
   build_year: integer("build_year"),             // 建築完成年(西元,可為 null)
   building_type: text("building_type"),          // 建物型態(住宅大樓/華廈/店面...)
   is_social: boolean("is_social").default(false),// 社會住宅包租代管件(租金受政策壓低)
+  addr_key: text("addr_key"),                    // 去樓層門牌(實登2.0起租賃有完整門牌)
   raw_season: text("raw_season"),
 }, (t) => [
   index("idx_rent_district").on(t.district),
+  index("idx_rent_addr_key").on(t.addr_key),
 ]);
 
 // 預售建案備查(plvr「預售備查建案下載」;實登 2.0 之後才有,match-communities 重建)
@@ -107,6 +109,14 @@ export const building_community = pgTable("building_community", {
   addr_key: text("addr_key").primaryKey(),
   case_no: text("case_no").notNull(),
   matched_parcels: integer("matched_parcels").default(0), // 交集地號數(信心參考)
+});
+
+// 生活圈租金行情(compute-zone-rents 重建;供圈級投報與抽屜推估用)
+export const zone_stats = pgTable("zone_stats", {
+  zone: text("zone").primaryKey(),               // 生活圈名(對應 taoyuan-zones.geojson 的 name)
+  median_rent_ping_market: money("median_rent_ping_market"), // 元/坪/月,排除社宅
+  rent_samples_market: integer("rent_samples_market").default(0),
+  updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
 // 彙總層(compute-stats 重算;seed 先塞示範值)
