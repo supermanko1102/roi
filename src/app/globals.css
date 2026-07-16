@@ -59,19 +59,58 @@ body {
     animation: drawer-up .22s ease; }
   @keyframes drawer-up { from { transform: translateY(36px); opacity: 0; } }
 }
-.drawer h2 { font-size: 17px; margin: 2px 28px 2px 0; }
-.drawer .dsub { color: var(--ink-soft); font-size: 11.5px; margin-bottom: 12px; }
+.drawer h2 { font-size: 19px; margin: 2px 28px 2px 0; display: flex; align-items: center; gap: 8px; }
+.drawer .dsub { color: var(--ink-soft); font-size: 12px; margin: 4px 0 14px; line-height: 1.6; }
+/* 屋齡/預售小標籤 */
+.chip {
+  flex: none; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 3px 10px;
+  background: #e8f1f2; color: var(--teal);
+}
+.chip.presale { background: var(--teal); color: #fff; }
+/* 價格主視覺:一眼看到「一坪多少、一戶多少、貴還是便宜」 */
+.hero {
+  background: #f6f8f9; border-radius: 12px; padding: 14px 16px; margin-bottom: 10px;
+}
+.hero .hprice { font-size: 13px; color: var(--ink-soft); }
+.hero .hprice b { font-size: 30px; color: var(--ink); margin: 0 3px; letter-spacing: -0.5px; }
+.hero .hsub { font-size: 12.5px; color: var(--ink-soft); margin-top: 2px; }
+.badge {
+  display: inline-block; margin-top: 10px; border-radius: 999px; padding: 6px 14px;
+  font-size: 13px; font-weight: 700;
+}
+.badge.cheap { background: #e2f3ea; color: #146c4c; }
+.badge.rich { background: #fbe9e5; color: #a93b26; }
+.badge.flat { background: #e9edf0; color: #46565f; }
+.badge.none { background: #eef1f2; color: var(--ink-soft); font-weight: 500; }
+/* 逐行重點:一行講一件事 */
+.keypoints { margin: 12px 0 4px; display: grid; gap: 7px; }
+.kp { display: flex; gap: 9px; font-size: 13px; line-height: 1.55; align-items: baseline; }
+.kp .ki { flex: none; width: 18px; text-align: center; }
+.kp b.cheap { color: #1a7f5c; }
+.kp b.rich { color: #c2452d; }
+/* 區塊:問題式標題 + 內容 */
+.sec { margin-top: 20px; }
+.sec .sechead { font-size: 14px; font-weight: 800; display: flex; justify-content: space-between; align-items: baseline; }
+.sec .sechead .secval { font-size: 13px; font-weight: 700; color: var(--teal); }
+.sec .sechint { font-size: 11px; color: var(--ink-soft); margin-top: 1px; margin-bottom: 8px; }
+/* 房型卡:比表格好掃 */
+.roomcards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.roomcard { background: #f6f8f9; border-radius: 10px; padding: 10px 12px; }
+.roomcard .rlabel { font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+.roomcard .rprice { font-size: 15.5px; font-weight: 800; margin-top: 2px; }
+.roomcard .rmeta { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
 .drawer .dclose {
   position: absolute; top: 12px; right: 12px; border: none; background: #eef1f2;
   width: 28px; height: 28px; border-radius: 50%; cursor: pointer; color: var(--ink-soft);
   font-size: 13px; line-height: 1;
 }
 .drawer .dclose:hover { background: #e2e7ea; }
-.statrow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
-.stat { background: #f6f8f9; border-radius: 10px; padding: 9px 11px; }
-.stat b { font-size: 17px; display: block; }
-.stat span { font-size: 10px; color: var(--ink-soft); line-height: 1.3; display: block; margin-top: 2px; }
 .drawer table.deals td.addr { max-width: 118px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drawer table.deals { width: 100%; border-collapse: collapse; font-size: 12px; }
+.drawer table.deals th { text-align: left; color: var(--ink-soft); font-size: 10.5px; font-weight: 600;
+  padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.drawer table.deals td { padding: 5px 6px; border-bottom: none; }
+.drawer table.deals tbody tr:nth-child(even) { background: #f6f8f9; }
 .detailbtn {
   margin-top: 9px; width: 100%; border: none; border-radius: 8px; cursor: pointer;
   background: var(--teal); color: #fff; padding: 7px 10px; font-size: 12px; font-weight: 600;
@@ -92,18 +131,6 @@ body {
   margin-top: 7px; background: #fdf0f1; border: 1px solid #f2ccd1; border-radius: 6px;
   color: #b02a37; font-size: 11px; padding: 5px 8px; line-height: 1.5;
 }
-/* 一句話結論:抽屜頂部的判讀摘要 */
-.verdict {
-  background: #f2f7f4; border-left: 3px solid var(--teal); border-radius: 0 8px 8px 0;
-  padding: 9px 12px; font-size: 12.5px; line-height: 1.65; margin-bottom: 12px;
-}
-.verdict b.cheap { color: #1a7f5c; }
-.verdict b.rich { color: #c2452d; }
-.drawer .sectitle {
-  font-size: 12px; font-weight: 700; margin-bottom: 4px;
-  display: flex; justify-content: space-between; align-items: baseline;
-}
-.drawer .sectitle b { font-size: 12.5px; }
 .zoomhint {
   position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 10;
   background: rgba(34,48,58,.82); color: #fff; border-radius: 999px;

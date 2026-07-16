@@ -523,13 +523,13 @@ export default function PropertyMap() {
               </div>
               <div className="roi" style={{ background: priceColor(presalePopup.price) }}>
                 <b className="num">{presalePopup.price == null ? "—" : presalePopup.price.toFixed(1)}</b>
-                <span>扣車位單價(萬/坪)</span>
+                <span>一坪約(萬,已扣車位)</span>
               </div>
               <dl>
-                <div><dt>中位總價</dt><dd className="num">
+                <div><dt>一戶大約</dt><dd className="num">
                   {presalePopup.median_total == null ? "—" : (+presalePopup.median_total).toLocaleString() + " 萬"}</dd></div>
-                <div><dt>中位坪數</dt><dd className="num">
-                  {presalePopup.median_area == null ? "—" : (+presalePopup.median_area).toFixed(1) + " 坪"}</dd></div>
+                <div><dt>坪數大約</dt><dd className="num">
+                  {presalePopup.median_area == null ? "—" : (+presalePopup.median_area).toFixed(0) + " 坪"}</dd></div>
               </dl>
               {presalePopup.cancel_count > 0 && (
                 <div className="cancelnote">⚠ 本案曾有 {presalePopup.cancel_count} 筆解約(未計入價格統計)</div>
@@ -554,13 +554,13 @@ export default function PropertyMap() {
               </div>
               <div className="roi" style={{ background: "#3d7ea6" }}>
                 <b className="num">{bldgPopup.median_unit_price == null ? "—" : `${bldgPopup.median_unit_price.toFixed(1)}`}</b>
-                <span>中位單價(萬/坪,扣車位)</span>
+                <span>一坪約(萬,已扣車位)</span>
               </div>
               {bldgPopup.deals == null ? (
                 <div className="note">載入成交明細…</div>
               ) : (
                 <table className="deals num">
-                  <thead><tr><th>日期</th><th>總價</th><th>單價</th></tr></thead>
+                  <thead><tr><th>日期</th><th>總價</th><th>一坪</th></tr></thead>
                   <tbody>
                     {bldgPopup.deals.slice(0, 8).map((d, i) => (
                       <tr key={i}>
@@ -590,9 +590,9 @@ export default function PropertyMap() {
       <div id="topbar">
         <div className="tbrow">
           <span className="title">桃園房價地圖</span>
-          <div className="toggle" role="group" title="上色:相對=偏離同屋齡帶行情的百分比;單價=中位單價">
-            <button className={mode === "rel" ? "on" : ""} onClick={() => setMode("rel")}>相對行情</button>
-            <button className={mode === "abs" ? "on" : ""} onClick={() => setMode("abs")}>單價</button>
+          <div className="toggle" role="group" title="地圖顏色代表什麼:「貴/便宜」=和同屋齡的行情相比;「一坪價格」=實際價格高低">
+            <button className={mode === "rel" ? "on" : ""} onClick={() => setMode("rel")}>貴/便宜</button>
+            <button className={mode === "abs" ? "on" : ""} onClick={() => setMode("abs")}>一坪價格</button>
           </div>
           <button className={`cancelbtn ${showCancel ? "on" : ""}`}
             onClick={() => setShowCancel((v) => !v)}
@@ -618,21 +618,21 @@ export default function PropertyMap() {
 
       <div className="legend">
         <div className="ltitle">
-          {mode === "rel" ? `相對同屋齡帶行情(${BAND_LABEL[band]})` : `中位單價 萬/坪(${BAND_LABEL[band]})`}
+          {mode === "rel" ? `和同屋齡的行情相比(${BAND_LABEL[band]})` : `一坪價格,萬(${BAND_LABEL[band]})`}
         </div>
         <div className="lgrad" style={{
           background: `linear-gradient(to right, ${(mode === "rel" ? DEV_STOPS : PRICE_STOPS).map((s) => s[1]).join(",")})`,
         }} />
         <div className="lticks">
           {mode === "rel"
-            ? <><span>-15% 便宜</span><span>行情</span><span>+15% 貴</span></>
+            ? <><span>便宜 15%</span><span>差不多</span><span>貴 15%</span></>
             : <><span>$20</span><span>$32</span><span>$44</span></>}
         </div>
         <div className="lnote">
           {[
-            mode === "rel" ? "區/圈 vs 全市同帶中位.點位 vs 生活圈同帶中位" : null,
-            detail ? "○ 預售 ● 已完工" : null,
-            rooms !== "all" ? `點位僅計 ${ROOM_LABEL[rooms]} 成交(色塊仍為全格局)` : null,
+            mode === "rel" ? "色塊=跟全市比・圓點=跟它所在的生活圈比" : null,
+            detail ? "○ 預售 ● 成屋" : null,
+            rooms !== "all" ? `圓點只計 ${ROOM_LABEL[rooms]} 的成交` : null,
           ].filter(Boolean).join("・")}
         </div>
       </div>

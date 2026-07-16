@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FeatureCollection } from "geojson";
 import { BAND_LABEL, type BandFilter } from "@/lib/age";
 import { inGeom } from "@/lib/geo";
-import { quarterMedians, TrendChart } from "./BuildingDrawer";
+import { TrendChart, KeyPoint, trendPoint, recentPoint, priceBadge, fmtP, RoomBreakdown } from "./BuildingDrawer";
 
-// 建案(預售)抽屜:與中古棟抽屜同殼,但主打預售獨有的資訊——
-// 去化進度(棟及號 distinct)、格局總價帶、樓層價差、解約紀錄
+// 建案(預售)抽屜:與中古棟抽屜同一套資訊設計——
+// 白話回答四個問題:多少錢?貴還是便宜?賣得怎麼樣?幾房要準備多少錢?
 
 type PDeal = {
   deal_date: string | null; total_price: number | null; area_ping: number | null;
@@ -32,13 +32,8 @@ const median = (xs: number[]) => {
   const s = [...xs].sort((a, b) => a - b), m = s.length >> 1;
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
-const quantile = (xs: number[], q: number) => {
-  if (!xs.length) return null;
-  const s = [...xs].sort((a, b) => a - b);
-  return s[Math.min(s.length - 1, Math.floor(s.length * q))];
-};
 
-// 去化曲線:累積成交(戶)/總戶數;無戶數就畫累積筆數
+// 銷售進度曲線:累積成交(戶)/總戶數;無戶數就畫累積戶數
 function SalesCurve({ deals, households }: { deals: PDeal[]; households: number | null }) {
   const pts = useMemo(() => {
     const dated = deals.filter((d) => d.deal_date).sort((a, b) => +new Date(a.deal_date!) - +new Date(b.deal_date!));
@@ -62,53 +57,40 @@ function SalesCurve({ deals, households }: { deals: PDeal[]; households: number 
   const x = (t: number) => L + ((t - t0) / (t1 - t0)) * (W - L - R);
   const y = (n: number) => T + (1 - n / Math.max(1, yMax)) * (H - T - B);
   const last = pts[pts.length - 1];
-  const pct = households ? (last.n / households) * 100 : null;
 
   const years: number[] = [];
   for (let yr = new Date(t0).getFullYear() + 1; yr <= new Date(t1).getFullYear(); yr++)
     years.push(+new Date(yr, 0, 1));
 
   return (
-    <div style={{ marginTop: 12 }}>
-      <div className="sectitle">
-        去化進度{pct != null && <b className="num">{pct.toFixed(0)}%({last.n}/{households} 戶)</b>}
-        {pct == null && <b className="num">{last.n} 戶</b>}
-      </div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} role="img"
-        aria-label="累積成交戶數曲線">
-        {households && [0.5, 1].map((f) => (
-          <g key={f}>
-            <line x1={L} x2={W - R} y1={y(households * f)} y2={y(households * f)}
-              stroke="#edf0f2" strokeDasharray={f === 1 ? "0" : "3 3"} />
-            <text x={L - 5} y={y(households * f) + 3.5} textAnchor="end" fontSize={10} fill="#8a97a0" className="num">
-              {Math.round(households * f)}
-            </text>
-          </g>
-        ))}
-        {years.map((t) => (
-          <text key={t} x={x(t)} y={H - 4} textAnchor="middle" fontSize={10} fill="#8a97a0" className="num">
-            {new Date(t).getFullYear()}
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} role="img"
+      aria-label="累積成交戶數曲線">
+      {households && [0.5, 1].map((f) => (
+        <g key={f}>
+          <line x1={L} x2={W - R} y1={y(households * f)} y2={y(households * f)}
+            stroke="#edf0f2" strokeDasharray={f === 1 ? "0" : "3 3"} />
+          <text x={L - 5} y={y(households * f) + 3.5} textAnchor="end" fontSize={10} fill="#8a97a0" className="num">
+            {Math.round(households * f)}
           </text>
-        ))}
-        <polyline points={pts.map((p) => `${x(p.t)},${y(p.n)}`).join(" ")}
-          fill="none" stroke="#16606b" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-        <circle cx={x(last.t)} cy={y(last.n)} r={3.2} fill="#16606b" stroke="#fff" strokeWidth={1.5} />
-      </svg>
-    </div>
+        </g>
+      ))}
+      {years.map((t) => (
+        <text key={t} x={x(t)} y={H - 4} textAnchor="middle" fontSize={10} fill="#8a97a0" className="num">
+          {new Date(t).getFullYear()}
+        </text>
+      ))}
+      <polyline points={pts.map((p) => `${x(p.t)},${y(p.n)}`).join(" ")}
+        fill="none" stroke="#16606b" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={x(last.t)} cy={y(last.n)} r={3.2} fill="#16606b" stroke="#fff" strokeWidth={1.5} />
+    </svg>
   );
 }
 
-const ROOM_ROWS: { label: string; match: (r: number) => boolean }[] = [
-  { label: "1房", match: (r) => r <= 1 },
-  { label: "2房", match: (r) => r === 2 },
-  { label: "3房", match: (r) => r === 3 },
-  { label: "4房+", match: (r) => r >= 4 },
-];
 const FLOOR_ROWS: { label: string; match: (f: number) => boolean }[] = [
-  { label: "1–5F", match: (f) => f <= 5 },
-  { label: "6–10F", match: (f) => f > 5 && f <= 10 },
-  { label: "11–15F", match: (f) => f > 10 && f <= 15 },
-  { label: "16F+", match: (f) => f > 15 },
+  { label: "1–5樓", match: (f) => f <= 5 },
+  { label: "6–10樓", match: (f) => f > 5 && f <= 10 },
+  { label: "11–15樓", match: (f) => f > 10 && f <= 15 },
+  { label: "16樓以上", match: (f) => f > 15 },
 ];
 
 export default function ProjectDrawer({ district, name, zones, onClose }: {
@@ -140,7 +122,7 @@ export default function ProjectDrawer({ district, name, zones, onClose }: {
     return f ? f.properties : null;
   }, [zones, p]);
 
-  // 比較基準:所在生活圈「同屋齡帶」中位(預售案就是預售帶),不足退圈內全部
+  // 比較基準:所在生活圈「同屋齡帶」行情(預售案就比預售),不足退圈內全部
   const band = (detail?.band ?? "presale") as BandFilter;
   const zoneRef = zone == null ? null
     : (zone[`price_${band}`] != null
@@ -150,51 +132,12 @@ export default function ProjectDrawer({ district, name, zones, onClose }: {
   const vsZone = unit && zoneRef ? (unit / zoneRef.v - 1) * 100 : null;
 
   const households = detail?.community?.households ?? null;
-
-  // 一句話結論:溢價、走勢、去化、解約——預售決策的四個關鍵
-  const verdict = useMemo(() => {
-    if (!detail) return null;
-    const parts: ReactNode[] = [];
-    if (vsZone != null && zone) {
-      const ref = `${zone.name}同屋齡帶(${zoneRef!.label})行情`;
-      parts.push(Math.abs(vsZone) < 3
-        ? <span key="p">與{ref}<b>相當</b></span>
-        : <span key="p">比{ref}<b className={vsZone < 0 ? "cheap" : "rich"}>
-            {vsZone < 0 ? "便宜" : "貴"} {Math.abs(vsZone).toFixed(1)}%</b></span>);
-    }
-    // 單季樣本 <3 的季不拿來下結論(零星高價戶會做出假漲幅)
-    const qs = quarterMedians(active).filter((q) => q.n >= 3);
-    if (qs.length >= 2) {
-      const last = qs[qs.length - 1];
-      const base = [...qs].reverse().find((q) => last.t - q.t >= 365 * 86400e3 * 0.7);
-      if (base) {
-        const pct = (last.v / base.v - 1) * 100;
-        parts.push(Math.abs(pct) < 2
-          ? <span key="t">近一年季中位<b>大致持平</b></span>
-          : <span key="t">近一年季中位<b className={pct > 0 ? "rich" : "cheap"}>
-              {pct > 0 ? "上漲" : "下跌"} {Math.abs(pct).toFixed(1)}%</b></span>);
-      }
-    }
-    const cutoff = Date.now() - 90 * 86400e3;
-    const recent = active.filter((d) => d.deal_date && +new Date(d.deal_date) >= cutoff).length;
-    parts.push(<span key="r">近 90 天{recent > 0 ? <>成交 <b>{recent} 筆</b></> : "無成交"}</span>);
-    if (households) {
-      const sold = new Set(active.filter((d) => d.unit_id).map((d) => d.unit_id!)).size || active.length;
-      parts.push(<span key="s">已去化約 <b>{Math.min(100, (sold / households) * 100).toFixed(0)}%</b></span>);
-    }
-    if (cancelled.length) {
-      parts.push(<span key="c">曾有 <b className="rich">{cancelled.length} 筆解約</b></span>);
-    }
-    return parts;
-  }, [detail, active, cancelled, vsZone, zone, zoneRef, households]);
-
-  // 格局總價帶:P25–P75 讓使用者知道「這案 3 房大概要準備多少錢」
-  const roomRows = useMemo(() => ROOM_ROWS.map((rr) => {
-    const ds = active.filter((d) => d.rooms != null && rr.match(d.rooms));
-    const totals = ds.map((d) => d.total_price).filter((v): v is number => v != null);
-    const units = ds.map((d) => d.unit_price).filter((v): v is number => v != null);
-    return { label: rr.label, n: ds.length, p25: quantile(totals, 0.25), p75: quantile(totals, 0.75), mu: median(units) };
-  }).filter((r) => r.n > 0), [active]);
+  // 已售戶數:棟及號 distinct;沒有棟及號就用筆數
+  const sold = useMemo(() => {
+    const ids = new Set(active.filter((d) => d.unit_id).map((d) => d.unit_id!));
+    return ids.size || active.length;
+  }, [active]);
+  const soldPct = households ? Math.min(100, (sold / households) * 100) : null;
 
   const floorRows = useMemo(() => FLOOR_ROWS.map((fr) => {
     const ds = active.filter((d) => d.floor_no != null && fr.match(d.floor_no));
@@ -206,6 +149,7 @@ export default function ProjectDrawer({ district, name, zones, onClose }: {
     [...active].sort((a, b) => +new Date(b.deal_date ?? 0) - +new Date(a.deal_date ?? 0)), [active]);
 
   const age = detail?.build_year ? new Date().getFullYear() - detail.build_year : null;
+  const presale = detail?.band === "presale";
 
   return (
     <aside className="drawer">
@@ -214,113 +158,119 @@ export default function ProjectDrawer({ district, name, zones, onClose }: {
       {!detail && !err && <div className="note">載入中…</div>}
       {detail && p && (
         <>
-          <h2>{p.name}</h2>
+          <h2>
+            <span>{p.name}</span>
+            <span className={`chip ${presale ? "presale" : ""}`}>
+              {presale ? "預售" : age != null && age <= 1 ? "新成屋" : `${age} 年屋`}
+            </span>
+          </h2>
           <div className="dsub">
             {p.district}
-            ・{detail.band === "presale" ? "預售" : age != null ? `${age} 年屋(已完工)` : "已完工"}
-            {households ? `・${households} 戶` : ""}
+            {households ? `・共 ${households} 戶` : ""}
             {detail.community?.street ? `・${detail.community.street}` : ""}
-            {detail.community?.permit_no ? `・建照 ${detail.community.permit_no}` : ""}
           </div>
 
-          {verdict && verdict.length > 0 && (
-            <div className="verdict">
-              {verdict.map((v, i) => <span key={i}>{i > 0 && ";"}{v}</span>)}。
+          <div className="hero">
+            <div className="hprice">一坪約<b className="num">{unit == null ? "—" : fmtP(+unit)}</b>萬</div>
+            <div className="hsub">
+              {p.median_total != null && `一戶大約 ${Math.round(+p.median_total).toLocaleString()} 萬`}
+              {p.median_area != null && `・${Math.round(+p.median_area)} 坪左右`}
             </div>
-          )}
-
-          <div className="statrow">
-            <div className="stat">
-              <b className="num">{unit == null ? "—" : (+unit).toFixed(1)}</b>
-              <span>中位單價(萬/坪,扣車位)</span>
-            </div>
-            <div className="stat">
-              <b className="num">{p.median_total == null ? "—" : Math.round(+p.median_total).toLocaleString()}</b>
-              <span>中位總價(萬){p.median_area ? `・${(+p.median_area).toFixed(0)} 坪` : ""}</span>
-            </div>
-            <div className="stat">
-              <b className="num">{vsZone == null ? "—" : (() => { const v = +vsZone.toFixed(1); return `${v > 0 ? "+" : ""}${v.toFixed(1)}%`; })()}</b>
-              <span>{zone ? `vs ${zone.name}${zoneRef ? `(${zoneRef.label})` : ""}中位` : "vs 生活圈(圈外)"}</span>
-            </div>
+            {priceBadge(vsZone, zone?.name ?? null, zoneRef?.label ?? null)}
           </div>
 
-          <SalesCurve deals={active} households={households} />
+          <div className="keypoints">
+            {soldPct != null
+              ? <KeyPoint icon="🏠">{soldPct >= 95 ? <>幾乎<b>賣完了</b></> : <>已賣出約 <b>{soldPct.toFixed(0)}%</b></>}({sold}/{households} 戶)</KeyPoint>
+              : <KeyPoint icon="🏠">目前累計 <b>{sold} 戶</b>成交</KeyPoint>}
+            {trendPoint(active, "這個案子的價格")}
+            {recentPoint(active)}
+            {cancelled.length > 0 &&
+              <KeyPoint icon="⚠️">有 <b className="rich">{cancelled.length} 筆</b>買了之後解約</KeyPoint>}
+          </div>
 
-          <div className="sectitle" style={{ marginTop: 12 }}>單價走勢</div>
-          <TrendChart deals={active} />
+          <div className="sec">
+            <div className="sechead">賣得怎麼樣?
+              {soldPct != null && <span className="secval num">{sold}/{households} 戶</span>}
+            </div>
+            <div className="sechint">線越陡代表那段時間賣得越快</div>
+            <SalesCurve deals={active} households={households} />
+          </div>
 
-          {roomRows.length > 0 && (
-            <>
-              <div className="sectitle" style={{ marginTop: 12 }}>格局總價帶</div>
-              <table className="deals num">
-                <thead><tr><th>格局</th><th>筆數</th><th>總價帶(P25–P75)</th><th>中位單價</th></tr></thead>
+          <RoomBreakdown deals={active} />
+
+          <div className="sec">
+            <div className="sechead">價格走勢</div>
+            <div className="sechint">每個淡點是一筆實際成交,深色線是每一季的行情</div>
+            <TrendChart deals={active} />
+          </div>
+
+          {floorRows.length >= 2 && (
+            <div className="sec">
+              <div className="sechead">樓層與價格</div>
+              <table className="deals num" style={{ marginTop: 6 }}>
+                <thead><tr><th>樓層</th><th>一坪約</th><th>成交筆數</th></tr></thead>
                 <tbody>
-                  {roomRows.map((r) => (
+                  {floorRows.map((r) => (
                     <tr key={r.label}>
-                      <td>{r.label}</td><td>{r.n}</td>
-                      <td>{r.p25 == null || r.p75 == null ? "—"
-                        : `${Math.round(r.p25).toLocaleString()}–${Math.round(r.p75).toLocaleString()} 萬`}</td>
-                      <td>{r.mu == null ? "—" : r.mu.toFixed(1)}</td>
+                      <td>{r.label}</td>
+                      <td>{r.mu == null ? "—" : `${fmtP(r.mu)} 萬`}</td>
+                      <td>{r.n}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </>
-          )}
-
-          {floorRows.length >= 2 && (
-            <>
-              <div className="sectitle" style={{ marginTop: 12 }}>樓層價差</div>
-              <table className="deals num">
-                <thead><tr><th>樓層</th><th>筆數</th><th>中位單價(萬/坪)</th></tr></thead>
-                <tbody>
-                  {floorRows.map((r) => (
-                    <tr key={r.label}><td>{r.label}</td><td>{r.n}</td><td>{r.mu == null ? "—" : r.mu.toFixed(1)}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-            </>
+            </div>
           )}
 
           {cancelled.length > 0 && (
-            <>
-              <div className="sectitle" style={{ marginTop: 12, color: "#b02a37" }}>解約紀錄</div>
-              <table className="deals num">
-                <thead><tr><th>解約日</th><th>原成交日</th><th>樓層</th><th>總價</th><th>單價</th></tr></thead>
+            <div className="sec">
+              <div className="sechead" style={{ color: "#b02a37" }}>解約紀錄</div>
+              <div className="sechint">這些戶買了之後解約,沒有算進上面的價格與銷售統計</div>
+              <table className="deals num" style={{ marginTop: 6 }}>
+                <thead><tr><th>解約日</th><th>原本買的日期</th><th>樓層</th><th>總價</th></tr></thead>
                 <tbody>
                   {cancelled.map((d, i) => (
                     <tr key={i}>
                       <td>{d.cancel_date ?? "—"}</td>
                       <td>{d.deal_date ?? "—"}</td>
-                      <td>{d.floor_no != null ? `${d.floor_no}F` : "—"}</td>
+                      <td>{d.floor_no != null ? `${d.floor_no}樓` : "—"}</td>
                       <td>{d.total_price == null ? "—" : `${Math.round(d.total_price).toLocaleString()} 萬`}</td>
-                      <td>{d.unit_price == null ? "—" : d.unit_price.toFixed(1)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </>
+            </div>
           )}
 
-          <div className="sectitle" style={{ marginTop: 12 }}>成交明細</div>
-          <table className="deals num">
-            <thead><tr><th>日期</th><th>棟號/樓</th><th>格局</th><th>總價</th><th>單價</th></tr></thead>
-            <tbody>
-              {recentDeals.slice(0, 120).map((d, i) => (
-                <tr key={i}>
-                  <td>{d.deal_date ?? "—"}</td>
-                  <td className="addr" title={d.unit_id ?? ""}>
-                    {d.unit_id ?? (d.floor_no != null ? `${d.floor_no}F` : "—")}
-                  </td>
-                  <td>{d.rooms != null ? `${d.rooms}房` : "—"}</td>
-                  <td>{d.total_price == null ? "—" : `${Math.round(d.total_price).toLocaleString()} 萬`}</td>
-                  <td>{d.unit_price == null ? "—" : d.unit_price.toFixed(1)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {recentDeals.length > 120 && <div className="note">僅列最近 120 筆(共 {recentDeals.length} 筆)</div>}
-          <div className="note">單價皆為扣車位口徑(萬/坪);解約件不計入任何統計。</div>
+          <div className="sec">
+            <div className="sechead">成交紀錄
+              <span className="secval num">{recentDeals.length} 筆</span>
+            </div>
+            <table className="deals num" style={{ marginTop: 6 }}>
+              <thead><tr><th>日期</th><th>樓層・格局</th><th>總價</th><th>一坪</th></tr></thead>
+              <tbody>
+                {recentDeals.slice(0, 120).map((d, i) => (
+                  <tr key={i}>
+                    <td>{d.deal_date ?? "—"}</td>
+                    <td title={d.unit_id ?? ""}>
+                      {[d.floor_no != null ? `${d.floor_no}樓` : null, d.rooms != null ? `${d.rooms}房` : null]
+                        .filter(Boolean).join("・") || (d.unit_id ?? "—")}
+                    </td>
+                    <td>{d.total_price == null ? "—" : `${Math.round(d.total_price).toLocaleString()} 萬`}</td>
+                    <td>{d.unit_price == null ? "—" : `${fmtP(d.unit_price)} 萬`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {recentDeals.length > 120 && <div className="note">僅列最近 120 筆</div>}
+          </div>
+
+          <div className="note" style={{ marginTop: 14 }}>
+            所有價格都已扣掉車位。
+            {zone && zoneRef ? `「附近行情」指 ${zone.name} 生活圈${zoneRef.label === "預售" ? "預售案" : zoneRef.label !== "全部" ? `同屋齡(${zoneRef.label})` : ""}的成交行情(一坪約 ${fmtP(zoneRef.v)} 萬)。` : ""}
+            資料來源:內政部實價登錄。
+          </div>
         </>
       )}
     </aside>

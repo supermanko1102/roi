@@ -43,43 +43,92 @@ export function quarterMedians(deals: PricePoint[]): { t: number; v: number; n: 
   return [...byQ.values()].map((g) => ({ t: g.t, v: median(g.vs), n: g.vs.length })).sort((a, b) => a.t - b.t);
 }
 
-// 一句話結論:替使用者讀完數據,只給判讀所需的那句話
-function Verdict({ deals, vsZone, zoneName, bandLabel }: {
-  deals: Deal[]; vsZone: number | null; zoneName: string | null; bandLabel: string | null;
-}) {
-  const parts: ReactNode[] = [];
+// 逐行重點:一行一件事,給一般人看的白話(共用給兩種抽屜)
+export function KeyPoint({ icon, children }: { icon: string; children: ReactNode }) {
+  return <div className="kp"><span className="ki">{icon}</span><span>{children}</span></div>;
+}
 
-  if (vsZone != null && zoneName) {
-    const ref = `${zoneName}${bandLabel ? `同屋齡帶(${bandLabel})` : ""}行情`;
-    parts.push(Math.abs(vsZone) < 3
-      ? <span key="p">與{ref}<b>相當</b></span>
-      : <span key="p">比{ref}<b className={vsZone < 0 ? "cheap" : "rich"}>
-          {vsZone < 0 ? "便宜" : "貴"} {Math.abs(vsZone).toFixed(1)}%</b></span>);
-  }
-
-  // 近一年走勢:最新季中位 vs 約一年前的季中位;資料跨度太短或單季樣本太少(<3)不硬給結論
+// 近一年走勢的白話句;資料太少(單季 <3 筆)不硬給結論,回 null
+export function trendPoint(deals: PricePoint[], subject = "成交價"): ReactNode | null {
   const qs = quarterMedians(deals).filter((q) => q.n >= 3);
-  if (qs.length >= 2) {
-    const last = qs[qs.length - 1];
-    const YEAR = 365 * 86400e3;
-    const base = [...qs].reverse().find((q) => last.t - q.t >= YEAR * 0.7);
-    if (base) {
-      const pct = (last.v / base.v - 1) * 100;
-      parts.push(Math.abs(pct) < 2
-        ? <span key="t">近一年季中位<b>大致持平</b></span>
-        : <span key="t">近一年季中位<b className={pct > 0 ? "rich" : "cheap"}>
-            {pct > 0 ? "上漲" : "下跌"} {Math.abs(pct).toFixed(1)}%</b></span>);
-    }
-  }
+  if (qs.length < 2) return null;
+  const last = qs[qs.length - 1];
+  const base = [...qs].reverse().find((q) => last.t - q.t >= 365 * 86400e3 * 0.7);
+  if (!base) return null;
+  const pct = (last.v / base.v - 1) * 100;
+  if (Math.abs(pct) < 2) return <KeyPoint icon="➖">這一年{subject}<b>差不多</b>,沒什麼漲跌</KeyPoint>;
+  return pct > 0
+    ? <KeyPoint icon="📈">這一年{subject}<b className="rich">漲了約 {Math.abs(pct).toFixed(0)}%</b></KeyPoint>
+    : <KeyPoint icon="📉">這一年{subject}<b className="cheap">跌了約 {Math.abs(pct).toFixed(0)}%</b></KeyPoint>;
+}
 
+export function recentPoint(deals: PricePoint[]): ReactNode {
   const cutoff = Date.now() - 90 * 86400e3;
-  const recent = deals.filter((d) => d.deal_date && +new Date(d.deal_date) >= cutoff).length;
-  parts.push(<span key="r">近 90 天{recent > 0 ? <>成交 <b>{recent} 筆</b></> : "無成交"}</span>);
+  const n = deals.filter((d) => d.deal_date && +new Date(d.deal_date) >= cutoff).length;
+  return n > 0
+    ? <KeyPoint icon="🕐">最近 90 天有 <b>{n} 筆</b>成交</KeyPoint>
+    : <KeyPoint icon="🕐">最近 90 天<b>沒有</b>新成交</KeyPoint>;
+}
 
-  if (!parts.length) return null;
+// 貴/便宜徽章:把「vs 生活圈同帶中位」翻成人話
+export function priceBadge(vsZone: number | null, zoneName: string | null, bandLabel: string | null) {
+  if (vsZone == null || !zoneName)
+    return <span className="badge none">附近成交太少,暫時無法比較行情</span>;
+  const ref = bandLabel === "預售" ? `${zoneName}一帶的預售案`
+    : bandLabel && bandLabel !== "全部" ? `${zoneName}一帶同屋齡的房子`
+    : `${zoneName}一帶的行情`;
+  const v = Math.abs(vsZone);
+  if (v < 3) return <span className="badge flat">價格和{ref}差不多</span>;
+  return vsZone < 0
+    ? <span className="badge cheap">比{ref}便宜約 {v.toFixed(0)}%</span>
+    : <span className="badge rich">比{ref}貴約 {v.toFixed(0)}%</span>;
+}
+
+// 30 或 29.5:整數就不帶小數,少一點「報表感」
+export const fmtP = (v: number) => (Math.round(v * 10) / 10).toString();
+
+// 房型卡:幾房、大概多少錢(兩種抽屜共用;總價帶取中間 50% 的成交)
+type RoomDeal = { rooms: number | null; total_price: number | null; unit_price: number | null };
+const ROOM_GROUPS: { label: string; match: (r: number) => boolean }[] = [
+  { label: "1房", match: (r) => r <= 1 },
+  { label: "2房", match: (r) => r === 2 },
+  { label: "3房", match: (r) => r === 3 },
+  { label: "4房+", match: (r) => r >= 4 },
+];
+export function RoomBreakdown({ deals }: { deals: RoomDeal[] }) {
+  const med = (xs: number[]) => {
+    if (!xs.length) return null;
+    const s = [...xs].sort((a, b) => a - b), m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  };
+  const qt = (xs: number[], q: number) => {
+    if (!xs.length) return null;
+    const s = [...xs].sort((a, b) => a - b);
+    return s[Math.min(s.length - 1, Math.floor(s.length * q))];
+  };
+  const rows = ROOM_GROUPS.map((g) => {
+    const ds = deals.filter((d) => d.rooms != null && g.match(d.rooms));
+    const totals = ds.map((d) => d.total_price).filter((v): v is number => v != null);
+    const units = ds.map((d) => d.unit_price).filter((v): v is number => v != null);
+    return { label: g.label, n: ds.length, p25: qt(totals, 0.25), p75: qt(totals, 0.75), mu: med(units) };
+  }).filter((r) => r.n > 0);
+  if (!rows.length) return null;
   return (
-    <div className="verdict">
-      {parts.map((p, i) => <span key={i}>{i > 0 && ";"}{p}</span>)}。
+    <div className="sec">
+      <div className="sechead">幾房、大概多少錢?</div>
+      <div className="sechint">多數人成交的總價範圍(去掉特別高和特別低的)</div>
+      <div className="roomcards">
+        {rows.map((r) => (
+          <div className="roomcard" key={r.label}>
+            <div className="rlabel">{r.label}</div>
+            <div className="rprice num">
+              {r.p25 == null || r.p75 == null ? "—"
+                : `${Math.round(r.p25).toLocaleString()}~${Math.round(r.p75).toLocaleString()} 萬`}
+            </div>
+            <div className="rmeta">{r.n} 筆成交{r.mu != null ? `・一坪約 ${fmtP(r.mu)} 萬` : ""}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -198,57 +247,66 @@ export default function BuildingDrawer({ addrKey, zones, onClose }: {
       {!detail && !err && <div className="note">載入中…</div>}
       {detail && b && (
         <>
-          <h2>{detail.community?.name ?? shortAddr(b.addr_key)}</h2>
+          <h2>
+            <span>{detail.community?.name ?? shortAddr(b.addr_key)}</span>
+            {age != null && <span className="chip">{age <= 1 ? "新成屋" : `${age} 年屋`}</span>}
+          </h2>
           <div className="dsub">
             {detail.community && `${shortAddr(b.addr_key)}・`}
-            {b.building_type ?? "—"}
-            {b.build_year ? `・${new Date().getFullYear() - b.build_year} 年屋` : ""}
+            {b.building_type ?? ""}
             {detail.community?.households ? `・${detail.community.households} 戶` : ""}
             {detail.community && detail.community.building_count > 1 ? `・${detail.community.building_count} 個門牌` : ""}
           </div>
 
-          <Verdict deals={detail.deals} vsZone={vsZone}
-            zoneName={zone?.name ?? null} bandLabel={zoneRef?.label ?? null} />
-
-          <div className="statrow">
-            <div className="stat">
-              <b className="num">{unit == null ? "—" : unit.toFixed(1)}</b>
-              <span>中位單價(萬/坪)</span>
+          <div className="hero">
+            <div className="hprice">一坪約<b className="num">{unit == null ? "—" : fmtP(unit)}</b>萬</div>
+            <div className="hsub">
+              {b.median_total != null && `一戶大約 ${Math.round(b.median_total).toLocaleString()} 萬・`}
+              共 {detail.deals.length} 筆成交
             </div>
-            <div className="stat">
-              <b className="num">{age == null ? "—" : `${age} 年`}</b>
-              <span>屋齡{b.build_year ? `(${b.build_year} 完工)` : ""}</span>
-            </div>
-            <div className="stat">
-              {/* 先取一位小數再判斷正負,避免 -0.04 顯示成「-0.0%」 */}
-              <b className="num">{vsZone == null ? "—" : (() => { const v = +vsZone.toFixed(1); return `${v > 0 ? "+" : ""}${v.toFixed(1)}%`; })()}</b>
-              <span>{zone ? `vs ${zone.name}${zoneRef ? `(${zoneRef.label})` : ""}中位` : "vs 生活圈(圈外)"}</span>
-            </div>
+            {priceBadge(vsZone, zone?.name ?? null, zoneRef?.label ?? null)}
           </div>
 
-          <TrendChart deals={detail.deals} />
-          <div className="note" style={{ marginTop: 2 }}>
-            {detail.community ? "全社區" : "本門牌"}成交 {detail.deals.length} 筆・淡點=單筆成交、深線=季中位
-            {zone && zoneRef ? `・所在生活圈:${zone.name}(${zoneRef.label}中位 $${zoneRef.v.toFixed(1)})` : ""}
+          <div className="keypoints">
+            {trendPoint(detail.deals, "這裡的成交價")}
+            {recentPoint(detail.deals)}
           </div>
 
-          <table className="deals num" style={{ marginTop: 10 }}>
-            <thead><tr><th>日期</th><th>門牌</th><th>格局/樓</th><th>總價</th><th>單價</th></tr></thead>
-            <tbody>
-              {detail.deals.slice(0, 120).map((d, i) => (
-                <tr key={i}>
-                  <td>{d.deal_date ?? "—"}</td>
-                  <td className="addr" title={d.addr_key ?? ""}>{d.addr_key ? shortAddr(d.addr_key) : "—"}</td>
-                  <td>{[d.rooms != null ? `${d.rooms}房` : null, d.floor_no != null ? `${d.floor_no}F` : null]
-                        .filter(Boolean).join("/") || "—"}</td>
-                  <td>{d.total_price == null ? "—" : `${Math.round(d.total_price).toLocaleString()} 萬`}</td>
-                  <td>{d.unit_price == null ? "—" : d.unit_price.toFixed(1)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {detail.deals.length > 120 && <div className="note">僅列最近 120 筆(共 {detail.deals.length} 筆)</div>}
-          <div className="note">單價皆為扣車位口徑(萬/坪)。</div>
+          <RoomBreakdown deals={detail.deals} />
+
+          <div className="sec">
+            <div className="sechead">價格走勢</div>
+            <div className="sechint">每個淡點是一筆實際成交,深色線是每一季的行情</div>
+            <TrendChart deals={detail.deals} />
+          </div>
+
+          <div className="sec">
+            <div className="sechead">成交紀錄
+              <span className="secval num">{detail.deals.length} 筆</span>
+            </div>
+            <table className="deals num" style={{ marginTop: 6 }}>
+              <thead><tr><th>日期</th><th>門牌</th><th>格局/樓</th><th>總價</th><th>一坪</th></tr></thead>
+              <tbody>
+                {detail.deals.slice(0, 120).map((d, i) => (
+                  <tr key={i}>
+                    <td>{d.deal_date ?? "—"}</td>
+                    <td className="addr" title={d.addr_key ?? ""}>{d.addr_key ? shortAddr(d.addr_key) : "—"}</td>
+                    <td>{[d.rooms != null ? `${d.rooms}房` : null, d.floor_no != null ? `${d.floor_no}F` : null]
+                          .filter(Boolean).join("/") || "—"}</td>
+                    <td>{d.total_price == null ? "—" : `${Math.round(d.total_price).toLocaleString()} 萬`}</td>
+                    <td>{d.unit_price == null ? "—" : fmtP(d.unit_price)} 萬</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {detail.deals.length > 120 && <div className="note">僅列最近 120 筆</div>}
+          </div>
+
+          <div className="note" style={{ marginTop: 14 }}>
+            所有價格都已扣掉車位。
+            {zone && zoneRef ? `「附近行情」指 ${zone.name} 生活圈${zoneRef.label !== "全部" ? `同屋齡(${zoneRef.label})` : ""}房子的成交行情(一坪約 ${fmtP(zoneRef.v)} 萬)。` : ""}
+            資料來源:內政部實價登錄。
+          </div>
         </>
       )}
     </aside>

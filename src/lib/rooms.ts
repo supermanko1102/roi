@@ -4,5 +4,5 @@ export type RoomBand = (typeof ROOM_BANDS)[number];
 export type RoomFilter = "all" | RoomBand;
 
 export const ROOM_LABEL: Record<RoomFilter, string> = {
-  all: "全格局", "1": "1房", "2": "2房", "3": "3房", "4p": "4房+",
+  all: "不限格局", "1": "1房", "2": "2房", "3": "3房", "4p": "4房+",
 };
