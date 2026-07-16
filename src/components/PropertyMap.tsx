@@ -2,33 +2,35 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Map, { Source, Layer, Marker, Popup, MapRef } from "react-map-gl/maplibre";
 import type { FeatureCollection } from "geojson";
-import BuildingDrawer from "./BuildingDrawer";
 import ProjectDrawer from "./ProjectDrawer";
-import { AGE_BANDS, BAND_LABEL, type BandFilter } from "@/lib/age";
+import { AGE_BANDS, type BandFilter } from "@/lib/age";
 import { ROOM_BANDS, ROOM_LABEL, type RoomFilter } from "@/lib/rooms";
-import { makeContains } from "@/lib/geo";
+import { makeContains, haversineM } from "@/lib/geo";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-// 屋齡帶單選是唯一的市場篩選:預售只是屋齡軸最左端,不再有預售/中古雙軌
-const FILTERS: BandFilter[] = ["all", ...AGE_BANDS];
+// 預售 only:地圖上只有建案點;中古成交仍留在區/圈聚合裡當「行情基準」,但不再是可瀏覽的點位
 
-type BldgDeal = {
-  address: string; deal_date: string | null;
-  total_price: string; area_ping: string; unit_price: string | null;
+// 總價帶篩選:預售買家用預算找案,不是用單價
+const TOTAL_FILTERS: { key: string; label: string; min?: number; max?: number }[] = [
+  { key: "all", label: "不限總價" },
+  { key: "1000", label: "1,000萬內", max: 1000 },
+  { key: "1500", label: "1,000–1,500萬", min: 1000, max: 1500 },
+  { key: "2000", label: "1,500–2,000萬", min: 1500, max: 2000 },
+  { key: "2000p", label: "2,000萬+", min: 2000 },
+];
+
+// 車站路線色:機捷紫、台鐵藍、綠線綠(施工中空心)
+const LINE_COLOR: Record<string, string> = {
+  "機場捷運": "#8e24aa", "台鐵": "#1a5fb4", "桃園捷運綠線": "#2e7d32",
 };
-type BldgPopup = {
-  lng: number; lat: number;
-  addr_key: string; deal_count: number; median_unit_price: number | null;
-  building_type: string | null; build_year: number | null;
-  community: string | null; // 社區歸戶名稱(2021 後備查建案才有)
-  deals: BldgDeal[] | null; // null = 載入中
-};
+
 type PresalePopup = {
   lng: number; lat: number;
   name: string; district: string; deal_count: number;
   price: number | null; median_total: number | null; median_area: number | null;
   band: string; build_year: number | null;
   cancel_count: number;
+  st_name: string | null; st_line: string | null; st_m: number | null; // 最近車站
 };
 
 // CARTO Positron 淺色底圖:極簡資料視覺化風格,CDN 快(NLSC 官方圖磚較慢且視覺雜訊多)
@@ -110,16 +112,17 @@ const hex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))
 export default function PropertyMap() {
   const mapRef = useRef<MapRef>(null);
   const [districts, setDistricts] = useState<FeatureCollection | null>(null);
-  const [band, setBand] = useState<BandFilter>("all");
+  const band: BandFilter = "presale"; // 預售 only:色塊/標籤固定看預售行情
   const [mode, setMode] = useState<ColorMode>("rel");
   const [rooms, setRooms] = useState<RoomFilter>("all");
+  const [totalBand, setTotalBand] = useState("all");
+  const [nearMetro, setNearMetro] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
   const [zoom, setZoom] = useState(10.3);
   const [points, setPoints] = useState<FeatureCollection | null>(null);
-  const [bldgPopup, setBldgPopup] = useState<BldgPopup | null>(null);
   const [presalePopup, setPresalePopup] = useState<PresalePopup | null>(null);
   const [zones, setZones] = useState<FeatureCollection | null>(null);
-  const [drawerAddr, setDrawerAddr] = useState<string | null>(null);
+  const [stations, setStations] = useState<FeatureCollection | null>(null);
   const [drawerProj, setDrawerProj] = useState<{ district: string; name: string } | null>(null);
   const detail = zoom >= DETAIL_ZOOM;
   const zoneLevel = zoom >= DETAIL_ZOOM && zoom < ZONE_FADE;
@@ -127,34 +130,24 @@ export default function PropertyMap() {
   useEffect(() => {
     fetch("/api/districts").then((r) => r.json()).then((g) => setDistricts(augmentDev(g)));
     fetch("/api/zones").then((r) => r.json()).then((g) => setZones(augmentDev(g)));
-    // 深連結:?bldg=門牌 / ?proj=區|建案名 直接開抽屜(可分享)
-    const q = new URLSearchParams(location.search);
-    const b = q.get("bldg");
-    if (b) setDrawerAddr(b);
-    const pj = q.get("proj");
+    fetch("/api/stations").then((r) => r.json()).then(setStations);
+    // 深連結:?proj=區|建案名 直接開抽屜(可分享)
+    const pj = new URLSearchParams(location.search).get("proj");
     if (pj && pj.includes("|")) {
       const [district, ...rest] = pj.split("|");
       setDrawerProj({ district, name: rest.join("|") });
     }
   }, []);
 
-  // 抽屜開關同步到網址,重整/分享都能還原;兩種抽屜互斥
+  // 抽屜開關同步到網址,重整/分享都能還原
   function syncUrl(set: Record<string, string | null>) {
     const u = new URL(location.href);
     for (const [k, v] of Object.entries(set)) v == null ? u.searchParams.delete(k) : u.searchParams.set(k, v);
     history.replaceState(null, "", u);
   }
-  function openDrawer(addr: string) {
-    setDrawerAddr(addr); setDrawerProj(null); setBldgPopup(null);
-    syncUrl({ bldg: addr, proj: null });
-  }
-  function closeDrawer() {
-    setDrawerAddr(null);
-    syncUrl({ bldg: null });
-  }
   function openProjDrawer(district: string, name: string) {
-    setDrawerProj({ district, name }); setDrawerAddr(null); setPresalePopup(null);
-    syncUrl({ proj: `${district}|${name}`, bldg: null });
+    setDrawerProj({ district, name }); setPresalePopup(null);
+    syncUrl({ proj: `${district}|${name}` });
   }
   function closeProjDrawer() {
     setDrawerProj(null);
@@ -162,16 +155,12 @@ export default function PropertyMap() {
   }
 
   useEffect(() => {
-    if (!detail) { setBldgPopup(null); setPresalePopup(null); }
+    if (!detail) setPresalePopup(null);
   }, [detail]);
 
-  // 切帶:cluster source 換資料重算;開著的 popup 可能已不在帶內,直接收
-  function pickBand(b: BandFilter) {
-    setBand(b); setBldgPopup(null); setPresalePopup(null);
-  }
   // 切格局:點位口徑整個換掉,清快取重抓目前視窗
   function pickRooms(r: RoomFilter) {
-    setRooms(r); setBldgPopup(null); setPresalePopup(null);
+    setRooms(r); setPresalePopup(null);
     fetchedBbox.current = null;
     const map = mapRef.current?.getMap();
     if (map && map.getZoom() >= DETAIL_ZOOM) {
@@ -191,12 +180,25 @@ export default function PropertyMap() {
     return m;
   }, [districts]);
 
-  // 帶過濾在前端做:cluster 聚合發生在 source 層,layer filter 濾不掉 cluster 內容。
-  // 同時替每個點補 dev(%):基準=所在生活圈同帶中位,圈外退回行政區同帶中位
+  // 車站索引(最近車站距離用)
+  const stationIdx = useMemo(() => (stations?.features ?? []).map((f: any) => ({
+    name: f.properties.name as string, line: f.properties.line as string,
+    status: f.properties.status as string,
+    lng: f.geometry.coordinates[0] as number, lat: f.geometry.coordinates[1] as number,
+  })), [stations]);
+
+  // 篩選在前端做(cluster 聚合發生在 source 層,layer filter 濾不掉 cluster 內容):
+  // 總價帶 → 補 dev(%)(基準=所在生活圈同帶中位,圈外退回行政區)→ 補最近車站 → 近捷運
   const visiblePoints = useMemo(() => {
     if (!points) return null;
+    const tf = TOTAL_FILTERS.find((t) => t.key === totalBand)!;
     const feats = (points.features as any[])
-      .filter((f) => band === "all" || f.properties.band === band)
+      .filter((f) => {
+        const t = f.properties.median_total;
+        if (tf.min != null && (t == null || t < tf.min)) return false;
+        if (tf.max != null && (t == null || t >= tf.max)) return false;
+        return true;
+      })
       .map((f) => {
         const p = f.properties;
         const key = !p.band || p.band === "unknown" ? "all" : p.band;
@@ -205,10 +207,19 @@ export default function PropertyMap() {
         for (const z of zoneIndex) if (z.contains(lng, lat)) { base = z.props[`price_${key}`] ?? null; break; }
         if (base == null) base = distProps[p.district]?.[`price_${key}`] ?? null;
         const dev = base && p.price != null ? +((p.price / base - 1) * 100).toFixed(1) : null;
-        return { ...f, properties: { ...p, dev, dev_label: fmtDev(dev, 0) ?? "" } };
-      });
+        let st: { name: string; line: string; m: number } | null = null;
+        for (const s of stationIdx) {
+          const m = haversineM(lat, lng, s.lat, s.lng);
+          if (!st || m < st.m) st = { name: s.name, line: s.line, m };
+        }
+        return { ...f, properties: {
+          ...p, dev, dev_label: fmtDev(dev, 0) ?? "",
+          ...(st ? { st_name: st.name, st_line: st.line, st_m: Math.round(st.m) } : {}),
+        } };
+      })
+      .filter((f) => !nearMetro || (f.properties.st_m != null && f.properties.st_m <= 800));
     return { ...points, features: feats };
-  }, [points, band, zoneIndex, distProps]);
+  }, [points, totalBand, nearMetro, zoneIndex, distProps, stationIdx]);
 
   // 解約標記:獨立於屋齡帶篩選,永遠拿全部點位過濾
   const cancelPoints = useMemo(() => {
@@ -266,7 +277,7 @@ export default function PropertyMap() {
       .map((v) => +v.toFixed(5)) as [number, number, number, number];
     fetchedBbox.current = bbox;
     const rm = roomsOverride ?? rooms;
-    const res = await fetch(`/api/points?bbox=${bbox.join(",")}${rm !== "all" ? `&rooms=${rm}` : ""}`);
+    const res = await fetch(`/api/points?bbox=${bbox.join(",")}&kind=presale${rm !== "all" ? `&rooms=${rm}` : ""}`);
     setPoints(await res.json());
   }
 
@@ -291,36 +302,17 @@ export default function PropertyMap() {
     mapRef.current?.flyTo({ center: [121.25, 24.94], zoom: 10.3, duration: 700 });
   }
 
-  async function openBuilding(f: any) {
-    const p = f.properties;
-    const [lng, lat] = f.geometry.coordinates;
-    setBldgPopup({
-      lng, lat, addr_key: p.addr_key, deal_count: p.deal_count,
-      median_unit_price: p.price ?? null,
-      building_type: p.building_type ?? null, build_year: p.build_year ?? null,
-      community: p.name ?? null,
-      deals: null,
-    });
-    const res = await fetch(`/api/building-deals?addr=${encodeURIComponent(p.addr_key)}`);
-    const deals = await res.json();
-    setBldgPopup((cur) => (cur && cur.addr_key === p.addr_key ? { ...cur, deals } : cur));
-  }
-
   function openPoint(f: any) {
     const p = f.properties;
-    if (p.kind === "resale") {
-      // 抽屜開著時點別棟直接切換內容,維持「掃描→查看→再掃描」的節奏
-      if (drawerAddr || drawerProj) openDrawer(p.addr_key);
-      else openBuilding(f);
-      return;
-    }
-    if (drawerAddr || drawerProj) { openProjDrawer(p.district, p.name); return; }
+    // 抽屜開著時點別的建案直接切換內容,維持「掃描→查看→再掃描」的節奏
+    if (drawerProj) { openProjDrawer(p.district, p.name); return; }
     const [lng, lat] = f.geometry.coordinates;
     setPresalePopup({
       lng, lat, name: p.name, district: p.district, deal_count: p.deal_count,
       price: p.price ?? null, median_total: p.median_total ?? null,
       median_area: p.median_area ?? null, band: p.band, build_year: p.build_year ?? null,
       cancel_count: p.cancel_count ?? 0,
+      st_name: p.st_name ?? null, st_line: p.st_line ?? null, st_m: p.st_m ?? null,
     });
   }
 
@@ -480,7 +472,7 @@ export default function PropertyMap() {
               <div
                 className={`dlabel ${noData ? "nodata" : ""}`}
                 onClick={(e) => { e.stopPropagation(); drill(l.name); }}
-                title={rel && dev != null ? `vs 全市同帶中位(中位 $${price ?? "—"})` : undefined}
+                title={rel && dev != null ? `這一區預售一坪約 $${price ?? "—"} 萬,和全市預售行情相比` : undefined}
               >
                 <span className="dname">{l.name}</span>
                 <span className="dval num"
@@ -499,7 +491,7 @@ export default function PropertyMap() {
           return (
             <Marker key={l.name} longitude={l.lng} latitude={l.lat} anchor="center">
               <div className="zlabel" onClick={(e) => { e.stopPropagation(); zoomToZone(l.name); }}
-                title={`${l.name}:${BAND_LABEL[band]} ${l.props[`n_${band}`] ?? 0} 筆成交${rel && price != null ? `・中位 $${(+price).toFixed(1)}` : ""}`}>
+                title={`${l.name}:預售 ${l.props[`n_${band}`] ?? 0} 筆成交${rel && price != null ? `・一坪約 $${(+price).toFixed(1)} 萬` : ""}`}>
                 <span className="zname">{l.name}</span>
                 <span className="zval num"
                   style={rel && v != null ? { background: devColor(+v), color: devTextColor(+v) } : undefined}>
@@ -509,6 +501,30 @@ export default function PropertyMap() {
             </Marker>
           );
         })}
+
+        {/* 車站圖層:營運實心、施工空心;放大到細節層才出現 */}
+        {stations && detail && (
+          <Source id="stations" type="geojson" data={stations}>
+            <Layer id="st-pt" type="circle"
+              paint={{
+                "circle-color": ["case", ["==", ["get", "status"], "construction"], "#ffffff",
+                  ["match", ["get", "line"], ...Object.entries(LINE_COLOR).flat(), "#666"]] as any,
+                "circle-stroke-color": ["match", ["get", "line"], ...Object.entries(LINE_COLOR).flat(), "#666"] as any,
+                "circle-radius": 5.5, "circle-stroke-width": 2.5,
+              }} />
+            <Layer id="st-label" type="symbol" minzoom={13}
+              layout={{
+                "text-field": ["case", ["==", ["get", "status"], "construction"],
+                  ["concat", ["get", "name"], "(施工中)"], ["get", "name"]] as any,
+                "text-font": ["Open Sans Semibold"], "text-size": 11,
+                "text-offset": [0, -1.4], "text-anchor": "bottom", "text-optional": true,
+              }}
+              paint={{
+                "text-color": ["match", ["get", "line"], ...Object.entries(LINE_COLOR).flat(), "#666"] as any,
+                "text-halo-color": "#fff", "text-halo-width": 1.6,
+              }} />
+          </Source>
+        )}
 
         {presalePopup && (
           <Popup longitude={presalePopup.lng} latitude={presalePopup.lat} anchor="bottom"
@@ -531,65 +547,29 @@ export default function PropertyMap() {
                 <div><dt>坪數大約</dt><dd className="num">
                   {presalePopup.median_area == null ? "—" : (+presalePopup.median_area).toFixed(0) + " 坪"}</dd></div>
               </dl>
+              {presalePopup.st_name && presalePopup.st_m != null && presalePopup.st_m <= 2400 && (
+                <div className="note" style={{ borderTop: "none", marginTop: 5, paddingTop: 0 }}>
+                  🚉 {presalePopup.st_name}({presalePopup.st_line})步行約 {Math.max(1, Math.round(presalePopup.st_m * 1.3 / 80))} 分
+                </div>
+              )}
               {presalePopup.cancel_count > 0 && (
                 <div className="cancelnote">⚠ 本案曾有 {presalePopup.cancel_count} 筆解約(未計入價格統計)</div>
               )}
               <button className="detailbtn"
                 onClick={() => openProjDrawer(presalePopup.district, presalePopup.name)}>
-                查看建案詳情(去化、格局、樓層)→
-              </button>
-            </div>
-          </Popup>
-        )}
-        {bldgPopup && (
-          <Popup longitude={bldgPopup.lng} latitude={bldgPopup.lat} anchor="bottom"
-            onClose={() => setBldgPopup(null)} closeButton maxWidth="320px" offset={12}>
-            <div className="popup-card">
-              <h3>{bldgPopup.community ?? bldgPopup.addr_key.replace(/^桃園市[^區]+區/, "")}</h3>
-              <div style={{ color: "var(--ink-soft)", fontSize: 11 }}>
-                {bldgPopup.community ? `${bldgPopup.addr_key.replace(/^桃園市[^區]+區/, "")}・` : ""}
-                {bldgPopup.building_type ?? "—"}
-                {bldgPopup.build_year ? `・${new Date().getFullYear() - bldgPopup.build_year} 年屋` : ""}
-                ・{bldgPopup.deal_count} 筆成交
-              </div>
-              <div className="roi" style={{ background: "#3d7ea6" }}>
-                <b className="num">{bldgPopup.median_unit_price == null ? "—" : `${bldgPopup.median_unit_price.toFixed(1)}`}</b>
-                <span>一坪約(萬,已扣車位)</span>
-              </div>
-              {bldgPopup.deals == null ? (
-                <div className="note">載入成交明細…</div>
-              ) : (
-                <table className="deals num">
-                  <thead><tr><th>日期</th><th>總價</th><th>一坪</th></tr></thead>
-                  <tbody>
-                    {bldgPopup.deals.slice(0, 8).map((d, i) => (
-                      <tr key={i}>
-                        <td>{d.deal_date ? d.deal_date.slice(0, 10) : "—"}</td>
-                        <td>{(+d.total_price).toLocaleString()} 萬</td>
-                        <td>{d.unit_price ? (+d.unit_price).toFixed(1) : "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-              {bldgPopup.deals && bldgPopup.deals.length > 8 && (
-                <div className="note">僅列最近 8 筆(共 {bldgPopup.deals.length} 筆)</div>
-              )}
-              <button className="detailbtn" onClick={() => openDrawer(bldgPopup.addr_key)}>
-                查看詳情(走勢與全部成交)→
+                查看建案詳情(銷售、格局、交通)→
               </button>
             </div>
           </Popup>
         )}
       </Map>
 
-      {drawerAddr && <BuildingDrawer addrKey={drawerAddr} zones={zones} onClose={closeDrawer} />}
       {drawerProj && <ProjectDrawer district={drawerProj.district} name={drawerProj.name}
-        zones={zones} onClose={closeProjDrawer} />}
+        zones={zones} stations={stations} onClose={closeProjDrawer} />}
 
       <div id="topbar">
         <div className="tbrow">
-          <span className="title">桃園房價地圖</span>
+          <span className="title">桃園預售屋地圖</span>
           <div className="toggle" role="group" title="地圖顏色代表什麼:「貴/便宜」=和同屋齡的行情相比;「一坪價格」=實際價格高低">
             <button className={mode === "rel" ? "on" : ""} onClick={() => setMode("rel")}>貴/便宜</button>
             <button className={mode === "abs" ? "on" : ""} onClick={() => setMode("abs")}>一坪價格</button>
@@ -599,10 +579,11 @@ export default function PropertyMap() {
             title="標出曾有預售解約的建案(放大到點位層級顯示)">解約 ⚠</button>
         </div>
         <div className="tbrow">
-          <div className="toggle" role="group" title="屋齡篩選:預售=尚未完工;完工後依完工年落帶">
-            {FILTERS.map((b) => (
-              <button key={b} className={band === b ? "on" : ""} onClick={() => pickBand(b)}>
-                {BAND_LABEL[b]}
+          <div className="toggle" role="group" title="用預算篩建案(以各案多數成交總價估)">
+            {TOTAL_FILTERS.map((t) => (
+              <button key={t.key} className={totalBand === t.key ? "on" : ""}
+                onClick={() => { setTotalBand(t.key); setPresalePopup(null); }}>
+                {t.label}
               </button>
             ))}
           </div>
@@ -613,12 +594,15 @@ export default function PropertyMap() {
               </button>
             ))}
           </div>
+          <button className={`cancelbtn metro ${nearMetro ? "on" : ""}`}
+            onClick={() => { setNearMetro((v) => !v); setPresalePopup(null); }}
+            title="只顯示步行約 10 分鐘(800 公尺)內有車站的建案(含施工中的綠線)">🚉 近捷運</button>
         </div>
       </div>
 
       <div className="legend">
         <div className="ltitle">
-          {mode === "rel" ? `和同屋齡的行情相比(${BAND_LABEL[band]})` : `一坪價格,萬(${BAND_LABEL[band]})`}
+          {mode === "rel" ? "預售案和附近行情相比" : "預售一坪價格(萬)"}
         </div>
         <div className="lgrad" style={{
           background: `linear-gradient(to right, ${(mode === "rel" ? DEV_STOPS : PRICE_STOPS).map((s) => s[1]).join(",")})`,
@@ -631,14 +615,22 @@ export default function PropertyMap() {
         <div className="lnote">
           {[
             mode === "rel" ? "色塊=跟全市比・圓點=跟它所在的生活圈比" : null,
-            detail ? "○ 預售 ● 成屋" : null,
+            detail ? "○ 預售中 ● 已完工建案" : null,
             rooms !== "all" ? `圓點只計 ${ROOM_LABEL[rooms]} 的成交` : null,
+            nearMetro ? "只顯示步行 10 分內有站的建案" : null,
           ].filter(Boolean).join("・")}
         </div>
+        {detail && stations && (
+          <div className="lnote">
+            <span style={{ color: LINE_COLOR["機場捷運"] }}>●</span> 機捷{" "}
+            <span style={{ color: LINE_COLOR["台鐵"] }}>●</span> 台鐵{" "}
+            <span style={{ color: LINE_COLOR["桃園捷運綠線"] }}>○</span> 綠線(施工中)
+          </div>
+        )}
       </div>
 
       {detail && <button className="backbtn" onClick={back}>← 返回全市</button>}
-      {!detail && <div className="zoomhint">滾輪放大或點擊行政區,可看建案與成交點位</div>}
+      {!detail && <div className="zoomhint">滾輪放大或點擊行政區,可看各建案的成交點位</div>}
     </div>
   );
 }

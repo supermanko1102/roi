@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
   const bboxParam = req.nextUrl.searchParams.get("bbox");
   const roomsParam = req.nextUrl.searchParams.get("rooms");
   const rooms = ROOM_BANDS.includes(roomsParam as RoomBand) ? (roomsParam as RoomBand) : undefined;
+  const kind = req.nextUrl.searchParams.get("kind") === "presale" ? ("presale" as const) : undefined;
 
   let bbox: [number, number, number, number] | undefined;
   if (!district && bboxParam) {
@@ -21,6 +22,6 @@ export async function GET(req: NextRequest) {
     bbox = v as [number, number, number, number];
   }
 
-  const pts = await loadUnifiedPoints({ district, bbox, rooms });
+  const pts = await loadUnifiedPoints({ district, bbox, rooms, kind });
   return NextResponse.json(toFeatureCollection(pts));
 }

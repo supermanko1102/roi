@@ -22,6 +22,15 @@ export function inGeom(lng: number, lat: number, geom: any): boolean {
   return false;
 }
 
+// 兩點球面距離(公尺):算「最近車站」夠準了
+export function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000, r = Math.PI / 180;
+  const dLat = (lat2 - lat1) * r, dLng = (lng2 - lng1) * r;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
 // 預先算 bbox 的 contains,批次判斷大量點時用
 export function makeContains(geom: any) {
   const polys: Ring[][] = geom.type === "Polygon" ? [geom.coordinates] : geom.coordinates;

@@ -25,13 +25,14 @@ export type UnifiedPoint = {
 type Bbox = [number, number, number, number];
 
 // rooms 給定時:用 room_stats 覆寫價格/總價/筆數,無該格局成交的點直接剔除
-export async function loadUnifiedPoints(opts: { bbox?: Bbox; district?: string; rooms?: RoomBand } = {}): Promise<UnifiedPoint[]> {
-  const { bbox, district, rooms } = opts;
+// kind="presale" 時只回建案點(預售 only 的前台用;中古仍留在圈/區聚合當行情基準)
+export async function loadUnifiedPoints(opts: { bbox?: Bbox; district?: string; rooms?: RoomBand; kind?: "presale" } = {}): Promise<UnifiedPoint[]> {
+  const { bbox, district, rooms, kind } = opts;
   const box = (lat: any, lng: any): SQL | undefined =>
     bbox ? and(gte(lng, bbox[0]), lte(lng, bbox[2]), gte(lat, bbox[1]), lte(lat, bbox[3])) : undefined;
 
   const [bldgs, projs, comms, linked] = await Promise.all([
-    db.select({
+    kind === "presale" ? Promise.resolve([]) : db.select({
       addr_key: buildings.addr_key, district: buildings.district,
       lat: buildings.lat, lng: buildings.lng, deal_count: buildings.deal_count,
       median_unit_price: buildings.median_unit_price, median_total: buildings.median_total,
@@ -90,7 +91,8 @@ export async function loadUnifiedPoints(opts: { bbox?: Bbox; district?: string; 
     const m = matches.find((c) => c.first_reg != null) ?? matches[0];
     const regYear = m?.first_reg ? new Date(m.first_reg).getFullYear() : null;
     const completed = regYear != null && regYear <= nowYear;
-    if (completed && matches.some((c) => linkedSet.has(c.case_no))) continue;
+    // 預售 only 前台沒有中古點可代表同社區,不做去重略過
+    if (kind !== "presale" && completed && matches.some((c) => linkedSet.has(c.case_no))) continue;
     const rm = rooms ? roomMap.get(`presale|${p.district}|${p.name}`) : undefined;
     if (rooms && !rm) continue;
     pts.push({

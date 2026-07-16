@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FeatureCollection } from "geojson";
 import { BAND_LABEL, type BandFilter } from "@/lib/age";
-import { inGeom } from "@/lib/geo";
+import { inGeom, haversineM } from "@/lib/geo";
 import { TrendChart, KeyPoint, trendPoint, recentPoint, priceBadge, fmtP, RoomBreakdown } from "./BuildingDrawer";
 
 // 建案(預售)抽屜:與中古棟抽屜同一套資訊設計——
@@ -93,8 +93,9 @@ const FLOOR_ROWS: { label: string; match: (f: number) => boolean }[] = [
   { label: "16樓以上", match: (f) => f > 15 },
 ];
 
-export default function ProjectDrawer({ district, name, zones, onClose }: {
-  district: string; name: string; zones: FeatureCollection | null; onClose: () => void;
+export default function ProjectDrawer({ district, name, zones, stations, onClose }: {
+  district: string; name: string; zones: FeatureCollection | null;
+  stations: FeatureCollection | null; onClose: () => void;
 }) {
   const [detail, setDetail] = useState<PDetail | null>(null);
   const [err, setErr] = useState(false);
@@ -132,6 +133,22 @@ export default function ProjectDrawer({ district, name, zones, onClose }: {
   const vsZone = unit && zoneRef ? (unit / zoneRef.v - 1) * 100 : null;
 
   const households = detail?.community?.households ?? null;
+
+  // 最近車站前兩名(直線距離 ×1.3 當步行路徑,80m/分)
+  const nearStations = useMemo(() => {
+    if (!stations || !p?.lat || !p?.lng) return [];
+    return (stations.features as any[])
+      .map((f) => ({
+        name: f.properties.name as string, line: f.properties.line as string,
+        construction: f.properties.status === "construction",
+        m: haversineM(+p.lat!, +p.lng!, f.geometry.coordinates[1], f.geometry.coordinates[0]),
+      }))
+      .sort((a, b) => a.m - b.m).slice(0, 2);
+  }, [stations, p]);
+
+  // 對比附近新古屋(0-5 年中古):中古資料不上地圖,但留著當「值不值得等三年」的基準
+  const resaleRef = zone?.price_0_5 != null && unit != null
+    ? { v: +zone.price_0_5, diff: (unit / +zone.price_0_5 - 1) * 100 } : null;
   // 已售戶數:棟及號 distinct;沒有棟及號就用筆數
   const sold = useMemo(() => {
     const ids = new Set(active.filter((d) => d.unit_id).map((d) => d.unit_id!));
@@ -184,10 +201,42 @@ export default function ProjectDrawer({ district, name, zones, onClose }: {
               ? <KeyPoint icon="🏠">{soldPct >= 95 ? <>幾乎<b>賣完了</b></> : <>已賣出約 <b>{soldPct.toFixed(0)}%</b></>}({sold}/{households} 戶)</KeyPoint>
               : <KeyPoint icon="🏠">目前累計 <b>{sold} 戶</b>成交</KeyPoint>}
             {trendPoint(active, "這個案子的價格")}
+            {resaleRef && Math.abs(resaleRef.diff) >= 3 && (
+              <KeyPoint icon="💡">附近 5 年內中古屋一坪約 {fmtP(resaleRef.v)} 萬,這案
+                <b className={resaleRef.diff > 0 ? "rich" : "cheap"}>
+                  {resaleRef.diff > 0 ? "貴" : "便宜"}約 {Math.abs(resaleRef.diff).toFixed(0)}%
+                </b>
+              </KeyPoint>
+            )}
+            {nearStations.length > 0 && nearStations[0].m <= 2400 && (
+              <KeyPoint icon="🚉">
+                步行約 {Math.max(1, Math.round(nearStations[0].m * 1.3 / 80))} 分到
+                <b>{nearStations[0].name}</b>({nearStations[0].line}{nearStations[0].construction ? ",施工中" : ""})
+              </KeyPoint>
+            )}
             {recentPoint(active)}
             {cancelled.length > 0 &&
               <KeyPoint icon="⚠️">有 <b className="rich">{cancelled.length} 筆</b>買了之後解約</KeyPoint>}
           </div>
+
+          {nearStations.length > 0 && (
+            <div className="sec">
+              <div className="sechead">交通</div>
+              <div className="sechint">步行時間以直線距離估算,實際路線可能更遠</div>
+              {nearStations.map((s) => {
+                const walk = Math.max(1, Math.round(s.m * 1.3 / 80));
+                return (
+                  <div className="kp" key={`${s.line}|${s.name}`} style={{ marginTop: 6 }}>
+                    <span className="ki">🚉</span>
+                    <span>
+                      {s.name}({s.line}{s.construction ? ",施工中" : ""})・
+                      {s.m <= 2400 ? `步行約 ${walk} 分` : `約 ${(s.m / 1000).toFixed(1)} 公里`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           <div className="sec">
             <div className="sechead">賣得怎麼樣?
