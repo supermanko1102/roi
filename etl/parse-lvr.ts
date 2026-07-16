@@ -118,7 +118,7 @@ async function main() {
       const iProj = col(h, "建案名稱");
       const iRooms = col(h, "格局", "房"), iHalls = col(h, "格局", "廳"), iBaths = col(h, "格局", "衛");
       const iFloor = col(h, "移轉層次"), iFloors = col(h, "總樓層數");
-      const iCancel = col(h, "解約情形");
+      const iCancel = col(h, "解約情形"), iUnit = col(h, "棟及號");
       const out: (typeof presale_deals.$inferInsert)[] = [];
       for (const r of rows) {
         const total = num(r[iTotal]), park = num(r[iPark]) ?? 0;
@@ -139,6 +139,7 @@ async function main() {
           floor_no: parseFloor(r[iFloor]), total_floors: parseFloor(r[iFloors]),
           is_cancelled: cancel.includes("解約"),
           cancel_date: rocDate(cancel.match(/^\d{7}/)?.[0]),
+          unit_id: iUnit >= 0 ? r[iUnit] || null : null,
           raw_season: season,
         });
       }

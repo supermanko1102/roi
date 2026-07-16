@@ -27,6 +27,7 @@ export const presale_deals = pgTable("presale_deals", {
   total_floors: integer("total_floors"),         // 總樓層數
   is_cancelled: boolean("is_cancelled").default(false), // 解約情形有註記(價格統計應排除)
   cancel_date: date("cancel_date"),              // 解約日期(解約情形欄開頭的民國日期)
+  unit_id: text("unit_id"),                      // 棟及號(如「B棟6-9F號」;distinct 計戶數/去化用)
   raw_season: text("raw_season"),
 }, (t) => [
   index("idx_presale_district").on(t.district),

@@ -99,6 +99,11 @@ body {
 }
 .verdict b.cheap { color: #1a7f5c; }
 .verdict b.rich { color: #c2452d; }
+.drawer .sectitle {
+  font-size: 12px; font-weight: 700; margin-bottom: 4px;
+  display: flex; justify-content: space-between; align-items: baseline;
+}
+.drawer .sectitle b { font-size: 12.5px; }
 .zoomhint {
   position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 10;
   background: rgba(34,48,58,.82); color: #fff; border-radius: 999px;

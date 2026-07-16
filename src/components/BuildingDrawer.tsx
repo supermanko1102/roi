@@ -23,8 +23,11 @@ type Detail = {
 
 // 點在多邊形內:找出所在生活圈,拿圈內中位當比較基準
 
-// 季中位數序列:走勢圖與一句話結論共用的口徑
-function quarterMedians(deals: Deal[]): { t: number; v: number }[] {
+// 走勢圖/季中位的最小輸入形狀(建案抽屜也共用)
+export type PricePoint = { deal_date: string | null; unit_price: number | null };
+
+// 季中位數序列:走勢圖與一句話結論共用的口徑(n=季內筆數,下結論前先過樣本門檻)
+export function quarterMedians(deals: PricePoint[]): { t: number; v: number; n: number }[] {
   const median = (xs: number[]) => {
     const s = [...xs].sort((a, b) => a - b), m = s.length >> 1;
     return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
@@ -37,7 +40,7 @@ function quarterMedians(deals: Deal[]): { t: number; v: number }[] {
     const mid = +new Date(dt.getFullYear(), q * 3 + 1, 15); // 季中當 x 座標
     (byQ.get(key) ?? byQ.set(key, { t: mid, vs: [] }).get(key)!).vs.push(d.unit_price);
   }
-  return [...byQ.values()].map((g) => ({ t: g.t, v: median(g.vs) })).sort((a, b) => a.t - b.t);
+  return [...byQ.values()].map((g) => ({ t: g.t, v: median(g.vs), n: g.vs.length })).sort((a, b) => a.t - b.t);
 }
 
 // 一句話結論:替使用者讀完數據,只給判讀所需的那句話
@@ -54,8 +57,8 @@ function Verdict({ deals, vsZone, zoneName, bandLabel }: {
           {vsZone < 0 ? "便宜" : "貴"} {Math.abs(vsZone).toFixed(1)}%</b></span>);
   }
 
-  // 近一年走勢:最新季中位 vs 約一年前的季中位;資料跨度太短不硬給結論
-  const qs = quarterMedians(deals);
+  // 近一年走勢:最新季中位 vs 約一年前的季中位;資料跨度太短或單季樣本太少(<3)不硬給結論
+  const qs = quarterMedians(deals).filter((q) => q.n >= 3);
   if (qs.length >= 2) {
     const last = qs[qs.length - 1];
     const YEAR = 365 * 86400e3;
@@ -82,7 +85,7 @@ function Verdict({ deals, vsZone, zoneName, bandLabel }: {
 }
 
 // 成交單價走勢:原始成交打點(淡),季中位數走深色實線;樣本太少只給點
-function TrendChart({ deals }: { deals: Deal[] }) {
+export function TrendChart({ deals }: { deals: PricePoint[] }) {
   const pts = useMemo(() => deals
     .filter((d) => d.deal_date && d.unit_price != null && d.unit_price > 0)
     .map((d) => ({ t: +new Date(d.deal_date!), v: d.unit_price!, label: `${d.deal_date}・${d.unit_price!.toFixed(1)} 萬/坪` }))

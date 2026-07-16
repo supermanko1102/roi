@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Map, { Source, Layer, Marker, Popup, MapRef } from "react-map-gl/maplibre";
 import type { FeatureCollection } from "geojson";
 import BuildingDrawer from "./BuildingDrawer";
+import ProjectDrawer from "./ProjectDrawer";
 import { AGE_BANDS, BAND_LABEL, type BandFilter } from "@/lib/age";
 import { ROOM_BANDS, ROOM_LABEL, type RoomFilter } from "@/lib/rooms";
 import { makeContains } from "@/lib/geo";
@@ -119,29 +120,45 @@ export default function PropertyMap() {
   const [presalePopup, setPresalePopup] = useState<PresalePopup | null>(null);
   const [zones, setZones] = useState<FeatureCollection | null>(null);
   const [drawerAddr, setDrawerAddr] = useState<string | null>(null);
+  const [drawerProj, setDrawerProj] = useState<{ district: string; name: string } | null>(null);
   const detail = zoom >= DETAIL_ZOOM;
   const zoneLevel = zoom >= DETAIL_ZOOM && zoom < ZONE_FADE;
 
   useEffect(() => {
     fetch("/api/districts").then((r) => r.json()).then((g) => setDistricts(augmentDev(g)));
     fetch("/api/zones").then((r) => r.json()).then((g) => setZones(augmentDev(g)));
-    // 深連結:?bldg=門牌 直接開抽屜(可分享)
-    const b = new URLSearchParams(location.search).get("bldg");
+    // 深連結:?bldg=門牌 / ?proj=區|建案名 直接開抽屜(可分享)
+    const q = new URLSearchParams(location.search);
+    const b = q.get("bldg");
     if (b) setDrawerAddr(b);
+    const pj = q.get("proj");
+    if (pj && pj.includes("|")) {
+      const [district, ...rest] = pj.split("|");
+      setDrawerProj({ district, name: rest.join("|") });
+    }
   }, []);
 
-  // 抽屜開關同步到網址,重整/分享都能還原
-  function openDrawer(addr: string) {
-    setDrawerAddr(addr); setBldgPopup(null);
+  // 抽屜開關同步到網址,重整/分享都能還原;兩種抽屜互斥
+  function syncUrl(set: Record<string, string | null>) {
     const u = new URL(location.href);
-    u.searchParams.set("bldg", addr);
+    for (const [k, v] of Object.entries(set)) v == null ? u.searchParams.delete(k) : u.searchParams.set(k, v);
     history.replaceState(null, "", u);
+  }
+  function openDrawer(addr: string) {
+    setDrawerAddr(addr); setDrawerProj(null); setBldgPopup(null);
+    syncUrl({ bldg: addr, proj: null });
   }
   function closeDrawer() {
     setDrawerAddr(null);
-    const u = new URL(location.href);
-    u.searchParams.delete("bldg");
-    history.replaceState(null, "", u);
+    syncUrl({ bldg: null });
+  }
+  function openProjDrawer(district: string, name: string) {
+    setDrawerProj({ district, name }); setDrawerAddr(null); setPresalePopup(null);
+    syncUrl({ proj: `${district}|${name}`, bldg: null });
+  }
+  function closeProjDrawer() {
+    setDrawerProj(null);
+    syncUrl({ proj: null });
   }
 
   useEffect(() => {
@@ -293,10 +310,11 @@ export default function PropertyMap() {
     const p = f.properties;
     if (p.kind === "resale") {
       // 抽屜開著時點別棟直接切換內容,維持「掃描→查看→再掃描」的節奏
-      if (drawerAddr) openDrawer(p.addr_key);
+      if (drawerAddr || drawerProj) openDrawer(p.addr_key);
       else openBuilding(f);
       return;
     }
+    if (drawerAddr || drawerProj) { openProjDrawer(p.district, p.name); return; }
     const [lng, lat] = f.geometry.coordinates;
     setPresalePopup({
       lng, lat, name: p.name, district: p.district, deal_count: p.deal_count,
@@ -516,6 +534,10 @@ export default function PropertyMap() {
               {presalePopup.cancel_count > 0 && (
                 <div className="cancelnote">⚠ 本案曾有 {presalePopup.cancel_count} 筆解約(未計入價格統計)</div>
               )}
+              <button className="detailbtn"
+                onClick={() => openProjDrawer(presalePopup.district, presalePopup.name)}>
+                查看建案詳情(去化、格局、樓層)→
+              </button>
             </div>
           </Popup>
         )}
@@ -562,6 +584,8 @@ export default function PropertyMap() {
       </Map>
 
       {drawerAddr && <BuildingDrawer addrKey={drawerAddr} zones={zones} onClose={closeDrawer} />}
+      {drawerProj && <ProjectDrawer district={drawerProj.district} name={drawerProj.name}
+        zones={zones} onClose={closeProjDrawer} />}
 
       <div id="topbar">
         <div className="tbrow">

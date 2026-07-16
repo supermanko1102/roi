@@ -1,0 +1,1 @@
+ALTER TABLE "presale_deals" ADD COLUMN "unit_id" text;
