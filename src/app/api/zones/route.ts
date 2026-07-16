@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { loadUnifiedPoints, type UnifiedPoint } from "@/lib/points";
 import { AGE_BANDS } from "@/lib/age";
+import { makeContains } from "@/lib/geo";
 
 export const dynamic = "force-dynamic";
 
@@ -11,34 +12,6 @@ const MIN_SAMPLES = 5; // 帶內成交筆數門檻,不足給 null(前端顯示 �
 // 重劃區/生活圈:官方 GIS 邊界(etl/build-zones.ts 產出)+ 圈內統一點位的屋齡帶聚合
 // 圈內樣本少(點位僅數百~數千)直接在 JS 做 point-in-polygon,不動用 PostGIS
 
-type Ring = [number, number][];
-function inRing(lng: number, lat: number, ring: Ring): boolean {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i], [xj, yj] = ring[j];
-    if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi)
-      inside = !inside;
-  }
-  return inside;
-}
-// Polygon / MultiPolygon,含挖洞;先過 bbox 再算,點多時省時間
-function makeContains(geom: any) {
-  const polys: Ring[][] = geom.type === "Polygon" ? [geom.coordinates] : geom.coordinates;
-  let w = 180, e = -180, s = 90, n = -90;
-  for (const rings of polys) for (const [x, y] of rings[0]) {
-    if (x < w) w = x; if (x > e) e = x; if (y < s) s = y; if (y > n) n = y;
-  }
-  return (lng: number, lat: number): boolean => {
-    if (lng < w || lng > e || lat < s || lat > n) return false;
-    for (const rings of polys) {
-      if (!inRing(lng, lat, rings[0])) continue;
-      let hole = false;
-      for (let i = 1; i < rings.length; i++) if (inRing(lng, lat, rings[i])) { hole = true; break; }
-      if (!hole) return true;
-    }
-    return false;
-  };
-}
 const median = (xs: number[]) => {
   if (!xs.length) return null;
   const s = [...xs].sort((a, b) => a - b);
@@ -73,5 +46,16 @@ export async function GET() {
     }
     f.properties = props;
   }
+
+  // 全市各帶基準(同一口徑:點位中位再取中位),前端算圈的相對貴賤用
+  const city: Record<string, unknown> = {};
+  const cAll = bandStats(points);
+  city.price_all = cAll.price; city.n_all = cAll.n;
+  for (const band of AGE_BANDS) {
+    const s = bandStats(points.filter((p) => p.band === band));
+    city[`price_${band}`] = s.price;
+    city[`n_${band}`] = s.n;
+  }
+  geo.city = city;
   return NextResponse.json(geo);
 }

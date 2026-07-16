@@ -29,6 +29,13 @@
       "when": 1784172349303,
       "tag": "0003_opposite_bishop",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784184031144,
+      "tag": "0004_rainy_agent_zero",
+      "breakpoints": true
     }
   ]
 }

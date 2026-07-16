@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
     addr_key: sale_deals.addr_key, deal_date: sale_deals.deal_date,
     total_price: sale_deals.total_price, area_ping: sale_deals.area_ping,
     parking_area_ping: sale_deals.parking_area_ping, unit_price: sale_deals.unit_price,
+    rooms: sale_deals.rooms, baths: sale_deals.baths, floor_no: sale_deals.floor_no,
   }).from(sale_deals)
     .where(inArray(sale_deals.addr_key, dealAddrs))
     .orderBy(desc(sale_deals.deal_date)).limit(400);

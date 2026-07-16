@@ -11,6 +11,7 @@ const RESIDENTIAL = "^(住宅大樓|華廈|透天厝|公寓|套房)";
 
 // 區界 GeoJSON(靜態)+ 屋齡帶中位單價(即時 SQL 聚合,萬/坪、扣車位)
 // 帶:presale(預售)/ 0_5 / 5_10 / 10_20 / 20p / all(全部,含屋齡不明)
+// 回應另附 city(全市各帶中位)當相對貴賤的基準
 export async function GET() {
   const geoPath = path.join(process.cwd(), "data", "taoyuan-districts.geojson");
   const geo = JSON.parse(fs.readFileSync(geoPath, "utf-8"));
@@ -27,21 +28,23 @@ export async function GET() {
       WHERE building_type ~ ${RESIDENTIAL} AND unit_price > 0
         AND raw_season IS DISTINCT FROM 'demo'
       UNION ALL
-      SELECT district, unit_price, 'presale' FROM presale_deals WHERE unit_price > 0
+      SELECT district, unit_price, 'presale' FROM presale_deals
+      WHERE unit_price > 0 AND is_cancelled IS NOT TRUE
     )
     SELECT district, coalesce(band, 'all') AS band,
            percentile_cont(0.5) WITHIN GROUP (ORDER BY unit_price) AS mup,
            count(*)::int AS n
     FROM deals
-    GROUP BY GROUPING SETS ((district, band), (district))
-  `) as unknown as { rows: { district: string; band: string; mup: number | null; n: number }[] };
+    GROUP BY GROUPING SETS ((district, band), (district), (band), ())
+  `) as unknown as { rows: { district: string | null; band: string; mup: number | null; n: number }[] };
 
   const byDistrict = new Map<string, Record<string, number | null>>();
+  const city: Record<string, number | null> = {};
   for (const r of rows) {
-    const d = byDistrict.get(r.district) ?? {};
+    const d = r.district == null ? city : (byDistrict.get(r.district) ?? {});
     d[`price_${r.band}`] = r.n >= MIN_SAMPLES && r.mup != null ? +(+r.mup).toFixed(1) : null;
     d[`n_${r.band}`] = r.n;
-    byDistrict.set(r.district, d);
+    if (r.district != null) byDistrict.set(r.district, d);
   }
 
   for (const f of geo.features) {
@@ -56,5 +59,6 @@ export async function GET() {
       price_20p: d.price_20p ?? null, n_20p: d.n_20p ?? 0,
     };
   }
+  geo.city = city; // 非標準 GeoJSON 欄位,前端當偏離基準用
   return NextResponse.json(geo);
 }

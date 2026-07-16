@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { FeatureCollection } from "geojson";
 import { ageBand, BAND_LABEL, type BandFilter } from "@/lib/age";
+import { inGeom } from "@/lib/geo";
 
 // 樂居式詳情,但走 Zillow 路線:側邊抽屜蓋在地圖上,不跳頁,地圖照常互動
 
@@ -8,6 +9,7 @@ type Deal = {
   addr_key: string | null; deal_date: string | null;
   total_price: number | null; area_ping: number | null;
   parking_area_ping: number | null; unit_price: number | null;
+  rooms: number | null; baths: number | null; floor_no: number | null;
 };
 type Detail = {
   building: {
@@ -19,24 +21,64 @@ type Detail = {
   deals: Deal[];
 };
 
-// 點在多邊形內(含 MultiPolygon 與挖洞):找出所在生活圈,拿圈內中位當比較基準
-type Ring = [number, number][];
-function inRing(lng: number, lat: number, ring: Ring): boolean {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i], [xj, yj] = ring[j];
-    if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi)
-      inside = !inside;
+// 點在多邊形內:找出所在生活圈,拿圈內中位當比較基準
+
+// 季中位數序列:走勢圖與一句話結論共用的口徑
+function quarterMedians(deals: Deal[]): { t: number; v: number }[] {
+  const median = (xs: number[]) => {
+    const s = [...xs].sort((a, b) => a - b), m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  };
+  const byQ = new Map<string, { t: number; vs: number[] }>();
+  for (const d of deals) {
+    if (!d.deal_date || d.unit_price == null || d.unit_price <= 0) continue;
+    const dt = new Date(d.deal_date), q = Math.floor(dt.getMonth() / 3);
+    const key = `${dt.getFullYear()}Q${q + 1}`;
+    const mid = +new Date(dt.getFullYear(), q * 3 + 1, 15); // 季中當 x 座標
+    (byQ.get(key) ?? byQ.set(key, { t: mid, vs: [] }).get(key)!).vs.push(d.unit_price);
   }
-  return inside;
+  return [...byQ.values()].map((g) => ({ t: g.t, v: median(g.vs) })).sort((a, b) => a.t - b.t);
 }
-function inGeom(lng: number, lat: number, geom: any): boolean {
-  const polys: Ring[][] = geom.type === "Polygon" ? [geom.coordinates] : geom.coordinates;
-  for (const rings of polys) {
-    if (!inRing(lng, lat, rings[0])) continue;
-    if (!rings.slice(1).some((h) => inRing(lng, lat, h))) return true;
+
+// 一句話結論:替使用者讀完數據,只給判讀所需的那句話
+function Verdict({ deals, vsZone, zoneName, bandLabel }: {
+  deals: Deal[]; vsZone: number | null; zoneName: string | null; bandLabel: string | null;
+}) {
+  const parts: ReactNode[] = [];
+
+  if (vsZone != null && zoneName) {
+    const ref = `${zoneName}${bandLabel ? `同屋齡帶(${bandLabel})` : ""}行情`;
+    parts.push(Math.abs(vsZone) < 3
+      ? <span key="p">與{ref}<b>相當</b></span>
+      : <span key="p">比{ref}<b className={vsZone < 0 ? "cheap" : "rich"}>
+          {vsZone < 0 ? "便宜" : "貴"} {Math.abs(vsZone).toFixed(1)}%</b></span>);
   }
-  return false;
+
+  // 近一年走勢:最新季中位 vs 約一年前的季中位;資料跨度太短不硬給結論
+  const qs = quarterMedians(deals);
+  if (qs.length >= 2) {
+    const last = qs[qs.length - 1];
+    const YEAR = 365 * 86400e3;
+    const base = [...qs].reverse().find((q) => last.t - q.t >= YEAR * 0.7);
+    if (base) {
+      const pct = (last.v / base.v - 1) * 100;
+      parts.push(Math.abs(pct) < 2
+        ? <span key="t">近一年季中位<b>大致持平</b></span>
+        : <span key="t">近一年季中位<b className={pct > 0 ? "rich" : "cheap"}>
+            {pct > 0 ? "上漲" : "下跌"} {Math.abs(pct).toFixed(1)}%</b></span>);
+    }
+  }
+
+  const cutoff = Date.now() - 90 * 86400e3;
+  const recent = deals.filter((d) => d.deal_date && +new Date(d.deal_date) >= cutoff).length;
+  parts.push(<span key="r">近 90 天{recent > 0 ? <>成交 <b>{recent} 筆</b></> : "無成交"}</span>);
+
+  if (!parts.length) return null;
+  return (
+    <div className="verdict">
+      {parts.map((p, i) => <span key={i}>{i > 0 && ";"}{p}</span>)}。
+    </div>
+  );
 }
 
 // 成交單價走勢:原始成交打點(淡),季中位數走深色實線;樣本太少只給點
@@ -162,6 +204,9 @@ export default function BuildingDrawer({ addrKey, zones, onClose }: {
             {detail.community && detail.community.building_count > 1 ? `・${detail.community.building_count} 個門牌` : ""}
           </div>
 
+          <Verdict deals={detail.deals} vsZone={vsZone}
+            zoneName={zone?.name ?? null} bandLabel={zoneRef?.label ?? null} />
+
           <div className="statrow">
             <div className="stat">
               <b className="num">{unit == null ? "—" : unit.toFixed(1)}</b>
@@ -172,7 +217,8 @@ export default function BuildingDrawer({ addrKey, zones, onClose }: {
               <span>屋齡{b.build_year ? `(${b.build_year} 完工)` : ""}</span>
             </div>
             <div className="stat">
-              <b className="num">{vsZone == null ? "—" : `${vsZone > 0 ? "+" : ""}${vsZone.toFixed(1)}%`}</b>
+              {/* 先取一位小數再判斷正負,避免 -0.04 顯示成「-0.0%」 */}
+              <b className="num">{vsZone == null ? "—" : (() => { const v = +vsZone.toFixed(1); return `${v > 0 ? "+" : ""}${v.toFixed(1)}%`; })()}</b>
               <span>{zone ? `vs ${zone.name}${zoneRef ? `(${zoneRef.label})` : ""}中位` : "vs 生活圈(圈外)"}</span>
             </div>
           </div>
@@ -184,12 +230,14 @@ export default function BuildingDrawer({ addrKey, zones, onClose }: {
           </div>
 
           <table className="deals num" style={{ marginTop: 10 }}>
-            <thead><tr><th>日期</th><th>門牌</th><th>總價</th><th>單價</th></tr></thead>
+            <thead><tr><th>日期</th><th>門牌</th><th>格局/樓</th><th>總價</th><th>單價</th></tr></thead>
             <tbody>
               {detail.deals.slice(0, 120).map((d, i) => (
                 <tr key={i}>
                   <td>{d.deal_date ?? "—"}</td>
                   <td className="addr" title={d.addr_key ?? ""}>{d.addr_key ? shortAddr(d.addr_key) : "—"}</td>
+                  <td>{[d.rooms != null ? `${d.rooms}房` : null, d.floor_no != null ? `${d.floor_no}F` : null]
+                        .filter(Boolean).join("/") || "—"}</td>
                   <td>{d.total_price == null ? "—" : `${Math.round(d.total_price).toLocaleString()} 萬`}</td>
                   <td>{d.unit_price == null ? "—" : d.unit_price.toFixed(1)}</td>
                 </tr>

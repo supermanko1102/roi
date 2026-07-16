@@ -11,7 +11,7 @@
  * 彙總 SQL(percentile_cont/CTE)刻意保留原生寫法,經 drizzle sql template 參數化執行。
  */
 import { eq, sql } from "drizzle-orm";
-import { createDb, district_stats, projects, buildings } from "../db/client";
+import { createDb, district_stats, projects, buildings, room_stats } from "../db/client";
 
 const MIN_SAMPLES = 5;
 const MAX_BUILDING_AGE = 8;
@@ -33,7 +33,7 @@ async function main() {
       SELECT district,
              percentile_cont(0.5) WITHIN GROUP (ORDER BY unit_price) AS mup,
              count(*) AS pc
-      FROM presale_deals GROUP BY district
+      FROM presale_deals WHERE is_cancelled IS NOT TRUE GROUP BY district
     ),
     r AS (
       SELECT district,
@@ -96,10 +96,15 @@ async function main() {
   `);
 
   await db.delete(projects).where(eq(projects.is_demo, false));
+  // 解約件不計入價格/筆數統計,另計 cancel_count 供前端標記
   await db.execute(sql`
+    WITH cx AS (
+      SELECT project_name, district, count(*) AS n
+      FROM presale_deals WHERE is_cancelled GROUP BY project_name, district
+    )
     INSERT INTO projects(name, district, median_total, median_area, unit_price,
                          est_rent, est_roi, est_rent_market, est_roi_market,
-                         rent_samples, rent_samples_market, deal_count, is_demo)
+                         rent_samples, rent_samples_market, deal_count, cancel_count, is_demo)
     SELECT d.project_name, d.district,
            percentile_cont(0.5) WITHIN GROUP (ORDER BY d.total_price),
            percentile_cont(0.5) WITHIN GROUP (ORDER BY d.area_ping),
@@ -112,10 +117,11 @@ async function main() {
            CASE WHEN s.rent_samples_market >= ${MIN_SAMPLES}
                 THEN round((s.median_rent_ping_market * percentile_cont(0.5) WITHIN GROUP (ORDER BY d.area_ping) * ${AREA_DISCOUNT} * 12
                      / (percentile_cont(0.5) WITHIN GROUP (ORDER BY d.total_price) * 10000) * 100)::numeric, 2) END,
-           s.rent_samples, s.rent_samples_market, count(*), false
+           s.rent_samples, s.rent_samples_market, count(*), coalesce(max(cx.n), 0), false
     FROM presale_deals d
     JOIN district_stats s ON s.district = d.district
-    WHERE d.project_name IS NOT NULL AND d.project_name <> ''
+    LEFT JOIN cx ON cx.project_name = d.project_name AND cx.district = d.district
+    WHERE d.project_name IS NOT NULL AND d.project_name <> '' AND d.is_cancelled IS NOT TRUE
     GROUP BY d.project_name, d.district, s.median_rent_ping, s.rent_samples,
              s.median_rent_ping_market, s.rent_samples_market
     HAVING count(*) >= 3
@@ -130,6 +136,7 @@ async function main() {
       rent_samples = EXCLUDED.rent_samples,
       rent_samples_market = EXCLUDED.rent_samples_market,
       deal_count   = EXCLUDED.deal_count,
+      cancel_count = EXCLUDED.cancel_count,
       is_demo      = false;
   `);
   // 棟級彙總:中古交易按門牌歸戶 + geocode 座標(只收已定位的)。
@@ -150,6 +157,36 @@ async function main() {
       GROUP BY s.addr_key, g.lat, g.lng;
     `);
   }
+
+  // 房數帶彙總:格局篩選時前端用它覆寫點位的價格/總價/筆數
+  // resale=棟級(僅已定位門牌,與 buildings 同口徑);presale=建案級(排除解約件)
+  await db.delete(room_stats);
+  await db.execute(sql`
+    INSERT INTO room_stats(kind, key, room_band, deal_count, median_unit_price, median_total)
+    SELECT 'resale', s.addr_key,
+           CASE WHEN s.rooms <= 1 THEN '1' WHEN s.rooms = 2 THEN '2'
+                WHEN s.rooms = 3 THEN '3' ELSE '4p' END AS band,
+           count(*),
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY s.unit_price),
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY s.total_price)
+    FROM sale_deals s
+    JOIN geocode_cache g ON g.addr_key = s.addr_key AND g.precision = 'door'
+    WHERE s.unit_price > 0 AND s.rooms IS NOT NULL AND s.raw_season IS DISTINCT FROM 'demo'
+    GROUP BY s.addr_key, band;
+  `);
+  await db.execute(sql`
+    INSERT INTO room_stats(kind, key, room_band, deal_count, median_unit_price, median_total)
+    SELECT 'presale', d.district || '|' || d.project_name,
+           CASE WHEN d.rooms <= 1 THEN '1' WHEN d.rooms = 2 THEN '2'
+                WHEN d.rooms = 3 THEN '3' ELSE '4p' END AS band,
+           count(*),
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY d.unit_price),
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY d.total_price)
+    FROM presale_deals d
+    WHERE d.project_name IS NOT NULL AND d.project_name <> ''
+      AND d.is_cancelled IS NOT TRUE AND d.rooms IS NOT NULL AND d.unit_price > 0
+    GROUP BY d.district || '|' || d.project_name, band;
+  `);
 
   // 有真資料後把 demo 清掉
   const [{ n }] = (await db.execute(sql`SELECT count(*)::int AS n FROM district_stats WHERE is_demo = false`)).rows as { n: number }[];

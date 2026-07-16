@@ -27,6 +27,25 @@ const num = (s?: string) => {
 const col = (headers: string[], ...keys: string[]) =>
   headers.findIndex(h => keys.every(k => h.includes(k)));
 
+const intOrNull = (s?: string) => {
+  const n = parseInt((s ?? "").trim(), 10);
+  return Number.isFinite(n) ? n : null;
+};
+// 樓層:官方用中文數字(「十一層」「二十五層」),多樓層取首層;「全」「地下層」給 null
+const CN_DIGIT: Record<string, number> = { 零: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+function parseFloor(s?: string): number | null {
+  if (!s) return null;
+  const first = s.split(/[,,、]/)[0].replace(/層.*$/, "").trim();
+  if (!first || first.includes("地下") || first === "全") return null;
+  if (/^\d+$/.test(first)) return +first;
+  const m = first.match(/^([一二三四五六七八九]?)(十?)([一二三四五六七八九]?)$/);
+  if (!m) return null;
+  const tens = m[2] ? (m[1] ? CN_DIGIT[m[1]] : 1) : 0;
+  const ones = m[2] ? (m[3] ? CN_DIGIT[m[3]] : 0) : (m[1] ? CN_DIGIT[m[1]] : NaN);
+  const v = tens * 10 + ones;
+  return Number.isFinite(v) && v > 0 ? v : null;
+}
+
 function readCsv(file: string): string[][] {
   let text = fs.readFileSync(file, "utf-8");
   if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
@@ -54,6 +73,8 @@ async function main() {
       const iTotal = col(h, "總價元"), iPark = col(h, "車位總價");
       const iParkArea = col(h, "車位移轉總面積");
       const iType = col(h, "建物型態"), iBuilt = col(h, "建築完成年月");
+      const iRooms = col(h, "格局", "房"), iHalls = col(h, "格局", "廳"), iBaths = col(h, "格局", "衛");
+      const iFloor = col(h, "移轉層次"), iFloors = col(h, "總樓層數");
       const out: (typeof sale_deals.$inferInsert)[] = [];
       for (const r of rows) {
         if (!(r[iTarget] ?? "").includes("建物")) continue; // 濾掉純土地/車位
@@ -75,7 +96,10 @@ async function main() {
           area_ping: areaPing, parking_area_ping: parkAreaPing, main_area_ping: mainAreaPing,
           unit_price: unit, unit_price_main: unitMain,
           building_type: iType >= 0 ? r[iType] || null : null,
-          build_year: buildYear, addr_key: addrKey, raw_season: season,
+          build_year: buildYear, addr_key: addrKey,
+          rooms: intOrNull(r[iRooms]), halls: intOrNull(r[iHalls]), baths: intOrNull(r[iBaths]),
+          floor_no: parseFloor(r[iFloor]), total_floors: parseFloor(r[iFloors]),
+          raw_season: season,
         });
       }
       await db.delete(sale_deals).where(eq(sale_deals.raw_season, season));
@@ -92,6 +116,9 @@ async function main() {
       const iTotal = col(h, "總價元"), iPark = col(h, "車位總價");
       const iParkArea = col(h, "車位移轉總面積");
       const iProj = col(h, "建案名稱");
+      const iRooms = col(h, "格局", "房"), iHalls = col(h, "格局", "廳"), iBaths = col(h, "格局", "衛");
+      const iFloor = col(h, "移轉層次"), iFloors = col(h, "總樓層數");
+      const iCancel = col(h, "解約情形");
       const out: (typeof presale_deals.$inferInsert)[] = [];
       for (const r of rows) {
         const total = num(r[iTotal]), park = num(r[iPark]) ?? 0;
@@ -100,12 +127,19 @@ async function main() {
         const parkAreaPing = (num(r[iParkArea]) ?? 0) / PING;
         const netArea = areaPing - parkAreaPing;
         const unit = netArea > 0 ? (total - park) / 10000 / netArea : null;
+        // 解約情形:如「1150530全部解約」,開頭是民國日期
+        const cancel = iCancel >= 0 ? (r[iCancel] ?? "").trim() : "";
         out.push({
           district: r[iDist], project_name: iProj >= 0 ? r[iProj] : null,
           address: r[iAddr], deal_date: rocDate(r[iDate]),
           total_price: total / 10000, parking_price: park / 10000,
           area_ping: areaPing, parking_area_ping: parkAreaPing,
-          unit_price: unit, raw_season: season,
+          unit_price: unit,
+          rooms: intOrNull(r[iRooms]), halls: intOrNull(r[iHalls]), baths: intOrNull(r[iBaths]),
+          floor_no: parseFloor(r[iFloor]), total_floors: parseFloor(r[iFloors]),
+          is_cancelled: cancel.includes("解約"),
+          cancel_date: rocDate(cancel.match(/^\d{7}/)?.[0]),
+          raw_season: season,
         });
       }
       await db.delete(presale_deals).where(eq(presale_deals.raw_season, season));

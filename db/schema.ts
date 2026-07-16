@@ -20,6 +20,13 @@ export const presale_deals = pgTable("presale_deals", {
   area_ping: money("area_ping"),                 // 建物移轉總面積(坪)
   parking_area_ping: money("parking_area_ping").default(0), // 車位移轉總面積(坪)
   unit_price: money("unit_price"),               // 扣車位單價(萬/坪,分母亦扣車位坪)
+  rooms: integer("rooms"),                       // 建物現況格局-房
+  halls: integer("halls"),                       // 建物現況格局-廳
+  baths: integer("baths"),                       // 建物現況格局-衛
+  floor_no: integer("floor_no"),                 // 移轉層次(取首層;「全」/地下層為 null)
+  total_floors: integer("total_floors"),         // 總樓層數
+  is_cancelled: boolean("is_cancelled").default(false), // 解約情形有註記(價格統計應排除)
+  cancel_date: date("cancel_date"),              // 解約日期(解約情形欄開頭的民國日期)
   raw_season: text("raw_season"),
 }, (t) => [
   index("idx_presale_district").on(t.district),
@@ -42,6 +49,11 @@ export const sale_deals = pgTable("sale_deals", {
   building_type: text("building_type"),
   build_year: integer("build_year"),             // 建築完成年(西元)
   addr_key: text("addr_key"),                    // 去樓層門牌(歸戶鍵,如「…建國路６３１巷８號」)
+  rooms: integer("rooms"),                       // 建物現況格局-房
+  halls: integer("halls"),                       // 建物現況格局-廳
+  baths: integer("baths"),                       // 建物現況格局-衛
+  floor_no: integer("floor_no"),                 // 移轉層次(取首層;「全」/地下層為 null)
+  total_floors: integer("total_floors"),         // 總樓層數
   raw_season: text("raw_season"),
 }, (t) => [
   index("idx_sale_district").on(t.district),
@@ -156,7 +168,22 @@ export const projects = pgTable("projects", {
   rent_samples: integer("rent_samples").default(0),
   rent_samples_market: integer("rent_samples_market").default(0),
   deal_count: integer("deal_count").default(0),
+  cancel_count: integer("cancel_count").default(0), // 曾解約筆數(不計入價格統計)
   is_demo: boolean("is_demo").default(false),
 }, (t) => [
   unique("projects_name_district_key").on(t.name, t.district),
+]);
+
+// 房數帶彙總(compute-stats 重建):格局篩選時覆寫點位的價格/總價/筆數
+// kind=resale 的 key 是 addr_key;kind=presale 的 key 是 `${district}|${name}`
+export const room_stats = pgTable("room_stats", {
+  kind: text("kind").notNull(),                  // resale | presale
+  key: text("key").notNull(),
+  room_band: text("room_band").notNull(),        // 1(含0房套房) | 2 | 3 | 4p
+  deal_count: integer("deal_count").default(0),
+  median_unit_price: money("median_unit_price"), // 扣車位 萬/坪
+  median_total: money("median_total"),           // 中位總價(萬)
+}, (t) => [
+  unique("room_stats_pk").on(t.kind, t.key, t.room_band),
+  index("idx_room_stats_band").on(t.room_band),
 ]);

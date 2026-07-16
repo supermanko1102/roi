@@ -1,6 +1,7 @@
 import { and, eq, gte, isNotNull, lte, type SQL } from "drizzle-orm";
-import { db, buildings, building_community, communities, projects } from "@/lib/db";
+import { db, buildings, building_community, communities, projects, room_stats } from "@/lib/db";
 import { ageBand, type AgeBand } from "@/lib/age";
+import type { RoomBand } from "@/lib/rooms";
 
 // 統一點位:建案(presale_deals 彙總)與棟級(sale_deals 歸戶)合流成單一實體,
 // 屋齡帶是屬性不是頻道。/api/points 與 /api/zones 共用,口徑才不會漂移。
@@ -18,12 +19,14 @@ export type UnifiedPoint = {
   build_year: number | null;      // 棟級=完工年;建案=first_reg 年(完工交屋)
   median_total: number | null;    // 中位總價(萬)
   median_area: number | null;     // 中位坪數(建案才有)
+  cancel_count: number;           // 曾解約筆數(建案才有;不計入價格統計)
 };
 
 type Bbox = [number, number, number, number];
 
-export async function loadUnifiedPoints(opts: { bbox?: Bbox; district?: string } = {}): Promise<UnifiedPoint[]> {
-  const { bbox, district } = opts;
+// rooms 給定時:用 room_stats 覆寫價格/總價/筆數,無該格局成交的點直接剔除
+export async function loadUnifiedPoints(opts: { bbox?: Bbox; district?: string; rooms?: RoomBand } = {}): Promise<UnifiedPoint[]> {
+  const { bbox, district, rooms } = opts;
   const box = (lat: any, lng: any): SQL | undefined =>
     bbox ? and(gte(lng, bbox[0]), lte(lng, bbox[2]), gte(lat, bbox[1]), lte(lat, bbox[3])) : undefined;
 
@@ -49,15 +52,28 @@ export async function loadUnifiedPoints(opts: { bbox?: Bbox; district?: string }
     db.selectDistinct({ case_no: building_community.case_no }).from(building_community),
   ]);
 
+  const roomMap = new Map<string, { deal_count: number | null; median_unit_price: number | null; median_total: number | null }>();
+  if (rooms) {
+    const rs = await db.select().from(room_stats).where(eq(room_stats.room_band, rooms));
+    for (const r of rs) roomMap.set(`${r.kind}|${r.key}`, r);
+  }
+
   const nowYear = new Date().getFullYear();
-  const pts: UnifiedPoint[] = bldgs.map((b) => ({
-    kind: "resale", band: ageBand(b.build_year, nowYear),
-    lat: b.lat!, lng: b.lng!, district: b.district,
-    price: b.median_unit_price, deal_count: b.deal_count ?? 0,
-    name: b.community, addr_key: b.addr_key,
-    building_type: b.building_type, build_year: b.build_year,
-    median_total: b.median_total, median_area: null,
-  }));
+  const pts: UnifiedPoint[] = [];
+  for (const b of bldgs) {
+    const rm = rooms ? roomMap.get(`resale|${b.addr_key}`) : undefined;
+    if (rooms && !rm) continue;
+    pts.push({
+      kind: "resale", band: ageBand(b.build_year, nowYear),
+      lat: b.lat!, lng: b.lng!, district: b.district,
+      price: rm ? rm.median_unit_price : b.median_unit_price,
+      deal_count: (rm ? rm.deal_count : b.deal_count) ?? 0,
+      name: b.community, addr_key: b.addr_key,
+      building_type: b.building_type, build_year: b.build_year,
+      median_total: rm ? rm.median_total : b.median_total, median_area: null,
+      cancel_count: 0,
+    });
+  }
 
   // 建案 → 備查建案(name+district)接完工日:
   //   未備查/未完工 → 預售帶;已完工 → 依 first_reg 落帶;
@@ -75,13 +91,17 @@ export async function loadUnifiedPoints(opts: { bbox?: Bbox; district?: string }
     const regYear = m?.first_reg ? new Date(m.first_reg).getFullYear() : null;
     const completed = regYear != null && regYear <= nowYear;
     if (completed && matches.some((c) => linkedSet.has(c.case_no))) continue;
+    const rm = rooms ? roomMap.get(`presale|${p.district}|${p.name}`) : undefined;
+    if (rooms && !rm) continue;
     pts.push({
       kind: "presale", band: completed ? ageBand(regYear, nowYear) : "presale",
       lat: p.lat!, lng: p.lng!, district: p.district,
-      price: p.unit_price, deal_count: p.deal_count ?? 0,
+      price: rm ? rm.median_unit_price : p.unit_price,
+      deal_count: (rm ? rm.deal_count : p.deal_count) ?? 0,
       name: p.name, addr_key: null,
       building_type: null, build_year: completed ? regYear : null,
-      median_total: p.median_total, median_area: p.median_area,
+      median_total: rm ? rm.median_total : p.median_total, median_area: p.median_area,
+      cancel_count: p.cancel_count ?? 0,
     });
   }
   return pts;
@@ -103,6 +123,7 @@ export function toFeatureCollection(pts: UnifiedPoint[]) {
         ...(p.addr_key ? { addr_key: p.addr_key } : {}),
         ...(p.building_type ? { building_type: p.building_type } : {}),
         ...(p.build_year != null ? { build_year: p.build_year } : {}),
+        ...(p.cancel_count > 0 ? { cancel_count: p.cancel_count } : {}),
       },
     })),
   };
