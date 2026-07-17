@@ -6,7 +6,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parse } from "csv-parse/sync";
-import { eq } from "drizzle-orm";
+import { eq, like, or } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { createDb, sale_deals, presale_deals, rent_deals } from "../db/client";
 
 const PING = 3.305785; // m² per 坪
@@ -62,6 +63,9 @@ async function main() {
 
   for (const season of fs.readdirSync(DL)) {
     const dir = path.join(DL, season);
+    // 正式季度打包檔要一併取代該季累積的旬檔(raw_season 如 115S3#0701)
+    const seasonScope = (col: AnyPgColumn) =>
+      /^\d{3}S[1-4]$/.test(season) ? or(eq(col, season), like(col, `${season}#%`)) : eq(col, season);
 
     // ---- 中古/成屋買賣 (a) ----
     const aFile = path.join(dir, "h_lvr_land_a.csv");
@@ -102,7 +106,7 @@ async function main() {
           raw_season: season,
         });
       }
-      await db.delete(sale_deals).where(eq(sale_deals.raw_season, season));
+      await db.delete(sale_deals).where(seasonScope(sale_deals.raw_season));
       await insertBatched((c) => db.insert(sale_deals).values(c), out);
       console.log(`[${season}] 買賣 ${out.length} 筆`);
     }
@@ -143,7 +147,7 @@ async function main() {
           raw_season: season,
         });
       }
-      await db.delete(presale_deals).where(eq(presale_deals.raw_season, season));
+      await db.delete(presale_deals).where(seasonScope(presale_deals.raw_season));
       await insertBatched((c) => db.insert(presale_deals).values(c), out);
       console.log(`[${season}] 預售 ${out.length} 筆`);
     }
@@ -189,7 +193,7 @@ async function main() {
           raw_season: season,
         });
       }
-      await db.delete(rent_deals).where(eq(rent_deals.raw_season, season));
+      await db.delete(rent_deals).where(seasonScope(rent_deals.raw_season));
       await insertBatched((c) => db.insert(rent_deals).values(c), out);
       console.log(`[${season}] 租賃 ${out.length} 筆`);
     }
