@@ -1,0 +1,40 @@
+name: ETL 實價登錄
+
+on:
+  schedule:
+    # 內政部每月 1、11、21 日發布新批次;UTC 20:00 = 台灣時間隔天(2、12、22 日)凌晨 4 點
+    - cron: "0 20 1,11,21 * *"
+  workflow_dispatch: # 手動補跑用
+
+concurrency:
+  group: etl
+  cancel-in-progress: false
+
+jobs:
+  etl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: 安裝依賴
+        run: pnpm install --frozen-lockfile
+
+      - name: 套用資料庫 migration
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: 跑 ETL(下載 → 解析 → geocode → 統計)
+        run: pnpm etl:all
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
