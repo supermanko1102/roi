@@ -63,8 +63,8 @@ const BASE_STYLE: any = {
 
 // 樂居式層級切換:zoom 過門檻自動浮出點位,行政區色塊同步淡出
 const DETAIL_ZOOM = 12;
-// 重劃區/生活圈層:DETAIL_ZOOM ~ ZONE_FADE 之間顯示,更放大就淡出讓位給點位
-const ZONE_FADE = 13.9;
+// 重劃區/生活圈先獨立呈現；再放大一級才顯示建案點。
+const POINT_ZOOM = 14;
 
 function readInitialView() {
   if (typeof window === "undefined") return { longitude: 121.25, latitude: 24.94, zoom: 10.3 };
@@ -79,6 +79,7 @@ function readInitialView() {
 
 export default function PropertyMap() {
   const mapRef = useRef<MapRef>(null);
+  const initialView = useMemo(readInitialView, []);
   const [districts, setDistricts] = useState<FeatureCollection | null>(null);
   const band: BandFilter = "presale";
   const [market, setMarket] = useState<MarketMode>("presale");
@@ -87,7 +88,7 @@ export default function PropertyMap() {
   const [nearMetro, setNearMetro] = useState(false);
   const [nearIC, setNearIC] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
-  const [zoom, setZoom] = useState(10.3);
+  const [zoom, setZoom] = useState(initialView.zoom);
   const [points, setPoints] = useState<FeatureCollection | null>(null);
   const [presalePopup, setPresalePopup] = useState<PresalePopup | null>(null);
   const [zones, setZones] = useState<FeatureCollection | null>(null);
@@ -103,9 +104,9 @@ export default function PropertyMap() {
   const [compareOpen, setCompareOpen] = useState(false);
   const [shared, setShared] = useState(false);
   const [urlReady, setUrlReady] = useState(false);
-  const initialView = useMemo(readInitialView, []);
   const detail = zoom >= DETAIL_ZOOM;
-  const zoneLevel = zoom >= DETAIL_ZOOM && zoom < ZONE_FADE;
+  const zoneLevel = zoom >= DETAIL_ZOOM && zoom < POINT_ZOOM;
+  const pointsVisible = zoom >= POINT_ZOOM;
 
   useEffect(() => {
     fetch("/api/districts").then((r) => r.json()).then(setDistricts);
@@ -170,8 +171,8 @@ export default function PropertyMap() {
   }
 
   useEffect(() => {
-    if (!detail) setPresalePopup(null);
-  }, [detail]);
+    if (!pointsVisible) setPresalePopup(null);
+  }, [pointsVisible]);
 
   useEffect(() => {
     if (market !== "rental") { setRentalPopup(null); return; }
@@ -293,7 +294,9 @@ export default function PropertyMap() {
     const z = zoneLabels.find((l) => l.name === name);
     if (!z) return;
     loadDetail([z.bounds[0][0], z.bounds[0][1], z.bounds[1][0], z.bounds[1][1]]); // 與飛行動畫並行抓資料
-    mapRef.current?.fitBounds(z.bounds, { padding: 40, duration: 600 });
+    mapRef.current?.fitBounds(z.bounds, {
+      padding: 54, maxZoom: POINT_ZOOM - 0.35, duration: 600,
+    });
   }
 
   // 視窗載入:zoom 進入細節層級後按目前視窗(外擴 40%)抓統一點位;
@@ -408,6 +411,11 @@ export default function PropertyMap() {
     } catch { setShared(false); }
   }
 
+  function handleMapCursor(e: any) {
+    const feature = e.features?.[0];
+    e.target.getCanvas().style.cursor = feature ? "pointer" : "";
+  }
+
   return (
     <div style={{ position: "absolute", inset: 0 }}>
       <Map
@@ -417,11 +425,23 @@ export default function PropertyMap() {
         onLoad={(e) => {
           e.target.resize(); // 容器尺寸就緒前 canvas 可能只畫一角
           addMapIcons(e.target); // 房屋/膠囊/交流道圖示(canvas 現畫)
+          setZoom(e.target.getZoom());
+          if (e.target.getZoom() >= DETAIL_ZOOM) {
+            const b = e.target.getBounds();
+            loadDetail([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
+          }
         }}
         onMove={(e) => {
           // 動畫/拖曳中只在跨越門檻時更新,避免每幀重繪 DOM markers
           const z = e.viewState.zoom;
-          setZoom((prev) => ((prev >= DETAIL_ZOOM) !== (z >= DETAIL_ZOOM) ? z : prev));
+          setZoom((prev) => (
+            (prev >= DETAIL_ZOOM) !== (z >= DETAIL_ZOOM) ||
+            (prev >= POINT_ZOOM) !== (z >= POINT_ZOOM) ? z : prev
+          ));
+        }}
+        onMouseMove={handleMapCursor}
+        onMouseLeave={(e) => {
+          e.target.getCanvas().style.cursor = "";
         }}
         onMoveEnd={(e) => {
           setZoom(e.viewState.zoom);
@@ -457,9 +477,10 @@ export default function PropertyMap() {
           }
         }}
         interactiveLayerIds={[
-          ...(market === "presale" && detail
-            ? (zoneLevel ? ["pt-cluster", "pt-icon", "pt-pill", "zone-fill"] : ["pt-cluster", "pt-icon", "pt-pill"])
-            : ["district-fill"]),
+          ...(market === "presale"
+            ? pointsVisible ? ["pt-cluster", "pt-icon", "pt-pill"]
+              : zoneLevel ? ["zone-fill"] : ["district-fill"]
+            : !detail ? ["district-fill"] : []),
           ...(market === "rental" ? ["rent-cluster", "rent-point", "rent-symbol", "rent-label"] : []),
         ]}
       >
@@ -485,15 +506,27 @@ export default function PropertyMap() {
           <Source id="zones" type="geojson" data={zones}>
             <Layer id="zone-fill" type="fill"
               paint={{
-                "fill-color": "#f4f5f1",
-                "fill-opacity": 0,
+                "fill-color": "#0d5b4f",
+                "fill-opacity": ["interpolate", ["linear"], ["zoom"],
+                  DETAIL_ZOOM - 0.2, 0, DETAIL_ZOOM + 0.2, 0.055,
+                  POINT_ZOOM - 0.2, 0.055, POINT_ZOOM, 0] as any,
+              }} />
+            <Layer id="zone-glow" type="line"
+              paint={{
+                "line-color": "#0d5b4f", "line-blur": 6,
+                "line-width": ["interpolate", ["linear"], ["zoom"],
+                  DETAIL_ZOOM, 8, POINT_ZOOM, 12] as any,
+                "line-opacity": ["interpolate", ["linear"], ["zoom"],
+                  DETAIL_ZOOM - 0.3, 0, DETAIL_ZOOM + 0.2, 0.16,
+                  POINT_ZOOM - 0.3, 0.12, POINT_ZOOM, 0] as any,
               }} />
             <Layer id="zone-line" type="line"
               paint={{
-                "line-color": "#8b9994", "line-width": 1.5, "line-dasharray": [2, 1.5],
+                "line-color": "#71837c", "line-width": 1.5,
+                "line-dasharray": [2, 1.5],
                 "line-opacity": ["interpolate", ["linear"], ["zoom"],
                   DETAIL_ZOOM - 0.4, 0, DETAIL_ZOOM + 0.3, 0.9,
-                  ZONE_FADE - 0.7, 0.9, ZONE_FADE, 0] as any,
+                  POINT_ZOOM - 0.7, 0.9, POINT_ZOOM, 0] as any,
               }} />
           </Source>
         )}
@@ -526,7 +559,7 @@ export default function PropertyMap() {
           </Source>
         )}
 
-        {market === "presale" && detail && visiblePoints && (
+        {market === "presale" && pointsVisible && visiblePoints && (
           <Source id="points" type="geojson" data={visiblePoints}
             cluster clusterMaxZoom={15} clusterRadius={48}>
             <Layer id="pt-cluster" type="circle" filter={["has", "point_count"]}
@@ -542,7 +575,7 @@ export default function PropertyMap() {
                 "text-font": ["Open Sans Semibold"], "text-size": 13,
               }}
               paint={{ "text-color": "#fff" }} />
-            {/* 建案=房屋圖示:預售中空心、已完工實心;顏色依模式分桶(15 起讓位給價格膠囊) */}
+            {/* 建案=房屋圖示:預售中空心、已完工實心；15 級起讓位給價格膠囊。 */}
             <Layer id="pt-icon" type="symbol" filter={["!", ["has", "point_count"]]}
               maxzoom={15}
               layout={{
@@ -550,7 +583,7 @@ export default function PropertyMap() {
                 "icon-size": ["interpolate", ["linear"], ["zoom"], 12, 0.72, 15, 1] as any,
                 "icon-allow-overlap": true,
               }} />
-            {/* 價格膠囊:白底圓角、文字色帶判讀;rel=±%、abs=單價(格局篩選時改總價) */}
+            {/* 價格膠囊:白底圓角；格局篩選時顯示總價，否則顯示單價。 */}
             <Layer id="pt-pill" type="symbol" filter={["!", ["has", "point_count"]]}
               minzoom={15}
               layout={{
@@ -575,7 +608,7 @@ export default function PropertyMap() {
         )}
 
         {/* 解約標記:紅圈壓在點位上,獨立於屋齡帶/格局篩選 */}
-        {market === "presale" && detail && showCancel && cancelPoints && (
+        {market === "presale" && pointsVisible && showCancel && cancelPoints && (
           <Source id="cancels" type="geojson" data={cancelPoints}>
             <Layer id="cancel-halo" type="circle"
               paint={{
@@ -616,7 +649,8 @@ export default function PropertyMap() {
           const price = l.props[priceProp(band)];
           return (
             <Marker key={l.name} longitude={l.lng} latitude={l.lat} anchor="center">
-              <button type="button" className="zlabel" onClick={(e) => { e.stopPropagation(); zoomToZone(l.name); }}
+              <button type="button" className="zlabel"
+                onClick={(e) => { e.stopPropagation(); zoomToZone(l.name); }}
                 title={`${l.name}:預售 ${l.props[`n_${band}`] ?? 0} 筆成交`}>
                 <span className="zname">{l.name}</span>
                 <span className="zval num">
@@ -748,14 +782,14 @@ export default function PropertyMap() {
         }} />}
 
       <MapLegend market={market} rooms={rooms} nearMetro={nearMetro} nearIC={nearIC}
-        detail={detail} showStations={stations != null} />
+        detail={detail} showProjects={pointsVisible} showStations={stations != null} />
 
       {detail && <button className="backbtn" onClick={back}>← 返回全市</button>}
       <div className="map-status">
-        <strong>{market === "rental" ? rentalSummaries.length : (projectSummaries.length || "—")}</strong>
+        <strong>{market === "rental" ? rentalSummaries.length : zoneLevel ? "生活圈" : (projectSummaries.length || "—")}</strong>
         <span>{market === "rental"
           ? "棟屋齡 1–10 年出租實登・已排除社宅"
-          : detail ? "個符合建案" : "個全市建案・點行政區開始探索"}</span>
+          : zoneLevel ? "層級・再放大顯示建案" : detail ? "個符合建案" : "個全市建案・點行政區開始探索"}</span>
       </div>
     </div>
   );

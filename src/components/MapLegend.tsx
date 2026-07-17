@@ -3,9 +3,9 @@ import { ROOM_LABEL, type RoomFilter } from "@/lib/rooms";
 import type { MarketMode } from "./product-kit";
 
 // 左下圖例：說明數字口徑與目前篩選；價格不再映射成行政區色階。
-export default function MapLegend({ market, rooms, nearMetro, nearIC, detail, showStations }: {
+export default function MapLegend({ market, rooms, nearMetro, nearIC, detail, showProjects, showStations }: {
   market: MarketMode; rooms: RoomFilter; nearMetro: boolean; nearIC: boolean;
-  detail: boolean; showStations: boolean;
+  detail: boolean; showProjects: boolean; showStations: boolean;
 }) {
   return (
     <div className="legend">
@@ -16,7 +16,7 @@ export default function MapLegend({ market, rooms, nearMetro, nearIC, detail, sh
         {[
           "行政區僅顯示邊界，不依房價著色",
           market === "rental" ? "棕色「租」＝屋齡 1–10 年、非社宅租賃實登" : null,
-          market === "presale" && detail ? "○ 預售中 ● 已完工建案" : null,
+          market === "presale" && showProjects ? "○ 預售中 ● 已完工建案" : null,
           market === "presale" && rooms !== "all" ? `只計 ${ROOM_LABEL[rooms]} 的成交` : null,
           market === "presale" && nearMetro ? "只顯示步行 10 分內有站的建案" : null,
           market === "presale" && nearIC ? "只顯示 2 公里內有交流道的建案" : null,

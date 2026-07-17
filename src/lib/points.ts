@@ -110,11 +110,36 @@ export async function loadUnifiedPoints(opts: { bbox?: Bbox; district?: string; 
 }
 
 export function toFeatureCollection(pts: UnifiedPoint[]) {
+  // 部分地址只能定位到同一個道路/街廓中心，造成不同建案共用完全相同座標。
+  // 群聚解除後若仍重疊，使用者會誤以為「2 筆」其實只有 1 案；僅在輸出地圖時環狀展開。
+  const renderCoordinates = new Map<UnifiedPoint, [number, number]>();
+  const coordinateGroups = new Map<string, UnifiedPoint[]>();
+  for (const p of pts) {
+    const key = `${p.lat.toFixed(6)}|${p.lng.toFixed(6)}`;
+    const group = coordinateGroups.get(key) ?? [];
+    group.push(p);
+    coordinateGroups.set(key, group);
+  }
+  for (const group of coordinateGroups.values()) {
+    if (group.length === 1) continue;
+    const ordered = [...group].sort((a, b) =>
+      `${a.district}|${a.name ?? ""}|${a.kind}`.localeCompare(
+        `${b.district}|${b.name ?? ""}|${b.kind}`, "zh-Hant"));
+    const radiusM = Math.max(55, ordered.length * 16);
+    ordered.forEach((p, index) => {
+      const angle = -Math.PI / 2 + (Math.PI * 2 * index) / ordered.length;
+      const lat = p.lat + (Math.sin(angle) * radiusM) / 111_320;
+      const lng = p.lng + (Math.cos(angle) * radiusM) /
+        (111_320 * Math.cos(p.lat * Math.PI / 180));
+      renderCoordinates.set(p, [+lng.toFixed(6), +lat.toFixed(6)]);
+    });
+  }
+
   return {
     type: "FeatureCollection" as const,
     features: pts.map((p) => ({
       type: "Feature" as const,
-      geometry: { type: "Point" as const, coordinates: [p.lng, p.lat] },
+      geometry: { type: "Point" as const, coordinates: renderCoordinates.get(p) ?? [p.lng, p.lat] },
       properties: {
         kind: p.kind, band: p.band, district: p.district,
         price: p.price != null ? +p.price.toFixed(1) : null,

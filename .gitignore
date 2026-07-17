@@ -3,3 +3,5 @@ node_modules/
 .env
 etl/downloads/
 tsconfig.tsbuildinfo
+.vercel
+.env*
