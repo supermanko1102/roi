@@ -1,32 +1,25 @@
-import { DEV_STOPS, PRICE_STOPS, LINE_COLOR, type ColorMode } from "@/lib/map-colors";
+import { LINE_COLOR } from "@/lib/map-colors";
 import { ROOM_LABEL, type RoomFilter } from "@/lib/rooms";
+import type { MarketMode } from "./product-kit";
 
-// 左下圖例:色階說明 + 目前篩選的白話註記
-export default function MapLegend({ mode, rooms, nearMetro, nearIC, detail, showStations }: {
-  mode: ColorMode; rooms: RoomFilter; nearMetro: boolean; nearIC: boolean;
+// 左下圖例：說明數字口徑與目前篩選；價格不再映射成行政區色階。
+export default function MapLegend({ market, rooms, nearMetro, nearIC, detail, showStations }: {
+  market: MarketMode; rooms: RoomFilter; nearMetro: boolean; nearIC: boolean;
   detail: boolean; showStations: boolean;
 }) {
-  const stops = mode === "rel" ? DEV_STOPS : PRICE_STOPS;
   return (
     <div className="legend">
       <div className="ltitle">
-        {mode === "rel" ? "預售案和附近行情相比" : "預售一坪價格(萬)"}
-      </div>
-      <div className="lgrad" style={{
-        background: `linear-gradient(to right, ${stops.map((s) => s[1]).join(",")})`,
-      }} />
-      <div className="lticks">
-        {mode === "rel"
-          ? <><span>便宜 15%</span><span>差不多</span><span>貴 15%</span></>
-          : <><span>$20</span><span>$32</span><span>$44</span></>}
+        {market === "rental" ? "標籤數字＝月租（元）" : "標籤數字＝成交單價（萬／坪）"}
       </div>
       <div className="lnote">
         {[
-          mode === "rel" ? "色塊=跟全市比・圓點=跟它所在的生活圈比" : null,
-          detail ? "○ 預售中 ● 已完工建案" : null,
-          rooms !== "all" ? `只計 ${ROOM_LABEL[rooms]} 的成交` : null,
-          nearMetro ? "只顯示步行 10 分內有站的建案" : null,
-          nearIC ? "只顯示 2 公里內有交流道的建案" : null,
+          "行政區僅顯示邊界，不依房價著色",
+          market === "rental" ? "棕色「租」＝屋齡 1–10 年、非社宅租賃實登" : null,
+          market === "presale" && detail ? "○ 預售中 ● 已完工建案" : null,
+          market === "presale" && rooms !== "all" ? `只計 ${ROOM_LABEL[rooms]} 的成交` : null,
+          market === "presale" && nearMetro ? "只顯示步行 10 分內有站的建案" : null,
+          market === "presale" && nearIC ? "只顯示 2 公里內有交流道的建案" : null,
         ].filter(Boolean).join("・")}
       </div>
       {detail && showStations && (

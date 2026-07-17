@@ -1,31 +1,7 @@
-import { DEV_STOPS, PRICE_STOPS, rampColor } from "@/lib/map-colors";
-
 // 地圖圖示全部用 canvas 現畫(免外部圖檔、免字型):
-//  - 房屋:實心=已完工、空心=預售中;顏色分桶預先上色(比 SDF 染色穩,WebGL symbol 效能同圓點)
+//  - 房屋:實心=已完工、空心=預售中;統一中性色，價格直接看標籤數字
 //  - 交流道:深色菱形
 //  - 價格膠囊:白底圓角 stretchable image,配 icon-text-fit 自動包住文字
-// 桶的邊界要跟 iconExpr()/pillTextColor() 的 step expression 一致。
-
-export const DEV_BUCKETS = [
-  { key: "g2", upTo: -8 }, { key: "g1", upTo: -3 }, { key: "fl", upTo: 3 },
-  { key: "r1", upTo: 8 }, { key: "r2", upTo: Infinity },
-] as const;
-export const PRICE_BUCKETS = [
-  { key: "p0", upTo: 23 }, { key: "p1", upTo: 29 }, { key: "p2", upTo: 35 },
-  { key: "p3", upTo: 41 }, { key: "p4", upTo: Infinity },
-] as const;
-const NO_DATA = "#9aa5ad";
-
-function bucketColor(kind: "dev" | "price", key: string): string {
-  if (key === "nd") return NO_DATA;
-  const [buckets, stops] = kind === "dev"
-    ? [DEV_BUCKETS, DEV_STOPS] as const : [PRICE_BUCKETS, PRICE_STOPS] as const;
-  const i = buckets.findIndex((b) => b.key === key);
-  // 桶中點取色;最外側桶取色階端點
-  const lo = i === 0 ? stops[0][0] : buckets[i - 1].upTo;
-  const hi = buckets[i].upTo === Infinity ? stops[stops.length - 1][0] : buckets[i].upTo;
-  return rampColor([...stops], (lo + hi) / 2);
-}
 
 function makeCanvas(w: number, h: number) {
   const c = document.createElement("canvas");
@@ -102,31 +78,14 @@ export function addMapIcons(map: { hasImage(id: string): boolean; addImage(id: s
   const add = (id: string, img: ImageData, opts?: any) => {
     if (!map.hasImage(id)) map.addImage(id, img, opts);
   };
-  for (const [kind, buckets] of [["dev", DEV_BUCKETS], ["price", PRICE_BUCKETS]] as const) {
-    for (const b of [...buckets.map((x) => x.key), "nd"]) {
-      add(`h-f-${kind}-${b}`, houseImage(bucketColor(kind, b), false));
-      add(`h-o-${kind}-${b}`, houseImage(bucketColor(kind, b), true));
-    }
-  }
+  add("h-f-neutral", houseImage("#0d5b4f", false));
+  add("h-o-neutral", houseImage("#0d5b4f", true));
   add("ic-diamond", diamondImage("#37474f"));
   const pill = pillImage();
   add("pill", pill.img, pill.opts);
 }
 
-// icon-image expression:預售中=空心、已完工=實心;依模式選 dev/price 分桶
-export function houseIconExpr(mode: "rel" | "abs"): any {
-  const fillState: any = ["case", ["==", ["get", "band"], "presale"], "h-o-", "h-f-"];
-  const bucket: any = mode === "rel"
-    ? ["case", ["==", ["get", "dev"], null], "dev-nd",
-       ["step", ["get", "dev"], "dev-g2", -8, "dev-g1", -3, "dev-fl", 3, "dev-r1", 8, "dev-r2"]]
-    : ["case", ["==", ["get", "price"], null], "price-nd",
-       ["step", ["get", "price"], "price-p0", 23, "price-p1", 29, "price-p2", 35, "price-p3", 41, "price-p4"]];
-  return ["concat", fillState, bucket];
-}
-
-// 膠囊文字顏色:rel=貴紅便宜綠、abs=深藍
-export function pillTextColorExpr(mode: "rel" | "abs"): any {
-  if (mode === "abs") return "#184a7c";
-  return ["case", ["==", ["get", "dev"], null], "#5c6b76",
-    ["step", ["get", "dev"], "#1a7f5c", -3, "#46565f", 3, "#c2452d"]];
+// 預售中=空心、已完工=實心；不再用顏色暗示價格高低。
+export function houseIconExpr(): any {
+  return ["case", ["==", ["get", "band"], "presale"], "h-o-neutral", "h-f-neutral"];
 }

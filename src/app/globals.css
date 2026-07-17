@@ -26,10 +26,10 @@ body {
 .num { font-variant-numeric: tabular-nums; font-family: "SFMono-Regular", Menlo, Consolas, monospace; }
 button:focus-visible, input:focus-visible { outline: 3px solid rgba(19, 123, 104, .28); outline-offset: 2px; }
 
-/* 導覽：品牌、搜尋與決策工具維持在同一層級。 */
+/* 導覽：先選資料類型，再用同一套地圖／列表瀏覽。 */
 .product-head {
   position: absolute; z-index: 25; top: 14px; left: 16px; right: 16px;
-  min-height: 70px; display: grid; grid-template-columns: 265px minmax(240px, 520px) 1fr;
+  min-height: 70px; display: grid; grid-template-columns: 235px auto minmax(220px, 1fr) auto;
   align-items: center; gap: 18px; padding: 10px 12px;
   border: 1px solid rgba(217, 224, 220, .9); border-radius: 18px;
   background: rgba(255, 254, 251, .94); box-shadow: 0 8px 32px rgba(18, 47, 40, .12);
@@ -43,6 +43,14 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(19, 123, 104
 }
 .brand-name { font-size: 15px; line-height: 1.2; font-weight: 800; letter-spacing: .04em; }
 .brand-tagline { margin-top: 4px; color: var(--ink-soft); font-size: 10.5px; white-space: nowrap; }
+.market-switch, .view-switch { display: flex; padding: 3px; border-radius: 11px; background: #e9eeeb; }
+.market-switch button, .view-switch button, .head-button {
+  height: 36px; border: 0; border-radius: 9px; padding: 0 12px; cursor: pointer;
+  background: transparent; color: #53625d; font-size: 12px; font-weight: 700; white-space: nowrap;
+  transition: background .15s, color .15s, transform .15s;
+}
+.market-switch button:hover, .view-switch button:hover, .head-button:hover { transform: translateY(-1px); }
+.market-switch button.on, .view-switch button.on { background: var(--teal-dark); color: #fff; box-shadow: 0 2px 7px rgba(7,60,53,.18); }
 .searchbox {
   height: 46px; display: flex; align-items: center; gap: 9px; padding: 0 13px;
   border: 1px solid var(--line); border-radius: 13px; background: #fff;
@@ -54,14 +62,6 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(19, 123, 104
 .searchbox input::placeholder { color: #93a09b; }
 .searchbox button { border: 0; background: transparent; color: #7c8984; cursor: pointer; font-size: 20px; }
 .head-actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; min-width: 0; }
-.view-switch { display: flex; padding: 3px; border-radius: 11px; background: #e9eeeb; }
-.view-switch button, .head-button {
-  height: 36px; border: 0; border-radius: 9px; padding: 0 12px; cursor: pointer;
-  background: transparent; color: #53625d; font-size: 12px; font-weight: 700; white-space: nowrap;
-  transition: background .15s, color .15s, transform .15s;
-}
-.view-switch button:hover, .head-button:hover { transform: translateY(-1px); }
-.view-switch button.on { background: var(--teal-dark); color: #fff; box-shadow: 0 2px 7px rgba(7,60,53,.18); }
 .head-button { border: 1px solid var(--line); background: #fff; }
 .head-button.on { border-color: #83b3a9; background: var(--mint); color: var(--teal-dark); }
 .share-button { color: var(--teal); }
@@ -106,6 +106,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(19, 123, 104
 .result-title { display: flex; align-items: center; gap: 8px; }
 .result-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; transition: color .15s; }
 .result-title span { flex: 0 0 auto; padding: 2px 7px; border-radius: 999px; background: #edf1ef; color: var(--ink-soft); font-size: 9.5px; }
+.result-address { overflow: hidden; margin-top: 5px; color: var(--ink-soft); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.rental-result { padding-right: 8px; }
 .result-price { display: flex; align-items: baseline; gap: 10px; margin-top: 8px; }
 .result-price b { font-size: 17px; color: var(--ink); }
 .result-price span { color: var(--ink-soft); font-size: 11px; }
@@ -139,33 +141,26 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(19, 123, 104
 .compare-row span { color: var(--ink-soft); }
 .compare-row b { text-align: right; }
 .compare-empty { display: grid; place-items: center; border-style: dashed; background: #faf9f5; color: #8d9894; font-size: 12px; }
-.confidence { display: inline-flex; align-items: center; min-height: 27px; margin-top: 12px; padding: 4px 9px; border-radius: 999px; font-size: 10px; font-weight: 800; }
-.confidence.high { background: #dff0e8; color: #167050; }
-.confidence.mid { background: #f2ead6; color: #886019; }
-.confidence.low { background: #f4e5e1; color: #9a4736; }
-
 /* 地圖標記與輔助資訊 */
 .backbtn { position: absolute; z-index: 15; top: 101px; left: 16px; padding: 8px 13px; border: 1px solid var(--line); border-radius: 10px; background: #fff; box-shadow: 0 4px 14px rgba(18,47,40,.12); cursor: pointer; font-size: 11.5px; font-weight: 700; }
 .dlabel, .zlabel { display: flex; padding: 0; overflow: hidden; white-space: nowrap; border: 0; border-radius: 7px; box-shadow: 0 2px 8px rgba(0,0,0,.22); cursor: pointer; font-size: 12px; font-weight: 800; line-height: 1; }
 .dlabel .dname, .zlabel .zname { padding: 6px 8px; background: #fff; color: var(--ink); }
-.dlabel .dval { padding: 6px 8px; background: #f6d35b; color: #43390f; }
-.zlabel .zname { color: #5b3f7e; }
-.zlabel .zval { padding: 6px 8px; background: #8a5fb0; color: #fff; }
+.dlabel .dval { padding: 6px 8px; background: var(--teal-dark); color: #fff; }
+.zlabel .zname { color: var(--ink); }
+.zlabel .zval { padding: 6px 8px; background: var(--teal-dark); color: #fff; }
 .dlabel.nodata .dval { background: #d6dcda; color: #68756f; }
 .map-status { position: absolute; z-index: 14; bottom: 22px; left: 50%; display: flex; align-items: baseline; gap: 5px; transform: translateX(-50%); padding: 8px 15px; border-radius: 999px; background: rgba(7,60,53,.90); color: #fff; box-shadow: 0 5px 20px rgba(7,60,53,.24); pointer-events: none; white-space: nowrap; }
 .map-status strong { font-size: 14px; }
 .map-status span { font-size: 10.5px; opacity: .86; }
 .legend { position: absolute; z-index: 10; bottom: 24px; left: 16px; width: 212px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255,254,251,.94); box-shadow: 0 4px 15px rgba(18,47,40,.10); pointer-events: none; }
 .legend .ltitle { margin-bottom: 6px; font-size: 10.5px; font-weight: 800; }
-.legend .lgrad { height: 8px; border-radius: 5px; }
-.legend .lticks { display: flex; justify-content: space-between; margin-top: 3px; color: var(--ink-soft); font-size: 9px; }
 .legend .lnote { margin-top: 5px; color: var(--ink-soft); font-size: 9px; line-height: 1.5; }
 .legend .lnote:empty { display: none; }
 
 /* 建案快覽與詳情 */
 .popup-card { min-width: 220px; font-size: 12px; }
 .popup-card h3 { margin-bottom: 2px; font-size: 14px; }
-.popup-card .roi { display: flex; justify-content: space-between; align-items: baseline; margin: 8px 0; padding: 8px 10px; border-radius: 8px; color: #fff; }
+.popup-card .roi { display: flex; justify-content: space-between; align-items: baseline; margin: 8px 0; padding: 8px 10px; border-radius: 8px; background: var(--teal-dark); color: #fff; }
 .popup-card .roi b { font-size: 18px; }
 .popup-card dl { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
 .popup-card dt { color: var(--ink-soft); font-size: 10px; }
@@ -173,6 +168,14 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(19, 123, 104
 .popup-card .note { margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--line); color: var(--ink-soft); font-size: 10px; line-height: 1.5; }
 .popup-card .cancelnote { margin-top: 7px; padding: 6px 8px; border: 1px solid #efc8bf; border-radius: 7px; background: #faeeeb; color: #a23e2d; font-size: 10.5px; line-height: 1.5; }
 .detailbtn { width: 100%; margin-top: 9px; padding: 8px 10px; border: 0; border-radius: 8px; background: var(--teal); color: #fff; cursor: pointer; font-size: 11px; font-weight: 700; }
+.rental-popup { min-width: 240px; }
+.rental-kicker { margin-bottom: 5px; color: #8a6234; font-size: 9.5px; font-weight: 800; letter-spacing: .04em; }
+.rental-address { margin-top: 3px; color: var(--ink-soft); font-size: 10.5px; line-height: 1.45; }
+.rental-price { display: flex; align-items: baseline; gap: 4px; margin: 12px 0 10px; padding: 11px 12px; border: 1px solid #e3d3b9; border-radius: 10px; background: #fff8ec; color: #724b21; }
+.rental-price b { font-size: 24px; letter-spacing: -.04em; }
+.rental-price span { font-size: 10.5px; font-weight: 700; }
+.rental-popup dl { gap: 8px 12px; }
+.rental-trust { margin-top: 11px; padding-top: 8px; border-top: 1px dashed #ddd4c6; color: #7b756c; font-size: 9px; line-height: 1.55; }
 
 .drawer { position: absolute; z-index: 55; top: 0; right: 0; bottom: 0; width: min(480px, 100%); padding: 24px 24px 32px; overflow-y: auto; background: var(--surface); box-shadow: -12px 0 50px rgba(18,47,40,.18); animation: drawer-in .22s ease; }
 @keyframes drawer-in { from { opacity: 0; transform: translateX(36px); } }
@@ -182,7 +185,6 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(19, 123, 104
 .drawer-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
 .drawer-actions > button { min-height: 34px; padding: 7px 11px; border: 1px solid #dec999; border-radius: 9px; background: #fffaf0; color: #83601e; cursor: pointer; font-size: 11px; font-weight: 800; }
 .drawer-actions > button.saved { background: #a87520; color: #fff; }
-.drawer-actions .confidence { margin-top: 0; }
 .chip { flex: 0 0 auto; padding: 3px 9px; border-radius: 999px; background: #e7f0ed; color: var(--teal); font: 800 10px/1.4 "Avenir Next", "PingFang TC", sans-serif; }
 .chip.presale { background: var(--teal); color: #fff; }
 .chip.metro { background: #dff0e8; color: #126a4c; }
@@ -192,47 +194,30 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(19, 123, 104
 .hero .hprice b { margin: 0 3px; color: var(--ink); font-size: 31px; letter-spacing: -.04em; }
 .hero .hsub { margin-top: 3px; color: var(--ink-soft); font-size: 11.5px; }
 .data-freshness { margin-top: 8px; color: #78857f; font-size: 9.5px; }
-.badge { display: inline-block; margin-top: 10px; padding: 6px 12px; border-radius: 999px; font-size: 11.5px; font-weight: 800; }
-.badge.cheap { background: #dff0e8; color: #126a4c; }
-.badge.rich { background: #f5e4df; color: #a64431; }
-.badge.flat { background: #e8ecea; color: #43524d; }
-.badge.none { background: #e8ecea; color: var(--ink-soft); font-weight: 600; }
-.keypoints { display: grid; gap: 7px; margin: 12px 0 4px; }
-.kp { display: flex; align-items: baseline; gap: 9px; font-size: 12.5px; line-height: 1.55; }
-.kp .ki { flex: 0 0 auto; width: 18px; text-align: center; }
-.kp b.cheap { color: #167050; }
-.kp b.rich { color: var(--coral); }
 .sec { margin-top: 21px; }
 .sec .sechead { display: flex; justify-content: space-between; align-items: baseline; font-size: 13.5px; font-weight: 800; }
 .sec .sechead .secval { color: var(--teal); font-size: 12.5px; }
 .sec .sechint { margin: 2px 0 8px; color: var(--ink-soft); font-size: 10px; line-height: 1.5; }
-.roomcards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
-.roomcard { padding: 11px 12px; border: 1px solid #e7ebe8; border-radius: 10px; background: #f7f8f5; }
-.roomcard .rlabel { color: var(--ink-soft); font-size: 11px; font-weight: 800; }
-.roomcard .rprice { margin-top: 3px; font-size: 14.5px; font-weight: 800; }
-.roomcard .rmeta { margin-top: 2px; color: var(--ink-soft); font-size: 10px; }
+.summary-pairs, .project-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.summary-pairs { margin-top: 13px; }
+.project-facts { margin-top: 9px; }
+.project-fact { min-width: 0; padding: 10px; border: 1px solid #e4e8e5; border-radius: 10px; background: #fff; }
+.project-fact span, .project-fact b { display: block; }
+.project-fact span { margin-bottom: 4px; color: var(--ink-soft); font-size: 9px; }
+.project-fact b { overflow-wrap: anywhere; font-size: 11px; font-weight: 700; }
+.record-details { margin-top: 18px; border-top: 1px solid var(--line); }
+.record-details summary { padding: 12px 0; color: var(--teal); cursor: pointer; font-size: 11px; font-weight: 800; }
+.table-note, .source-note { color: var(--ink-soft); font-size: 9px; }
+.table-note { margin-top: 7px; text-align: right; }
+.source-note { margin-top: 18px; padding-top: 11px; border-top: 1px solid var(--line); line-height: 1.5; }
 .drawer table.deals { width: 100%; border-collapse: collapse; font-size: 11px; }
 .drawer table.deals th { padding: 5px 6px; border-bottom: 1px solid var(--line); color: var(--ink-soft); text-align: left; font-size: 9.5px; font-weight: 700; }
 .drawer table.deals td { padding: 6px; }
 .drawer table.deals tbody tr:nth-child(even) { background: #f5f7f4; }
 .drawer .note { padding: 50px 0; color: var(--ink-soft); text-align: center; font-size: 12px; }
 
-/* 負擔與投報試算 */
-.calculator { padding: 16px; border: 1px solid #cfded8; border-radius: 15px; background: linear-gradient(145deg, #f1f7f4, #fbfaf6); }
-.calc-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 10px; }
-.calc-inputs label { display: grid; gap: 4px; color: var(--ink-soft); font-size: 9.5px; }
-.calc-inputs input { width: 100%; height: 36px; padding: 0 9px; border: 1px solid #d6dfdb; border-radius: 8px; background: #fff; color: var(--ink); font-size: 11px; }
-.calc-results { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 13px; }
-.calc-results > div { min-height: 72px; display: flex; flex-direction: column; gap: 3px; justify-content: center; padding: 10px; border-radius: 10px; background: #fff; box-shadow: inset 0 0 0 1px #e5e9e6; }
-.calc-results span { color: var(--ink-soft); font-size: 9.5px; }
-.calc-results b { font-size: 13px; }
-.calc-results small { color: var(--ink-soft); font-size: 8.5px; }
-.calc-results .negative b { color: var(--coral); }
-.calc-results .positive b { color: #167050; }
-.calc-note { margin-top: 10px; color: #78857f; font-size: 8.5px; line-height: 1.5; }
-
 @media (max-width: 1040px) {
-  .product-head { grid-template-columns: 205px minmax(190px, 1fr) auto; gap: 10px; }
+  .product-head { grid-template-columns: 188px auto minmax(170px, 1fr) auto; gap: 10px; }
   .brand-tagline { display: none; }
   .head-button { padding: 0 9px; }
   .share-button { display: none; }
@@ -241,11 +226,15 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(19, 123, 104
 @media (max-width: 720px) {
   .product-head { top: 8px; right: 8px; left: 8px; min-height: 96px; grid-template-columns: auto 1fr; grid-template-rows: 34px 42px; gap: 7px 10px; padding: 7px 9px; border-radius: 15px; background: rgba(255,254,251,.98); backdrop-filter: none; -webkit-backdrop-filter: none; }
   .brand-block { grid-column: 1; }
+  .market-switch { grid-column: 2; justify-self: end; }
+  .market-switch { padding: 2px; }
+  .market-switch button { height: 30px; padding-inline: 10px; font-size: 11px; }
   .brand-mark { width: 32px; height: 32px; border-radius: 10px; font-size: 16px; }
   .brand-name { font-size: 13px; white-space: nowrap; }
   .brand-tagline { display: none; }
   .searchbox { grid-column: 1 / -1; grid-row: 2; height: 40px; }
   .head-actions { position: fixed; z-index: 60; right: 8px; bottom: max(8px, env(safe-area-inset-bottom)); left: 8px; height: 54px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; padding: 6px; border: 1px solid rgba(217,224,220,.95); border-radius: 15px; background: rgba(255,254,251,.96); box-shadow: 0 8px 30px rgba(18,47,40,.18); backdrop-filter: blur(14px); }
+  .head-actions.rental { grid-template-columns: 1fr; }
   .view-switch { display: grid; grid-template-columns: 1fr 1fr; min-width: 0; }
   .view-switch button, .head-button { width: 100%; height: 40px; padding: 0 7px; font-size: 11px; }
   .share-button { display: none; }
@@ -268,7 +257,6 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(19, 123, 104
   .drawer::before { content: ""; position: absolute; top: 8px; left: 50%; width: 42px; height: 4px; transform: translateX(-50%); border-radius: 99px; background: #ced6d2; }
   @keyframes drawer-up { from { opacity: 0; transform: translateY(36px); } }
   .drawer h2 { font-size: 20px; }
-  .roomcards, .calc-inputs, .calc-results { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 390px) {

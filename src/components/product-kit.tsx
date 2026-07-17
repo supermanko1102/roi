@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { RoomFilter } from "@/lib/rooms";
 
 export type ViewMode = "map" | "list";
+export type MarketMode = "presale" | "rental";
 
 export type ProjectSummary = {
   key: string;
@@ -14,10 +15,25 @@ export type ProjectSummary = {
   area: number | null;
   deals: number;
   cancels: number;
-  dev: number | null;
-  station: string | null;
   stationM: number | null;
-  icM: number | null;
+};
+
+export type RentalSummary = {
+  key: string;
+  name: string | null;
+  district: string;
+  address: string;
+  buildingType: string;
+  lng: number;
+  lat: number;
+  age: number;
+  monthlyRent: number;
+  housingRent: number;
+  parkingRent: number | null;
+  area: number;
+  rentPerPing: number;
+  deals: number;
+  lastDeal: string | null;
 };
 
 export function summaryFromFeature(f: any): ProjectSummary {
@@ -33,10 +49,28 @@ export function summaryFromFeature(f: any): ProjectSummary {
     area: p.median_area == null ? null : +p.median_area,
     deals: +(p.deal_count ?? 0),
     cancels: +(p.cancel_count ?? 0),
-    dev: p.dev == null ? null : +p.dev,
-    station: p.st_name ?? null,
     stationM: p.st_m == null ? null : +p.st_m,
-    icM: p.ic_m == null ? null : +p.ic_m,
+  };
+}
+
+export function rentalSummaryFromFeature(f: any): RentalSummary {
+  const p = f.properties;
+  return {
+    key: p.key,
+    name: p.name ?? null,
+    district: p.district,
+    address: p.address,
+    buildingType: p.building_type,
+    lng: +f.geometry.coordinates[0],
+    lat: +f.geometry.coordinates[1],
+    age: +p.age,
+    monthlyRent: +p.monthly_rent,
+    housingRent: +(p.housing_rent ?? p.monthly_rent),
+    parkingRent: p.parking_rent == null ? null : +p.parking_rent,
+    area: +p.area_ping,
+    rentPerPing: +p.rent_per_ping,
+    deals: +p.deal_count,
+    lastDeal: p.last_deal ?? null,
   };
 }
 
@@ -44,8 +78,9 @@ const money = (v: number | null) => v == null ? "—" : `${Math.round(v).toLocal
 const price = (v: number | null) => v == null ? "—" : `${v.toFixed(1)} 萬/坪`;
 const walk = (m: number | null) => m == null ? null : Math.max(1, Math.round(m * 1.3 / 80));
 
-export function ProductHeader({ query, setQuery, view, setView, filtersOpen, setFiltersOpen,
+export function ProductHeader({ market, setMarket, query, setQuery, view, setView, filtersOpen, setFiltersOpen,
   activeFilters, savedCount, openCompare, share, shared }: {
+  market: MarketMode; setMarket: (v: MarketMode) => void;
   query: string; setQuery: (v: string) => void;
   view: ViewMode; setView: (v: ViewMode) => void;
   filtersOpen: boolean; setFiltersOpen: (v: boolean) => void;
@@ -57,35 +92,42 @@ export function ProductHeader({ query, setQuery, view, setView, filtersOpen, set
       <div className="brand-block">
         <div className="brand-mark" aria-hidden="true">R</div>
         <div>
-          <div className="brand-name">桃園預售雷達</div>
-          <div className="brand-tagline">用成交資料，縮小你的選房範圍</div>
+          <div className="brand-name">桃園預售・租屋</div>
+          <div className="brand-tagline">預售成交與租賃實價登錄</div>
         </div>
+      </div>
+      <div className="market-switch" role="group" aria-label="資料類型">
+        <button className={market === "presale" ? "on" : ""} aria-pressed={market === "presale"}
+          onClick={() => setMarket("presale")}>預售屋</button>
+        <button className={market === "rental" ? "on" : ""} aria-pressed={market === "rental"}
+          onClick={() => setMarket("rental")}>租屋</button>
       </div>
       <label className="searchbox">
         <span aria-hidden="true">⌕</span>
         <input value={query} onChange={(e) => setQuery(e.target.value)}
-          placeholder="搜尋建案、行政區" aria-label="搜尋建案或行政區" />
+          placeholder={market === "presale" ? "搜尋建案、行政區" : "搜尋社區、地址、行政區"}
+          aria-label={market === "presale" ? "搜尋建案或行政區" : "搜尋租屋社區、地址或行政區"} />
         {query && <button onClick={() => setQuery("")} aria-label="清除搜尋">×</button>}
       </label>
-      <div className="head-actions">
+      <div className={`head-actions ${market === "rental" ? "rental" : ""}`}>
         <div className="view-switch" role="group" aria-label="檢視模式">
           <button className={view === "map" ? "on" : ""} aria-pressed={view === "map"}
             onClick={() => setView("map")}>地圖</button>
           <button className={view === "list" ? "on" : ""} aria-pressed={view === "list"}
             onClick={() => setView("list")}>列表</button>
         </div>
-        <button className={`head-button ${filtersOpen ? "on" : ""}`} aria-pressed={filtersOpen}
-          onClick={() => setFiltersOpen(!filtersOpen)}>篩選{activeFilters ? ` ${activeFilters}` : ""}</button>
-        <button className="head-button" onClick={openCompare}>比較 {savedCount}/3</button>
+        {market === "presale" && <button className={`head-button ${filtersOpen ? "on" : ""}`} aria-pressed={filtersOpen}
+          onClick={() => setFiltersOpen(!filtersOpen)}>篩選{activeFilters ? ` ${activeFilters}` : ""}</button>}
+        {market === "presale" && <button className="head-button" onClick={openCompare}>比較 {savedCount}/3</button>}
         <button className="head-button share-button" onClick={share}>{shared ? "已複製" : "分享"}</button>
       </div>
     </header>
   );
 }
 
-export function FilterPanel({ open, mode, setMode, totalBand, setTotalBand, rooms, setRooms,
+export function FilterPanel({ open, totalBand, setTotalBand, rooms, setRooms,
   nearMetro, setNearMetro, nearIC, setNearIC, showCancel, setShowCancel, reset }: {
-  open: boolean; mode: "rel" | "abs"; setMode: (v: "rel" | "abs") => void;
+  open: boolean;
   totalBand: string; setTotalBand: (v: string) => void;
   rooms: RoomFilter; setRooms: (v: RoomFilter) => void;
   nearMetro: boolean; setNearMetro: (v: boolean) => void;
@@ -103,10 +145,6 @@ export function FilterPanel({ open, mode, setMode, totalBand, setTotalBand, room
   return (
     <section className={`filter-panel ${open ? "open" : ""}`} aria-label="建案篩選">
       <div className="filter-head"><strong>縮小選房範圍</strong><button onClick={reset}>全部清除</button></div>
-      <FilterGroup label="地圖顯示">
-        <FilterButton on={mode === "rel"} onClick={() => setMode("rel")}>和附近比</FilterButton>
-        <FilterButton on={mode === "abs"} onClick={() => setMode("abs")}>實際單價</FilterButton>
-      </FilterGroup>
       <FilterGroup label="成交總價">
         {budgets.map(([key, label]) => <FilterButton key={key} on={totalBand === key}
           onClick={() => setTotalBand(key)}>{label}</FilterButton>)}
@@ -144,7 +182,7 @@ export function ResultsPanel({ open, projects, totalCount, saved, onOpen, onTogg
     <aside className={`results-panel ${open ? "open" : ""}`} aria-label="建案列表">
       <div className="results-head">
         <div><strong>{totalCount}</strong> 個符合建案</div>
-        <span>依相對行情排序</span>
+        <span>依建案名稱排序</span>
       </div>
       <div className="result-scroll">
         {projects.length === 0 && <div className="empty-state"><b>沒有符合條件的建案</b><span>試著放寬總價、房型或交通條件。</span></div>}
@@ -154,9 +192,7 @@ export function ResultsPanel({ open, projects, totalCount, saved, onOpen, onTogg
               <div className="result-title"><strong>{p.name}</strong><span>{p.district}</span></div>
               <div className="result-price"><b className="num">{money(p.total)}</b><span>{price(p.price)}</span></div>
               <div className="result-facts">
-                <span className={p.dev != null && p.dev > 3 ? "risk-text" : ""}>
-                  {p.dev == null ? "附近樣本不足" : `${p.dev > 0 ? "貴" : p.dev < 0 ? "便宜" : "相近"} ${Math.abs(p.dev).toFixed(0)}%`}
-                </span>
+                {p.area != null && <span>{Math.round(p.area)} 坪</span>}
                 <span>{p.deals} 筆成交</span>
                 {walk(p.stationM) != null && <span>步行 {walk(p.stationM)} 分</span>}
               </div>
@@ -164,6 +200,40 @@ export function ResultsPanel({ open, projects, totalCount, saved, onOpen, onTogg
             <button className={`save-button ${savedKeys.has(p.key) ? "on" : ""}`}
               onClick={() => onToggleSaved(p)} aria-label={`${savedKeys.has(p.key) ? "移除" : "加入"}${p.name}比較`}
               aria-pressed={savedKeys.has(p.key)}>☆</button>
+          </article>
+        ))}
+      </div>
+    </aside>
+  );
+}
+
+export function RentalResultsPanel({ open, rentals, totalCount, onOpen }: {
+  open: boolean; rentals: RentalSummary[]; totalCount: number; onOpen: (r: RentalSummary) => void;
+}) {
+  return (
+    <aside className={`results-panel ${open ? "open" : ""}`} aria-label="租屋列表">
+      <div className="results-head">
+        <div><strong>{totalCount}</strong> 棟租賃實登</div>
+        <span>{rentals.length < totalCount ? `顯示最近 ${rentals.length} 棟` : "依最近登錄排序"}</span>
+      </div>
+      <div className="result-scroll">
+        {rentals.length === 0 && <div className="empty-state"><b>沒有符合的租賃紀錄</b><span>可改用地址或行政區搜尋。</span></div>}
+        {rentals.map((r) => (
+          <article className="result-card" key={r.key}>
+            <button className="result-main rental-result" onClick={() => onOpen(r)}>
+              <div className="result-title"><strong>{r.name ?? r.address}</strong><span>{r.district}</span></div>
+              {r.name && <div className="result-address">{r.address}</div>}
+              <div className="result-price">
+                <b className="num">{r.monthlyRent.toLocaleString()} 元／月</b>
+                <span className="num">{r.rentPerPing.toLocaleString()} 元／坪</span>
+              </div>
+              <div className="result-facts">
+                <span>屋齡 {r.age} 年</span>
+                <span>{r.area} 坪</span>
+                <span>{r.deals} 筆登錄</span>
+                {r.lastDeal && <span>{r.lastDeal}</span>}
+              </div>
+            </button>
           </article>
         ))}
       </div>
@@ -192,16 +262,13 @@ export function ComparePanel({ open, saved, onClose, onRemove, onOpen }: {
                 <button className="remove-compare" onClick={() => onRemove(p)} aria-label={`移除${p.name}`}>×</button>
                 <span className="compare-district">{p.district}</span>
                 <h3>{p.name}</h3>
-                <button className="compare-link" onClick={() => onOpen(p)}>查看完整分析 →</button>
+                <button className="compare-link" onClick={() => onOpen(p)}>查看成交紀錄 →</button>
                 <CompareRow label="成交總價" value={money(p.total)} />
                 <CompareRow label="單價" value={price(p.price)} />
-                <CompareRow label="附近價差" value={p.dev == null ? "樣本不足" : `${p.dev > 0 ? "+" : ""}${p.dev.toFixed(1)}%`} />
+                <CompareRow label="坪數" value={p.area == null ? "—" : `${Math.round(p.area)} 坪`} />
                 <CompareRow label="成交樣本" value={`${p.deals} 筆`} />
                 <CompareRow label="最近車站" value={walk(p.stationM) == null ? "—" : `${walk(p.stationM)} 分`} />
                 <CompareRow label="解約紀錄" value={p.cancels ? `${p.cancels} 筆` : "未見紀錄"} />
-                <div className={`confidence ${p.deals >= 20 ? "high" : p.deals >= 5 ? "mid" : "low"}`}>
-                  資料信心：{p.deals >= 20 ? "高" : p.deals >= 5 ? "中" : "低"}
-                </div>
               </article>
             ))}
             {Array.from({ length: 3 - saved.length }).map((_, i) => (

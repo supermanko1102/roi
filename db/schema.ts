@@ -92,11 +92,21 @@ export const rent_deals = pgTable("rent_deals", {
   address: text("address"),
   deal_date: date("deal_date"),
   monthly_rent: money("monthly_rent"),           // 月租(元)
+  housing_rent: money("housing_rent"),           // 扣已申報車位租金後的房屋月租
+  parking_rent: money("parking_rent").default(0),
   area_ping: money("area_ping"),
+  parking_area_ping: money("parking_area_ping").default(0),
   rent_per_ping: money("rent_per_ping"),         // 元/坪/月
   build_year: integer("build_year"),             // 建築完成年(西元,可為 null)
   building_type: text("building_type"),          // 建物型態(住宅大樓/華廈/店面...)
-  is_social: boolean("is_social").default(false),// 社會住宅包租代管件(租金受政策壓低)
+  rental_type: text("rental_type"),              // 整棟(戶)出租/分層出租/分租套房等
+  rooms: integer("rooms"),
+  halls: integer("halls"),
+  baths: integer("baths"),
+  floor_no: integer("floor_no"),
+  total_floors: integer("total_floors"),
+  service_type: text("service_type"),            // 一般/社會住宅包租轉租/社會住宅代管
+  is_social: boolean("is_social").default(false),// 社會住宅包租代管件；與市場相似案例分開統計
   addr_key: text("addr_key"),                    // 去樓層門牌(實登2.0起租賃有完整門牌)
   raw_season: text("raw_season"),
 }, (t) => [
@@ -118,12 +128,58 @@ export const communities = pgTable("communities", {
   index("idx_communities_district").on(t.district),
 ]);
 
+// 實體社區：一個社區可對應多個預售備查案(case_no)與多個門牌。
+export const physical_communities = pgTable("physical_communities", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  district: text("district").notNull(),
+  permit_no: text("permit_no"),
+  build_year: integer("build_year"),
+  lat: money("lat"),
+  lng: money("lng"),
+}, (t) => [
+  index("idx_physical_communities_district").on(t.district),
+]);
+
+export const community_cases = pgTable("community_cases", {
+  case_no: text("case_no").primaryKey(),
+  community_id: integer("community_id").notNull(),
+}, (t) => [
+  index("idx_community_cases_community").on(t.community_id),
+]);
+
 // 門牌 → 建案歸戶(中古交易地號 × 建案坐落地號交集;match-communities 重建)
 export const building_community = pgTable("building_community", {
   addr_key: text("addr_key").primaryKey(),
   case_no: text("case_no").notNull(),
+  community_id: integer("community_id"),
   matched_parcels: integer("matched_parcels").default(0), // 交集地號數(信心參考)
-});
+  match_method: text("match_method").default("parcel"),
+  confidence: integer("confidence").default(100),
+}, (t) => [
+  index("idx_building_community_entity").on(t.community_id),
+]);
+
+// 租金補貼有效租約公布之區域基準；它是大樣本校驗值，不取代 1–10 年單筆比較租約。
+export const rent_benchmarks = pgTable("rent_benchmarks", {
+  id: serial("id").primaryKey(),
+  period: date("period").notNull(),
+  city: text("city").notNull(),
+  district: text("district").notNull(),
+  rental_type: text("rental_type").notNull(),
+  age_group: text("age_group").notNull(),
+  samples: integer("samples").notNull(),
+  q25: money("q25").notNull(),
+  median: money("median").notNull(),
+  q75: money("q75").notNull(),
+  source_url: text("source_url").notNull(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (t) => [
+  unique("rent_benchmarks_grain_key").on(
+    t.period, t.city, t.district, t.rental_type, t.age_group,
+  ),
+  index("idx_rent_benchmarks_district").on(t.city, t.district),
+]);
 
 // 生活圈租金行情(compute-zone-rents 重建;供圈級投報與抽屜推估用)
 export const zone_stats = pgTable("zone_stats", {

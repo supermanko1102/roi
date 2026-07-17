@@ -43,6 +43,13 @@
       "when": 1784185502978,
       "tag": "0005_flimsy_nuke",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784274484585,
+      "tag": "0006_outgoing_spot",
+      "breakpoints": true
     }
   ]
 }

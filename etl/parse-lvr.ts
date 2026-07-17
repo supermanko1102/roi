@@ -156,19 +156,35 @@ async function main() {
       const iDate = col(h, "租賃年月日"), iArea = col(h, "建物總面積");
       const iRent = col(h, "總額元"), iBuilt = col(h, "建築完成年月");
       const iType = col(h, "建物型態"), iSvc = col(h, "租賃住宅服務");
+      const iPark = col(h, "車位總額"), iParkArea = col(h, "車位面積");
+      const iRentalType = col(h, "出租型態");
+      const iRooms = col(h, "格局", "房"), iHalls = col(h, "格局", "廳"), iBaths = col(h, "格局", "衛");
+      const iFloor = col(h, "租賃層次"), iFloors = col(h, "總樓層數");
       const out: (typeof rent_deals.$inferInsert)[] = [];
       for (const r of rows) {
         const rent = num(r[iRent]);
         const areaPing = num(r[iArea]) ? num(r[iArea])! / PING : null;
         if (!rent || !areaPing || areaPing <= 0) continue;
+        const parkingRentRaw = iPark >= 0 ? (num(r[iPark]) ?? 0) : 0;
+        const parkingRent = parkingRentRaw > 0 && parkingRentRaw < rent ? parkingRentRaw : 0;
+        const parkingAreaPing = iParkArea >= 0 ? (num(r[iParkArea]) ?? 0) / PING : 0;
+        const housingRent = rent - parkingRent;
+        const netArea = areaPing - parkingAreaPing;
         const builtRoc = (r[iBuilt] ?? "").slice(0, 3);
         const buildYear = /^\d{2,3}$/.test(builtRoc) ? +builtRoc + 1911 : null;
         const rAddr = r[iAddr] ?? "";
+        const serviceType = iSvc >= 0 ? (r[iSvc] || null) : null;
         out.push({
           district: r[iDist], address: rAddr, deal_date: rocDate(r[iDate]),
-          monthly_rent: rent, area_ping: areaPing, rent_per_ping: rent / areaPing,
+          monthly_rent: rent, housing_rent: housingRent, parking_rent: parkingRent,
+          area_ping: areaPing, parking_area_ping: parkingAreaPing,
+          rent_per_ping: netArea > 0 ? housingRent / netArea : null,
           build_year: buildYear, building_type: iType >= 0 ? r[iType] || null : null,
-          is_social: iSvc >= 0 && (r[iSvc] ?? "").includes("社會住宅"),
+          rental_type: iRentalType >= 0 ? r[iRentalType] || null : null,
+          rooms: intOrNull(r[iRooms]), halls: intOrNull(r[iHalls]), baths: intOrNull(r[iBaths]),
+          floor_no: parseFloor(r[iFloor]), total_floors: parseFloor(r[iFloors]),
+          service_type: serviceType,
+          is_social: serviceType?.includes("社會住宅") ?? false,
           addr_key: rAddr.includes("號") ? rAddr.replace(/號.*$/, "號") : null,
           raw_season: season,
         });

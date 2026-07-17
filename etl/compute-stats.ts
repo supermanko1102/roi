@@ -1,9 +1,9 @@
 /**
  * 由原始交易重算 district_stats 與 projects(覆蓋 demo 資料)
  * 投報率邏輯:
- *   區:median(租金元/坪/月, 屋齡<8年) × 12 ÷ (median(預售單價 萬/坪) × 10000)
+ *   區:median(租金元/坪/月, 目前屋齡1–10年) × 12 ÷ (median(預售單價 萬/坪) × 10000)
  *   建案:推估月租 = 區租金中位 × 建案中位坪數 × 0.85(公設折減粗估)
- * 兩套口徑:混合(全部件)與 market(排除社會住宅包租代管件,租金受政策壓低約 5 成)
+ * 兩套口徑:混合(全部件)與 market(排除政策性社會住宅租約)
  * 租賃樣本僅計住宅類建物(排除店面/工廠/辦公等)。
  * 中古屋:住宅類、屋齡≤MAX_BUILDING_AGE(與租金池同一屋齡帶),扣車位價與車位坪;
  *   presale_premium = 預售中位單價 vs 中古新古屋中位單價之溢價 %。
@@ -12,9 +12,9 @@
  */
 import { eq, sql } from "drizzle-orm";
 import { createDb, district_stats, projects, buildings, room_stats } from "../db/client";
+import { MIN_RENT_BUILDING_AGE, MAX_RENT_BUILDING_AGE } from "../src/lib/rent";
 
 const MIN_SAMPLES = 5;
-const MAX_BUILDING_AGE = 8;
 const AREA_DISCOUNT = 0.85;
 const RESIDENTIAL = "^(住宅大樓|華廈|透天厝|公寓|套房)";
 
@@ -42,7 +42,8 @@ async function main() {
              percentile_cont(0.5) WITHIN GROUP (ORDER BY rent_per_ping) FILTER (WHERE NOT is_social) AS mrp_mkt,
              count(*) FILTER (WHERE NOT is_social) AS rc_mkt
       FROM rent_deals
-      WHERE (build_year IS NULL OR build_year >= extract(year FROM now()) - ${MAX_BUILDING_AGE})
+      WHERE build_year BETWEEN extract(year FROM now()) - ${MAX_RENT_BUILDING_AGE}
+                            AND extract(year FROM now()) - ${MIN_RENT_BUILDING_AGE}
         AND (building_type IS NULL OR building_type ~ ${RESIDENTIAL})
       GROUP BY district
     ),
@@ -52,7 +53,8 @@ async function main() {
              count(*) AS sc
       FROM sale_deals
       WHERE building_type ~ ${RESIDENTIAL}
-        AND build_year IS NOT NULL AND build_year >= extract(year FROM now()) - ${MAX_BUILDING_AGE}
+        AND build_year BETWEEN extract(year FROM now()) - ${MAX_RENT_BUILDING_AGE}
+                            AND extract(year FROM now()) - ${MIN_RENT_BUILDING_AGE}
         AND unit_price > 0
       GROUP BY district
     )

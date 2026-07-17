@@ -47,15 +47,5 @@ export async function GET() {
     f.properties = props;
   }
 
-  // 全市各帶基準(同一口徑:點位中位再取中位),前端算圈的相對貴賤用
-  const city: Record<string, unknown> = {};
-  const cAll = bandStats(points);
-  city.price_all = cAll.price; city.n_all = cAll.n;
-  for (const band of AGE_BANDS) {
-    const s = bandStats(points.filter((p) => p.band === band));
-    city[`price_${band}`] = s.price;
-    city[`n_${band}`] = s.n;
-  }
-  geo.city = city;
   return NextResponse.json(geo);
 }

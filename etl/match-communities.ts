@@ -14,14 +14,17 @@
  *
  * 防呆:同門牌命中多建案取地號交集數最多者;buildings.build_year 與建案
  * 第1次登記年差 > 4 年者不配(避免重劃重編地號誤配到舊屋)。
- * 寫入:communities、building_community(整批重建,可重複執行)。
+ * 寫入:communities、physical_communities、community_cases、building_community
+ * (整批重建,可重複執行)。
  */
 import fs from "node:fs";
 import path from "node:path";
 import AdmZip from "adm-zip";
 import { parse } from "csv-parse/sync";
 import { sql } from "drizzle-orm";
-import { createDb, communities, building_community } from "../db/client";
+import {
+  createDb, communities, physical_communities, community_cases, building_community,
+} from "../db/client";
 
 const DL = path.join(import.meta.dirname, "downloads");
 const CASE_DIR = path.join(DL, "buildcase");
@@ -29,6 +32,13 @@ const CASE_ZIP_URL = "https://plvr.land.moi.gov.tw/Download?type=zip&PayType=sal
 const CASE_FILES = ["h_lvr_buildcase.csv", "h_lvr_buildingland.csv"];
 const MAX_YEAR_GAP = 4;
 const BATCH = 500;
+
+const entityKey = (c: typeof communities.$inferInsert) => {
+  const name = c.name.normalize("NFKC").replace(/[\s‐‑–—－-]/g, "").toLowerCase();
+  // 同一實體社區可能分期、分建照備查；使用「行政區＋標準化建案名」作主實體鍵，
+  // 建照留作來源欄位，避免一個社區因不同建照被拆成多個實體。
+  return `${c.district}|name:${name}`;
+};
 
 const rocDate = (s?: string): string | null => {
   if (!s || !/^\d{6,7}$/.test(s)) return null;
@@ -147,9 +157,10 @@ async function main() {
     `門牌 ${addrParcels.size} 個(掃 ${seasonsUsed} 期)`);
 
   // ---- 歸戶:地號交集數最多者勝,屋齡與完工年差過大者剔除 ----
-  const { rows: byRows } = await db.execute(sql`SELECT addr_key, build_year FROM buildings`);
-  const buildYear = new Map((byRows as { addr_key: string; build_year: number | null }[])
-    .map((r) => [r.addr_key, r.build_year]));
+  const { rows: byRows } = await db.execute(sql`SELECT addr_key, build_year, lat, lng FROM buildings`);
+  type BuildingRow = { addr_key: string; build_year: number | null; lat: number | null; lng: number | null };
+  const buildingData = new Map((byRows as BuildingRow[]).map((r) => [r.addr_key, r]));
+  const buildYear = new Map((byRows as BuildingRow[]).map((r) => [r.addr_key, r.build_year]));
 
   const assignments: (typeof building_community.$inferInsert)[] = [];
   for (const [addr_key, parcels] of addrParcels) {
@@ -166,16 +177,65 @@ async function main() {
     if (best) assignments.push({ addr_key, case_no: best[0], matched_parcels: best[1] });
   }
 
+  // ---- 實體社區:同區標準化建案名歸併，容納分期與不同建照 ----
+  const entityDefs = new Map<string, {
+    name: string; district: string; permit_no: string | null; caseNos: string[];
+    years: number[]; lats: number[]; lngs: number[];
+  }>();
+  for (const c of cases.values()) {
+    const key = entityKey(c);
+    const e = entityDefs.get(key) ?? {
+      name: c.name, district: c.district, permit_no: c.permit_no ?? null,
+      caseNos: [], years: [], lats: [], lngs: [],
+    };
+    e.caseNos.push(c.case_no);
+    const y = c.first_reg ? +c.first_reg.slice(0, 4) : null;
+    if (y) e.years.push(y);
+    entityDefs.set(key, e);
+  }
+  for (const a of assignments) {
+    const c = cases.get(a.case_no)!;
+    const b = buildingData.get(a.addr_key);
+    const e = entityDefs.get(entityKey(c))!;
+    if (b?.build_year) e.years.push(+b.build_year);
+    if (b?.lat != null && b.lng != null) { e.lats.push(+b.lat); e.lngs.push(+b.lng); }
+  }
+
   await db.delete(building_community);
+  await db.delete(community_cases);
+  await db.delete(physical_communities);
   await db.delete(communities);
   const caseRows = [...cases.values()];
   for (let i = 0; i < caseRows.length; i += BATCH)
     await db.insert(communities).values(caseRows.slice(i, i + BATCH));
-  for (let i = 0; i < assignments.length; i += BATCH)
-    await db.insert(building_community).values(assignments.slice(i, i + BATCH));
+
+  const entityId = new Map<string, number>();
+  for (const [key, e] of entityDefs) {
+    const [row] = await db.insert(physical_communities).values({
+      name: e.name, district: e.district, permit_no: e.permit_no,
+      build_year: e.years.length ? Math.max(...e.years) : null,
+      lat: e.lats.length ? e.lats.reduce((a, b) => a + b, 0) / e.lats.length : null,
+      lng: e.lngs.length ? e.lngs.reduce((a, b) => a + b, 0) / e.lngs.length : null,
+    }).returning({ id: physical_communities.id });
+    entityId.set(key, row.id);
+  }
+  const caseLinks = [...cases.values()].map((c) => ({
+    case_no: c.case_no, community_id: entityId.get(entityKey(c))!,
+  }));
+  for (let i = 0; i < caseLinks.length; i += BATCH)
+    await db.insert(community_cases).values(caseLinks.slice(i, i + BATCH));
+
+  const linkedAssignments = assignments.map((a) => ({
+    ...a,
+    community_id: entityId.get(entityKey(cases.get(a.case_no)!)),
+    match_method: "parcel",
+    confidence: Math.min(100, 90 + Math.min(10, (a.matched_parcels ?? 0) * 2)),
+  }));
+  for (let i = 0; i < linkedAssignments.length; i += BATCH)
+    await db.insert(building_community).values(linkedAssignments.slice(i, i + BATCH));
 
   const named = assignments.filter((a) => buildYear.has(a.addr_key)).length;
-  console.log(`[communities] 歸戶完成:${assignments.length} 個門牌對到建案` +
+  console.log(`[communities] ${entityDefs.size} 個實體社區；歸戶完成:${assignments.length} 個門牌對到建案` +
     `(其中 ${named} 個在 buildings 上,佔 ${(named / Math.max(1, buildYear.size) * 100).toFixed(1)}%)`);
   await pool.end();
 }

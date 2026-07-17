@@ -5,16 +5,16 @@
  *   1. 門牌直配:租賃地址去樓層 → geocode_cache 已有座標(與買賣門牌重疊約 38%)→ 點在圈內
  *   2. 街道多數決:用已定位門牌統計「區|街(|巷)→生活圈」(得票 ≥60% 且 n≥3 才採用),
  *      沒座標的租賃件按街道歸圈
- * 篩選口徑與 compute-stats 一致:住宅類、屋齡 ≤8 年(或未知)。
+ * 篩選口徑與 compute-stats 一致:住宅類、目前屋齡 1–10 年。
  * 寫入 zone_stats(整批重建,可重複執行)。跑一次約數秒。
  */
 import fs from "node:fs";
 import path from "node:path";
 import { sql } from "drizzle-orm";
 import { createDb, zone_stats } from "../db/client";
+import { MIN_RENT_BUILDING_AGE, MAX_RENT_BUILDING_AGE } from "../src/lib/rent";
 
 const ZONES = path.join(import.meta.dirname, "..", "data", "taoyuan-zones.geojson");
-const MAX_BUILDING_AGE = 8;
 const RESIDENTIAL = /^(住宅大樓|華廈|透天厝|公寓|套房)/;
 const VOTE_SHARE = 0.6, VOTE_MIN = 3;
 
@@ -91,7 +91,8 @@ async function main() {
   const { rows: rents } = await db.execute(sql`
     SELECT addr_key, rent_per_ping, is_social, building_type, build_year FROM rent_deals
     WHERE rent_per_ping > 0 AND addr_key IS NOT NULL
-      AND (build_year IS NULL OR build_year >= extract(year FROM now()) - ${MAX_BUILDING_AGE})`);
+      AND build_year BETWEEN extract(year FROM now()) - ${MAX_RENT_BUILDING_AGE}
+                          AND extract(year FROM now()) - ${MIN_RENT_BUILDING_AGE}`);
   const byZone = new Map<string, number[]>();
   let hitDoor = 0, hitStreet = 0, missed = 0;
   for (const r of rents as any[]) {

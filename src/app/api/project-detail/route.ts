@@ -1,26 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "node:fs";
-import path from "node:path";
 import { and, asc, eq } from "drizzle-orm";
 import { db, communities, presale_deals, projects } from "@/lib/db";
 import { ageBand } from "@/lib/age";
-import { haversineM } from "@/lib/geo";
 
 export const dynamic = "force-dynamic";
-
-// 公車站牌(1.1 萬個)只在 server 端算密度,不送到前端;模組層快取避免每請求重讀
-let busStops: { lat: number; lng: number; name: string }[] | null = null;
-function loadBusStops() {
-  if (busStops) return busStops;
-  try {
-    const geo = JSON.parse(fs.readFileSync(path.join(process.cwd(), "data", "bus-stops.geojson"), "utf-8"));
-    busStops = geo.features.map((f: any) => ({
-      lng: f.geometry.coordinates[0], lat: f.geometry.coordinates[1],
-      name: String(f.properties?.name ?? f.properties?.stop_name ?? "未命名站牌").trim(),
-    }));
-  } catch { busStops = []; }
-  return busStops!;
-}
 
 // 建案抽屜詳情:彙總 + 備查資訊(戶數/建照/完工)+ 全部成交明細(含解約件,前端自行拆分計算)
 // key 用 (district, name):projects 的自然鍵,與 room_stats/points 一致
@@ -53,19 +36,6 @@ export async function GET(req: NextRequest) {
   const nowYear = new Date().getFullYear();
   const completed = regYear != null && regYear <= nowYear;
 
-  // 交通機能:500 公尺內公車站牌數(粗略 bbox 先濾,再算球面距離)
-  let busStops500 = 0;
-  if (p.lat != null && p.lng != null) {
-    const dLat = 500 / 111000, dLng = 500 / (111000 * Math.cos((+p.lat * Math.PI) / 180));
-    const nearbyStopNames = new Set<string>();
-    for (const s of loadBusStops()) {
-      if (Math.abs(s.lat - +p.lat) > dLat || Math.abs(s.lng - +p.lng) > dLng) continue;
-      if (haversineM(+p.lat, +p.lng, s.lat, s.lng) <= 500) nearbyStopNames.add(s.name);
-    }
-    // 同一站點常因路線與行駛方向重複出現在原始資料，只呈現去重後的站點組數。
-    busStops500 = nearbyStopNames.size;
-  }
-
   return NextResponse.json({
     project: p,
     community: comm && {
@@ -74,7 +44,6 @@ export async function GET(req: NextRequest) {
     },
     band: completed ? ageBand(regYear, nowYear) : "presale",
     build_year: completed ? regYear : null,
-    transport: { bus_stops_500m: busStops500 },
     deals,
   });
 }
