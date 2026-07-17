@@ -2,22 +2,20 @@
  * 建案 → 座標(NLSC TextQueryMap,同 geocode.ts 的資料源)
  * 預售屋實登地址是「工地位置」描述,不是乾淨門牌,常見三型:
  *   門牌型:中園路198號(可含 …號旁/對面/之鄰地 等尾綴)→ 直接查門牌
- *   路口型:春日路與青溪二路交叉口 → 查路名,取含另一條路的「交叉路口」點
- *   路段型:中豐北路一段上/興北一路附近等 → 查路名,取該區交叉路口點的平均當路段中心
+ *   路口型:春日路與青溪二路、春日路青溪二路路口 → 雙向查詢確切交叉路口
+ *   路段型:中豐北路一段上/興北一路附近等 → 不產生假座標,標記 none
  * 結果寫回 projects.lat/lng,並以 proj|區|地址 為鍵快取到 geocode_cache;
  * compute-stats 重建 projects 會清掉座標,重跑本script走快取即時回填。
  * 用法:tsx etl/geocode-projects.ts [--limit 50] [--concurrency 4]
+ *      tsx etl/geocode-projects.ts --project 建案名 --refresh
  */
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { createDb, projects, geocode_cache } from "../db/client";
+import { parseSiteAddress, toHalf } from "./geocode-project-address";
 
 const RATE_MS = 150;
 const DEFAULT_CONCURRENCY = 4;
 const NLSC = "https://api.nlsc.gov.tw/idc/TextQueryMap/";
-
-const toHalf = (s: string) =>
-  s.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
-   .replace(/－/g, "-");
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -38,56 +36,37 @@ async function query(text: string): Promise<Item[]> {
   return items;
 }
 
-const ROAD = "(?:[^,，、]{1,12}?(?:路|街|大道)(?:[一二三四五六七八九十]段)?)";
+type LocatedSite = { lat: number; lng: number; precision: "door" | "cross" };
 
-/** 把工地位置描述拆成可查詢的策略;回傳 null = 無法解析 */
-function parseSiteAddress(district: string, raw: string) {
-  let a = toHalf(raw.trim())
-    .replace(/^桃園市/, "").replace(new RegExp(`^${district}`), "")
-    .replace(/桃園區福林段.*$/, "")            // 「…273號桃園區福林段395地號」之類的地號尾巴
-    .replace(/(之鄰地|附近等|附近|一帶|旁邊|旁|對面|斜對面|交界處|交界|上)$/, "");
-  // 範圍門牌 1~30號 → 取中間號
-  a = a.replace(/(\d+)[~〜-](\d+)號/, (_, x, y) => `${Math.round((+x + +y) / 2)}號`);
-
-  const door = a.match(new RegExp(`^(${ROAD}(?:\\d+巷)?(?:\\d+弄)?)(\\d+)號`));
-  if (door) return { kind: "door" as const, road: door[1], q: `桃園市${district}${door[1]}${door[2]}號` };
-
-  const cross = a.match(new RegExp(`^(${ROAD})[與和、及](${ROAD})`));
-  if (cross) return { kind: "cross" as const, road: cross[1], road2: cross[2], q: `桃園市${district}${cross[1]}` };
-
-  const road = a.match(new RegExp(`^(${ROAD})`));
-  if (road) return { kind: "road" as const, road: road[1], q: `桃園市${district}${road[1]}` };
-  return null;
-}
-
-async function locate(district: string, raw: string): Promise<{ lat: number; lng: number } | null> {
+async function locate(district: string, raw: string): Promise<LocatedSite | null> {
   const p = parseSiteAddress(district, raw);
   if (!p) return null;
+  // 只有路名不足以代表建案位置；寧可不顯示，也不再偽裝成精確座標。
+  if (p.kind === "road") return null;
   const items = await query(p.q);
   const inDistrict = items.filter((it) => it.content.includes(district) || it.key.includes(district));
 
   if (p.kind === "door") {
     const hit = inDistrict.find((it) => it.remark.includes("門牌") && toHalf(it.content).includes(p.road));
-    if (hit) return hit;
-    // 查無該門牌 → 降級成路段中心
+    return hit ? { lat: hit.lat, lng: hit.lng, precision: "door" } : null;
   }
-  if (p.kind === "cross") {
-    const hit = inDistrict.find((it) => it.key.includes("CROSSROAD") &&
-      (it.key.includes(p.road2!) || it.content.includes(p.road2!)));
-    if (hit) return hit;
+
+  const findCross = (xs: Item[]) => xs.find((it) => it.key.includes("CROSSROAD") &&
+    toHalf(`${it.key}|${it.content}`).includes(p.road) &&
+    toHalf(`${it.key}|${it.content}`).includes(p.road2));
+  let hit = findCross(inDistrict);
+  if (!hit) {
+    const secondary = await query(p.q2);
+    hit = findCross(secondary.filter((it) => it.content.includes(district) || it.key.includes(district)));
   }
-  // 路段中心:該區這條路所有交叉路口點的平均
-  const pts = inDistrict.filter((it) => it.key.includes("CROSSROAD"));
-  if (!pts.length) return null;
-  return {
-    lat: pts.reduce((s, it) => s + it.lat, 0) / pts.length,
-    lng: pts.reduce((s, it) => s + it.lng, 0) / pts.length,
-  };
+  return hit ? { lat: hit.lat, lng: hit.lng, precision: "cross" } : null;
 }
 
 async function main() {
   const args = process.argv.slice(2);
   const limit = args.includes("--limit") ? +args[args.indexOf("--limit") + 1] : null;
+  const projectName = args.includes("--project") ? args[args.indexOf("--project") + 1] : null;
+  const refresh = args.includes("--refresh");
   const concurrency = args.includes("--concurrency")
     ? Math.max(1, +args[args.indexOf("--concurrency") + 1]) : DEFAULT_CONCURRENCY;
 
@@ -102,7 +81,7 @@ async function main() {
         AND d.address IS NOT NULL
     )`,
   }).from(projects)
-    .where(and(isNull(projects.lat), eq(projects.is_demo, false)));
+    .where(and(projectName ? eq(projects.name, projectName) : isNull(projects.lat), eq(projects.is_demo, false)));
   const rows = limit ? await base.limit(limit) : await base;
   console.log(`[geocode-projects] 待定位 ${rows.length} 個建案,${concurrency} 路平行`);
 
@@ -117,22 +96,32 @@ async function main() {
       const cacheKey = `proj|${district}|${address}`;
       try {
         const [c] = await db.select().from(geocode_cache).where(eq(geocode_cache.addr_key, cacheKey));
-        let loc = c?.lat != null && c.lng != null ? { lat: c.lat, lng: c.lng } : null;
-        if (c && !loc) { miss++; continue; } // 快取記錄過「查無」
+        const cacheIsPrecise = c?.precision === "door" || c?.precision === "cross";
+        let loc: LocatedSite | null = !refresh && cacheIsPrecise && c?.lat != null && c.lng != null
+          ? { lat: c.lat, lng: c.lng, precision: c.precision as "door" | "cross" } : null;
+        if (!refresh && c?.precision === "none") {
+          await db.update(projects).set({ lat: null, lng: null }).where(eq(projects.id, id));
+          miss++; continue;
+        }
         if (loc) cached++;
         else {
           loc = await locate(district, address);
           await db.insert(geocode_cache).values({
             addr_key: cacheKey, lat: loc?.lat, lng: loc?.lng,
-            precision: loc ? "site" : "none",
-          }).onConflictDoNothing();
+            precision: loc?.precision ?? "none",
+          }).onConflictDoUpdate({
+            target: geocode_cache.addr_key,
+            set: { lat: loc?.lat ?? null, lng: loc?.lng ?? null, precision: loc?.precision ?? "none" },
+          });
           await sleep(RATE_MS);
-          if (!loc) { miss++; continue; }
-          hit++;
+          if (loc) hit++;
         }
         await db.update(projects)
-          .set({ lat: +loc.lat.toFixed(6), lng: +loc.lng.toFixed(6) })
+          .set(loc
+            ? { lat: +loc.lat.toFixed(6), lng: +loc.lng.toFixed(6) }
+            : { lat: null, lng: null })
           .where(eq(projects.id, id));
+        if (!loc) { miss++; continue; }
       } catch (e) {
         fail++;
         if (fail % 10 === 1) console.warn(`  [warn] ${address}: ${e}`);

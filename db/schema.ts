@@ -66,7 +66,7 @@ export const geocode_cache = pgTable("geocode_cache", {
   addr_key: text("addr_key").primaryKey(),
   lat: money("lat"),
   lng: money("lng"),
-  precision: text("precision"),                  // door=門牌精確 | none=查無
+  precision: text("precision"),                  // door=門牌 | cross=確切路口 | none=查無/僅路名
   queried_at: timestamp("queried_at", { withTimezone: true }).defaultNow(),
 });
 
