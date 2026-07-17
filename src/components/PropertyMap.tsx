@@ -4,8 +4,12 @@ import Map, { Source, Layer, Marker, Popup, MapRef } from "react-map-gl/maplibre
 import type { FeatureCollection } from "geojson";
 import ProjectDrawer from "./ProjectDrawer";
 import MapLegend from "./MapLegend";
+import {
+  ComparePanel, FilterPanel, ProductHeader, ResultsPanel,
+  summaryFromFeature, type ProjectSummary, type ViewMode,
+} from "./product-kit";
 import { type BandFilter } from "@/lib/age";
-import { ROOM_BANDS, ROOM_LABEL, type RoomFilter } from "@/lib/rooms";
+import { type RoomFilter } from "@/lib/rooms";
 import { makeContains, haversineM, geomBbox } from "@/lib/geo";
 import {
   type ColorMode, LINE_COLOR,
@@ -57,6 +61,17 @@ const DETAIL_ZOOM = 12;
 // 重劃區/生活圈層:DETAIL_ZOOM ~ ZONE_FADE 之間顯示,更放大就淡出讓位給點位
 const ZONE_FADE = 13.9;
 
+function readInitialView() {
+  if (typeof window === "undefined") return { longitude: 121.25, latitude: 24.94, zoom: 10.3 };
+  const q = new URLSearchParams(location.search);
+  const longitude = +(q.get("lng") ?? 121.25), latitude = +(q.get("lat") ?? 24.94), zoom = +(q.get("z") ?? 10.3);
+  return {
+    longitude: Number.isFinite(longitude) ? longitude : 121.25,
+    latitude: Number.isFinite(latitude) ? latitude : 24.94,
+    zoom: Number.isFinite(zoom) ? zoom : 10.3,
+  };
+}
+
 export default function PropertyMap() {
   const mapRef = useRef<MapRef>(null);
   const [districts, setDistricts] = useState<FeatureCollection | null>(null);
@@ -72,7 +87,16 @@ export default function PropertyMap() {
   const [presalePopup, setPresalePopup] = useState<PresalePopup | null>(null);
   const [zones, setZones] = useState<FeatureCollection | null>(null);
   const [stations, setStations] = useState<FeatureCollection | null>(null);
+  const [catalog, setCatalog] = useState<FeatureCollection | null>(null);
   const [drawerProj, setDrawerProj] = useState<{ district: string; name: string } | null>(null);
+  const [query, setQuery] = useState("");
+  const [view, setView] = useState<ViewMode>("map");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [saved, setSaved] = useState<ProjectSummary[]>([]);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [shared, setShared] = useState(false);
+  const [urlReady, setUrlReady] = useState(false);
+  const initialView = useMemo(readInitialView, []);
   const detail = zoom >= DETAIL_ZOOM;
   const zoneLevel = zoom >= DETAIL_ZOOM && zoom < ZONE_FADE;
 
@@ -80,13 +104,42 @@ export default function PropertyMap() {
     fetch("/api/districts").then((r) => r.json()).then((g) => setDistricts(augmentDev(g)));
     fetch("/api/zones").then((r) => r.json()).then((g) => setZones(augmentDev(g)));
     fetch("/api/stations").then((r) => r.json()).then(setStations);
+    const qs = new URLSearchParams(location.search);
+    const initialRooms = (["1", "2", "3", "4p"].includes(qs.get("rooms") ?? "") ? qs.get("rooms") : "all") as RoomFilter;
+    const initialBudget = TOTAL_FILTERS.some((t) => t.key === qs.get("budget")) ? qs.get("budget")! : "all";
+    const initialMode = qs.get("mode") === "abs" ? "abs" : "rel";
+    const initialViewMode = qs.get("view") === "list" ? "list" : "map";
+    setRooms(initialRooms); setTotalBand(initialBudget); setMode(initialMode); setView(initialViewMode);
+    setQuery(qs.get("q") ?? ""); setNearMetro(qs.get("metro") === "1"); setNearIC(qs.get("ic") === "1");
+    setShowCancel(qs.get("cancel") === "1");
+    loadCatalog(initialRooms);
+    try {
+      const local = JSON.parse(localStorage.getItem("roi-shortlist") ?? "[]");
+      if (Array.isArray(local)) setSaved(local.slice(0, 3));
+    } catch { /* 忽略損壞的本機偏好 */ }
     // 深連結:?proj=區|建案名 直接開抽屜(可分享)
-    const pj = new URLSearchParams(location.search).get("proj");
+    const pj = qs.get("proj");
     if (pj && pj.includes("|")) {
       const [district, ...rest] = pj.split("|");
       setDrawerProj({ district, name: rest.join("|") });
     }
+    setUrlReady(true);
   }, []);
+
+  useEffect(() => {
+    if (!urlReady) return;
+    syncUrl({
+      q: query || null, view: view === "list" ? "list" : null,
+      budget: totalBand === "all" ? null : totalBand, rooms: rooms === "all" ? null : rooms,
+      metro: nearMetro ? "1" : null, ic: nearIC ? "1" : null,
+      cancel: showCancel ? "1" : null, mode: mode === "rel" ? null : mode,
+    });
+  }, [urlReady, query, view, totalBand, rooms, nearMetro, nearIC, showCancel, mode]);
+
+  useEffect(() => {
+    if (!urlReady) return;
+    localStorage.setItem("roi-shortlist", JSON.stringify(saved));
+  }, [saved, urlReady]);
 
   // 抽屜開關同步到網址,重整/分享都能還原
   function syncUrl(set: Record<string, string | null>) {
@@ -103,6 +156,11 @@ export default function PropertyMap() {
     syncUrl({ proj: null });
   }
 
+  async function loadCatalog(room: RoomFilter) {
+    const res = await fetch(`/api/points?kind=presale${room !== "all" ? `&rooms=${room}` : ""}`);
+    if (res.ok) setCatalog(await res.json());
+  }
+
   useEffect(() => {
     if (!detail) setPresalePopup(null);
   }, [detail]);
@@ -110,6 +168,7 @@ export default function PropertyMap() {
   // 切格局:點位口徑整個換掉,清快取重抓目前視窗
   function pickRooms(r: RoomFilter) {
     setRooms(r); setPresalePopup(null);
+    loadCatalog(r);
     fetchedBbox.current = null;
     const map = mapRef.current?.getMap();
     if (map && map.getZoom() >= DETAIL_ZOOM) {
@@ -139,46 +198,58 @@ export default function PropertyMap() {
   const railIdx = useMemo(() => transportIdx.filter((t) => t.kind === "station"), [transportIdx]);
   const icIdx = useMemo(() => transportIdx.filter((t) => t.kind === "interchange"), [transportIdx]);
 
-  // 篩選在前端做(cluster 聚合發生在 source 層,layer filter 濾不掉 cluster 內容):
-  // 總價帶 → 補 dev(%)(基準=所在生活圈同帶中位,圈外退回行政區)→ 補最近車站 → 近捷運
-  const visiblePoints = useMemo(() => {
-    if (!points) return null;
+  // 同一套 enrich 同時餵地圖點位與列表，避免比較基準、交通距離在兩個介面漂移。
+  const enrichPoints = useMemo(() => (base: FeatureCollection | null) => {
+    if (!base) return null;
+    return { ...base, features: (base.features as any[]).map((f) => {
+      const p = f.properties;
+      const key = !p.band || p.band === "unknown" ? "all" : p.band;
+      const [lng, lat] = f.geometry.coordinates;
+      let nearby: number | null = null;
+      for (const z of zoneIndex) if (z.contains(lng, lat)) { nearby = z.props[`price_${key}`] ?? null; break; }
+      if (nearby == null) nearby = distProps[p.district]?.[`price_${key}`] ?? null;
+      const dev = nearby && p.price != null ? +((p.price / nearby - 1) * 100).toFixed(1) : null;
+      let st: { name: string; line: string; m: number } | null = null;
+      for (const s of railIdx) {
+        const m = haversineM(lat, lng, s.lat, s.lng);
+        if (!st || m < st.m) st = { name: s.name, line: s.line, m };
+      }
+      let ic: { name: string; m: number } | null = null;
+      for (const s of icIdx) {
+        const m = haversineM(lat, lng, s.lat, s.lng);
+        if (!ic || m < ic.m) ic = { name: s.name, m };
+      }
+      return { ...f, properties: {
+        ...p, dev, dev_label: fmtDev(dev, 0) ?? "",
+        ...(st ? { st_name: st.name, st_line: st.line, st_m: Math.round(st.m) } : {}),
+        ...(ic ? { ic_name: ic.name, ic_m: Math.round(ic.m) } : {}),
+      } };
+    }) } as FeatureCollection;
+  }, [zoneIndex, distProps, railIdx, icIdx]);
+
+  const applyFilters = useMemo(() => (base: FeatureCollection | null) => {
+    if (!base) return null;
     const tf = TOTAL_FILTERS.find((t) => t.key === totalBand)!;
-    const feats = (points.features as any[])
+    const needle = query.trim().toLocaleLowerCase("zh-Hant");
+    const feats = (base.features as any[])
       .filter((f) => {
         const t = f.properties.median_total;
         if (tf.min != null && (t == null || t < tf.min)) return false;
         if (tf.max != null && (t == null || t >= tf.max)) return false;
+        if (needle && !`${f.properties.name ?? ""} ${f.properties.district ?? ""}`.toLocaleLowerCase("zh-Hant").includes(needle)) return false;
         return true;
-      })
-      .map((f) => {
-        const p = f.properties;
-        const key = !p.band || p.band === "unknown" ? "all" : p.band;
-        const [lng, lat] = f.geometry.coordinates;
-        let base: number | null = null;
-        for (const z of zoneIndex) if (z.contains(lng, lat)) { base = z.props[`price_${key}`] ?? null; break; }
-        if (base == null) base = distProps[p.district]?.[`price_${key}`] ?? null;
-        const dev = base && p.price != null ? +((p.price / base - 1) * 100).toFixed(1) : null;
-        let st: { name: string; line: string; m: number } | null = null;
-        for (const s of railIdx) {
-          const m = haversineM(lat, lng, s.lat, s.lng);
-          if (!st || m < st.m) st = { name: s.name, line: s.line, m };
-        }
-        let ic: { name: string; m: number } | null = null;
-        for (const s of icIdx) {
-          const m = haversineM(lat, lng, s.lat, s.lng);
-          if (!ic || m < ic.m) ic = { name: s.name, m };
-        }
-        return { ...f, properties: {
-          ...p, dev, dev_label: fmtDev(dev, 0) ?? "",
-          ...(st ? { st_name: st.name, st_line: st.line, st_m: Math.round(st.m) } : {}),
-          ...(ic ? { ic_name: ic.name, ic_m: Math.round(ic.m) } : {}),
-        } };
       })
       .filter((f) => !nearMetro || (f.properties.st_m != null && f.properties.st_m <= 800))
       .filter((f) => !nearIC || (f.properties.ic_m != null && f.properties.ic_m <= 2000));
-    return { ...points, features: feats };
-  }, [points, totalBand, nearMetro, nearIC, zoneIndex, distProps, railIdx, icIdx]);
+    return { ...base, features: feats } as FeatureCollection;
+  }, [totalBand, query, nearMetro, nearIC]);
+
+  const visiblePoints = useMemo(() => applyFilters(enrichPoints(points)), [points, enrichPoints, applyFilters]);
+  const visibleCatalog = useMemo(() => applyFilters(enrichPoints(catalog)), [catalog, enrichPoints, applyFilters]);
+  const projectSummaries = useMemo(() => ((visibleCatalog?.features ?? []) as any[])
+    .map(summaryFromFeature)
+    .sort((a, b) => (a.dev ?? 999) - (b.dev ?? 999) || b.deals - a.deals), [visibleCatalog]);
+  const activeFilters = +(totalBand !== "all") + +(rooms !== "all") + +nearMetro + +nearIC + +showCancel;
 
   // 解約標記:獨立於屋齡帶篩選,永遠拿全部點位過濾
   const cancelPoints = useMemo(() => {
@@ -260,12 +331,37 @@ export default function PropertyMap() {
     });
   }
 
+  function openSummary(p: ProjectSummary) {
+    setCompareOpen(false); setView("map");
+    mapRef.current?.flyTo({ center: [p.lng, p.lat], zoom: 15.4, duration: 650 });
+    openProjDrawer(p.district, p.name);
+  }
+
+  function toggleSaved(p: ProjectSummary) {
+    setSaved((current) => {
+      if (current.some((x) => x.key === p.key)) return current.filter((x) => x.key !== p.key);
+      if (current.length >= 3) { setCompareOpen(true); return current; }
+      return [...current, p];
+    });
+  }
+
+  function resetFilters() {
+    setTotalBand("all"); pickRooms("all"); setNearMetro(false); setNearIC(false); setShowCancel(false);
+  }
+
+  async function shareCurrent() {
+    try {
+      await navigator.clipboard.writeText(location.href);
+      setShared(true); window.setTimeout(() => setShared(false), 1800);
+    } catch { setShared(false); }
+  }
+
   return (
     <div style={{ position: "absolute", inset: 0 }}>
       <Map
         ref={mapRef}
         mapStyle={BASE_STYLE}
-        initialViewState={{ longitude: 121.25, latitude: 24.94, zoom: 10.3 }}
+        initialViewState={initialView}
         onLoad={(e) => {
           e.target.resize(); // 容器尺寸就緒前 canvas 可能只畫一角
           addMapIcons(e.target); // 房屋/膠囊/交流道圖示(canvas 現畫)
@@ -277,6 +373,10 @@ export default function PropertyMap() {
         }}
         onMoveEnd={(e) => {
           setZoom(e.viewState.zoom);
+          syncUrl({
+            lng: e.viewState.longitude.toFixed(5), lat: e.viewState.latitude.toFixed(5),
+            z: e.viewState.zoom.toFixed(2),
+          });
           if (e.viewState.zoom >= DETAIL_ZOOM) {
             const b = e.target.getBounds();
             loadDetail([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
@@ -417,7 +517,7 @@ export default function PropertyMap() {
           const noData = (rel ? dev : price) == null;
           return (
             <Marker key={l.name} longitude={l.lng} latitude={l.lat} anchor="center">
-              <div
+              <button type="button"
                 className={`dlabel ${noData ? "nodata" : ""}`}
                 onClick={(e) => { e.stopPropagation(); drill(l.name); }}
                 title={rel && dev != null ? `這一區預售一坪約 $${price ?? "—"} 萬,和全市預售行情相比` : undefined}
@@ -427,7 +527,7 @@ export default function PropertyMap() {
                   style={rel && !noData ? { background: devColor(+dev), color: devTextColor(+dev) } : undefined}>
                   {noData ? "資料不足" : rel ? fmtDev(+dev) : `$${(+price).toFixed(1)}`}
                 </span>
-              </div>
+              </button>
             </Marker>
           );
         })}
@@ -438,14 +538,14 @@ export default function PropertyMap() {
           const v = rel ? dev : price;
           return (
             <Marker key={l.name} longitude={l.lng} latitude={l.lat} anchor="center">
-              <div className="zlabel" onClick={(e) => { e.stopPropagation(); zoomToZone(l.name); }}
+              <button type="button" className="zlabel" onClick={(e) => { e.stopPropagation(); zoomToZone(l.name); }}
                 title={`${l.name}:預售 ${l.props[`n_${band}`] ?? 0} 筆成交${rel && price != null ? `・一坪約 $${(+price).toFixed(1)} 萬` : ""}`}>
                 <span className="zname">{l.name}</span>
                 <span className="zval num"
                   style={rel && v != null ? { background: devColor(+v), color: devTextColor(+v) } : undefined}>
                   {v == null ? "—" : rel ? fmtDev(+v) : `$${(+v).toFixed(1)}`}
                 </span>
-              </div>
+              </button>
             </Marker>
           );
         })}
@@ -519,50 +619,40 @@ export default function PropertyMap() {
         )}
       </Map>
 
-      {drawerProj && <ProjectDrawer district={drawerProj.district} name={drawerProj.name}
-        zones={zones} stations={stations} onClose={closeProjDrawer} />}
+      <ProductHeader query={query} setQuery={(v) => { setQuery(v); if (v) setView("list"); }}
+        view={view} setView={setView} filtersOpen={filtersOpen} setFiltersOpen={setFiltersOpen}
+        activeFilters={activeFilters} savedCount={saved.length} openCompare={() => setCompareOpen(true)}
+        share={shareCurrent} shared={shared} />
 
-      <div id="topbar">
-        <div className="tbrow">
-          <span className="title">桃園預售屋地圖</span>
-          <div className="toggle" role="group" title="地圖顏色代表什麼:「貴/便宜」=和同屋齡的行情相比;「一坪價格」=實際價格高低">
-            <button className={mode === "rel" ? "on" : ""} onClick={() => setMode("rel")}>貴/便宜</button>
-            <button className={mode === "abs" ? "on" : ""} onClick={() => setMode("abs")}>一坪價格</button>
-          </div>
-          <button className={`cancelbtn ${showCancel ? "on" : ""}`}
-            onClick={() => setShowCancel((v) => !v)}
-            title="標出曾有預售解約的建案(放大到點位層級顯示)">解約 ⚠</button>
-        </div>
-        <div className="tbrow">
-          <div className="toggle" role="group" title="用預算篩建案(以各案多數成交總價估)">
-            {TOTAL_FILTERS.map((t) => (
-              <button key={t.key} className={totalBand === t.key ? "on" : ""}
-                onClick={() => { setTotalBand(t.key); setPresalePopup(null); }}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <div className="toggle" role="group" title="格局篩選:點位改用該房數成交的單價/總價;無該格局成交的點不顯示">
-            {(["all", ...ROOM_BANDS] as RoomFilter[]).map((r) => (
-              <button key={r} className={rooms === r ? "on" : ""} onClick={() => pickRooms(r)}>
-                {ROOM_LABEL[r]}
-              </button>
-            ))}
-          </div>
-          <button className={`cancelbtn metro ${nearMetro ? "on" : ""}`}
-            onClick={() => { setNearMetro((v) => !v); setPresalePopup(null); }}
-            title="只顯示步行約 10 分鐘(800 公尺)內有車站的建案(含施工中的綠線)">🚉 近捷運</button>
-          <button className={`cancelbtn ic ${nearIC ? "on" : ""}`}
-            onClick={() => { setNearIC((v) => !v); setPresalePopup(null); }}
-            title="只顯示 2 公里內有國道交流道的建案(開車通勤族用)">🛣️ 近國道</button>
-        </div>
-      </div>
+      <FilterPanel open={filtersOpen} mode={mode} setMode={setMode}
+        totalBand={totalBand} setTotalBand={(v) => { setTotalBand(v); setPresalePopup(null); }}
+        rooms={rooms} setRooms={pickRooms} nearMetro={nearMetro} setNearMetro={setNearMetro}
+        nearIC={nearIC} setNearIC={setNearIC} showCancel={showCancel} setShowCancel={setShowCancel}
+        reset={resetFilters} />
+
+      <ResultsPanel open={view === "list"} projects={projectSummaries.slice(0, 100)}
+        totalCount={projectSummaries.length} saved={saved} onOpen={openSummary} onToggleSaved={toggleSaved} />
+
+      <ComparePanel open={compareOpen} saved={saved} onClose={() => setCompareOpen(false)}
+        onRemove={toggleSaved} onOpen={openSummary} />
+
+      {drawerProj && <ProjectDrawer district={drawerProj.district} name={drawerProj.name}
+        zones={zones} stations={stations} onClose={closeProjDrawer}
+        saved={saved.some((p) => p.key === `${drawerProj.district}|${drawerProj.name}`)}
+        onToggleSaved={() => {
+          const found = (enrichPoints(catalog)?.features as any[] | undefined)?.find(
+            (f) => `${f.properties.district}|${f.properties.name}` === `${drawerProj.district}|${drawerProj.name}`);
+          if (found) toggleSaved(summaryFromFeature(found));
+        }} />}
 
       <MapLegend mode={mode} rooms={rooms} nearMetro={nearMetro} nearIC={nearIC}
         detail={detail} showStations={stations != null} />
 
       {detail && <button className="backbtn" onClick={back}>← 返回全市</button>}
-      {!detail && <div className="zoomhint">滾輪放大或點擊行政區,可看各建案的成交點位</div>}
+      <div className="map-status">
+        <strong>{projectSummaries.length || "—"}</strong>
+        <span>{detail ? "個符合建案" : "個全市建案・點行政區開始探索"}</span>
+      </div>
     </div>
   );
 }

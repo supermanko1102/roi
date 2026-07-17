@@ -9,12 +9,15 @@ import { haversineM } from "@/lib/geo";
 export const dynamic = "force-dynamic";
 
 // 公車站牌(1.1 萬個)只在 server 端算密度,不送到前端;模組層快取避免每請求重讀
-let busStops: { lat: number; lng: number }[] | null = null;
+let busStops: { lat: number; lng: number; name: string }[] | null = null;
 function loadBusStops() {
   if (busStops) return busStops;
   try {
     const geo = JSON.parse(fs.readFileSync(path.join(process.cwd(), "data", "bus-stops.geojson"), "utf-8"));
-    busStops = geo.features.map((f: any) => ({ lng: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] }));
+    busStops = geo.features.map((f: any) => ({
+      lng: f.geometry.coordinates[0], lat: f.geometry.coordinates[1],
+      name: String(f.properties?.name ?? f.properties?.stop_name ?? "未命名站牌").trim(),
+    }));
   } catch { busStops = []; }
   return busStops!;
 }
@@ -54,10 +57,13 @@ export async function GET(req: NextRequest) {
   let busStops500 = 0;
   if (p.lat != null && p.lng != null) {
     const dLat = 500 / 111000, dLng = 500 / (111000 * Math.cos((+p.lat * Math.PI) / 180));
+    const nearbyStopNames = new Set<string>();
     for (const s of loadBusStops()) {
       if (Math.abs(s.lat - +p.lat) > dLat || Math.abs(s.lng - +p.lng) > dLng) continue;
-      if (haversineM(+p.lat, +p.lng, s.lat, s.lng) <= 500) busStops500++;
+      if (haversineM(+p.lat, +p.lng, s.lat, s.lng) <= 500) nearbyStopNames.add(s.name);
     }
+    // 同一站點常因路線與行駛方向重複出現在原始資料，只呈現去重後的站點組數。
+    busStops500 = nearbyStopNames.size;
   }
 
   return NextResponse.json({

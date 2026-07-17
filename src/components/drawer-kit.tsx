@@ -102,10 +102,11 @@ export function RoomBreakdown({ deals }: { deals: RoomDeal[] }) {
           <div className="roomcard" key={r.label}>
             <div className="rlabel">{r.label}</div>
             <div className="rprice num">
-              {r.p25 == null || r.p75 == null ? "—"
+              {r.n < 4 ? "樣本不足"
+                : r.p25 == null || r.p75 == null ? "—"
                 : `${Math.round(r.p25).toLocaleString()}~${Math.round(r.p75).toLocaleString()} 萬`}
             </div>
-            <div className="rmeta">{r.n} 筆成交{r.mu != null ? `・一坪約 ${fmtP(r.mu)} 萬` : ""}</div>
+            <div className="rmeta">{r.n} 筆成交{r.n < 4 ? "・暫不形成價格區間" : r.mu != null ? `・一坪約 ${fmtP(r.mu)} 萬` : ""}</div>
           </div>
         ))}
       </div>

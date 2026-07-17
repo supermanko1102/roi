@@ -18,6 +18,7 @@ type PDetail = {
     name: string; district: string; lat: number | null; lng: number | null;
     unit_price: number | null; median_total: number | null; median_area: number | null;
     deal_count: number | null; cancel_count: number | null;
+    est_rent_market: number | null; est_roi_market: number | null; rent_samples_market: number | null;
   };
   community: {
     households: number | null; street: string | null; permit_no: string | null;
@@ -94,9 +95,64 @@ const FLOOR_ROWS: { label: string; match: (f: number) => boolean }[] = [
   { label: "16樓以上", match: (f) => f > 15 },
 ];
 
-export default function ProjectDrawer({ district, name, zones, stations, onClose }: {
+function InvestmentCalculator({ total, estimatedRent }: { total: number | null; estimatedRent: number | null }) {
+  const [price, setPrice] = useState(Math.round(total ?? 1500));
+  const [down, setDown] = useState(25);
+  const [rate, setRate] = useState(2.2);
+  const [years, setYears] = useState(30);
+  const [rent, setRent] = useState(Math.round(estimatedRent ?? 22000));
+  const [costs, setCosts] = useState(2500);
+  const [vacancy, setVacancy] = useState(8);
+
+  useEffect(() => {
+    setPrice(Math.round(total ?? 1500));
+    setRent(Math.round(estimatedRent ?? 22000));
+  }, [total, estimatedRent]);
+
+  const principal = Math.max(0, price * 10000 * (1 - down / 100));
+  const n = Math.max(1, years * 12), r = Math.max(0, rate) / 1200;
+  const payment = r === 0 ? principal / n : principal * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1);
+  const effectiveRent = rent * (1 - vacancy / 100);
+  const grossYield = price > 0 ? rent * 12 / (price * 10000) * 100 : 0;
+  const netYield = price > 0 ? (effectiveRent - costs) * 12 / (price * 10000) * 100 : 0;
+  const cashflow = effectiveRent - costs - payment;
+
+  return (
+    <div className="sec calculator">
+      <div className="sechead">買下來，每月壓力多少？</div>
+      <div className="sechint">可自行調整條件；試算未包含稅費、裝潢與未來價格變動</div>
+      <div className="calc-inputs">
+        <CalcInput label="成交總價（萬）" value={price} setValue={setPrice} step={10} />
+        <CalcInput label="頭期款（%）" value={down} setValue={setDown} step={5} />
+        <CalcInput label="貸款利率（%）" value={rate} setValue={setRate} step={0.1} />
+        <CalcInput label="貸款年限" value={years} setValue={setYears} step={5} />
+        <CalcInput label="預估月租（元）" value={rent} setValue={setRent} step={500} />
+        <CalcInput label="每月持有成本" value={costs} setValue={setCosts} step={500} />
+        <CalcInput label="空置率（%）" value={vacancy} setValue={setVacancy} step={1} />
+      </div>
+      <div className="calc-results">
+        <div><span>準備現金</span><b className="num">{Math.round(price * down / 100).toLocaleString()} 萬</b></div>
+        <div><span>每月房貸</span><b className="num">{Math.round(payment).toLocaleString()} 元</b></div>
+        <div><span>估計淨投報</span><b className="num">{netYield.toFixed(2)}%</b><small>毛投報 {grossYield.toFixed(2)}%</small></div>
+        <div className={cashflow < 0 ? "negative" : "positive"}><span>每月現金流</span>
+          <b className="num">{cashflow >= 0 ? "+" : ""}{Math.round(cashflow).toLocaleString()} 元</b></div>
+      </div>
+      <div className="calc-note">此為比較工具，不構成投資或貸款建議；實際條件請向金融機構確認。</div>
+    </div>
+  );
+}
+
+function CalcInput({ label, value, setValue, step }: {
+  label: string; value: number; setValue: (v: number) => void; step: number;
+}) {
+  return <label><span>{label}</span><input className="num" type="number" value={value} step={step}
+    onChange={(e) => setValue(+e.target.value || 0)} /></label>;
+}
+
+export default function ProjectDrawer({ district, name, zones, stations, onClose, saved, onToggleSaved }: {
   district: string; name: string; zones: FeatureCollection | null;
   stations: FeatureCollection | null; onClose: () => void;
+  saved: boolean; onToggleSaved: () => void;
 }) {
   const [detail, setDetail] = useState<PDetail | null>(null);
   const [err, setErr] = useState(false);
@@ -173,7 +229,7 @@ export default function ProjectDrawer({ district, name, zones, stations, onClose
   const presale = detail?.band === "presale";
 
   return (
-    <aside className="drawer">
+    <aside className="drawer" aria-label={`${name}建案分析`}>
       <button className="dclose" onClick={onClose} aria-label="關閉">✕</button>
       {err && <div className="note">載入失敗,請重試。</div>}
       {!detail && !err && <div className="note">載入中…</div>}
@@ -193,6 +249,15 @@ export default function ProjectDrawer({ district, name, zones, stations, onClose
             {detail.community?.street ? `・${detail.community.street}` : ""}
           </div>
 
+          <div className="drawer-actions">
+            <button className={saved ? "saved" : ""} onClick={onToggleSaved} aria-pressed={saved}>
+              {saved ? "★ 已加入比較" : "☆ 加入比較"}
+            </button>
+            <span className={`confidence ${active.length >= 20 ? "high" : active.length >= 5 ? "mid" : "low"}`}>
+              成交資料信心：{active.length >= 20 ? "高" : active.length >= 5 ? "中" : "低"}
+            </span>
+          </div>
+
           <div className="hero">
             <div className="hprice">一坪約<b className="num">{unit == null ? "—" : fmtP(+unit)}</b>萬</div>
             <div className="hsub">
@@ -200,6 +265,10 @@ export default function ProjectDrawer({ district, name, zones, stations, onClose
               {p.median_area != null && `・${Math.round(+p.median_area)} 坪左右`}
             </div>
             {priceBadge(vsZone, zone?.name ?? null, zoneRef?.label ?? null)}
+            <div className="data-freshness">
+              {recentDeals[0]?.deal_date ? `最新成交 ${recentDeals[0].deal_date}` : "暫無成交日期"}
+              ・樣本 {active.length} 筆
+            </div>
           </div>
 
           <div className="keypoints">
@@ -224,6 +293,9 @@ export default function ProjectDrawer({ district, name, zones, stations, onClose
             {cancelled.length > 0 &&
               <KeyPoint icon="⚠️">有 <b className="rich">{cancelled.length} 筆</b>買了之後解約</KeyPoint>}
           </div>
+
+          <InvestmentCalculator total={p.median_total == null ? null : +p.median_total}
+            estimatedRent={p.est_rent_market == null ? null : +p.est_rent_market} />
 
           {(nearStations.length > 0 || nearIC || detail.transport) && (
             <div className="sec">
@@ -252,7 +324,7 @@ export default function ProjectDrawer({ district, name, zones, stations, onClose
                   <span className="ki">🚌</span>
                   <span>
                     {detail.transport.bus_stops_500m > 0
-                      ? <>走路 5 分鐘內有 <b>{detail.transport.bus_stops_500m} 個</b>公車站牌</>
+                      ? <>500 公尺內約有 <b>{detail.transport.bus_stops_500m} 組</b>公車站點</>
                       : <>500 公尺內沒有公車站牌</>}
                   </span>
                 </div>
