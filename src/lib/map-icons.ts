@@ -1,43 +1,12 @@
 // 地圖圖示全部用 canvas 現畫(免外部圖檔、免字型):
-//  - 房屋:實心=已完工、空心=預售中;統一中性色，價格直接看標籤數字
 //  - 交流道:深色菱形
 //  - 價格膠囊:白底圓角 stretchable image,配 icon-text-fit 自動包住文字
+// (建案點改用 circle layer 直接畫,見 PropertyMap 的 pt-circle)
 
 function makeCanvas(w: number, h: number) {
   const c = document.createElement("canvas");
   c.width = w; c.height = h;
   return { c, ctx: c.getContext("2d")! };
-}
-
-// 房屋剪影(24 格座標系,@2x 畫)
-function houseImage(color: string, hollow: boolean): ImageData {
-  const S = 48, u = S / 24;
-  const { ctx } = makeCanvas(S, S);
-  const path = () => {
-    ctx.beginPath();
-    ctx.moveTo(12 * u, 3 * u);
-    ctx.lineTo(21.5 * u, 11.5 * u);
-    ctx.lineTo(19 * u, 11.5 * u);
-    ctx.lineTo(19 * u, 21 * u);
-    ctx.lineTo(5 * u, 21 * u);
-    ctx.lineTo(5 * u, 11.5 * u);
-    ctx.lineTo(2.5 * u, 11.5 * u);
-    ctx.closePath();
-  };
-  // 白色外框襯底,在各種底圖上都清楚
-  path();
-  ctx.lineJoin = "round";
-  ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 5 * u; ctx.stroke();
-  if (hollow) {
-    path();
-    ctx.fillStyle = "#ffffff"; ctx.fill();       // 空心:白底
-    path();
-    ctx.strokeStyle = color; ctx.lineWidth = 2.6 * u; ctx.stroke();
-  } else {
-    path();
-    ctx.fillStyle = color; ctx.fill();
-  }
-  return ctx.getImageData(0, 0, S, S);
 }
 
 // 交流道:深色菱形 + 白襯底
@@ -78,14 +47,7 @@ export function addMapIcons(map: { hasImage(id: string): boolean; addImage(id: s
   const add = (id: string, img: ImageData, opts?: any) => {
     if (!map.hasImage(id)) map.addImage(id, img, opts);
   };
-  add("h-f-neutral", houseImage("#0d5b4f", false));
-  add("h-o-neutral", houseImage("#0d5b4f", true));
   add("ic-diamond", diamondImage("#37474f"));
   const pill = pillImage();
   add("pill", pill.img, pill.opts);
-}
-
-// 預售中=空心、已完工=實心；不再用顏色暗示價格高低。
-export function houseIconExpr(): any {
-  return ["case", ["==", ["get", "band"], "presale"], "h-o-neutral", "h-f-neutral"];
 }

@@ -13,7 +13,7 @@ import { type BandFilter } from "@/lib/age";
 import { type RoomFilter } from "@/lib/rooms";
 import { haversineM, geomBbox } from "@/lib/geo";
 import { LINE_COLOR, priceProp } from "@/lib/map-colors";
-import { addMapIcons, houseIconExpr } from "@/lib/map-icons";
+import { addMapIcons } from "@/lib/map-icons";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 // 預售與租屋是兩個並列的瀏覽模式，不互相疊加。
@@ -58,7 +58,11 @@ const BASE_STYLE: any = {
       attribution: "© OpenStreetMap contributors © CARTO・區界 © 內政部/g0v",
     },
   },
-  layers: [{ id: "carto", type: "raster", source: "carto" }],
+  layers: [
+    // 底色墊在 raster 下:tile 未載入時顯示紙色,而不是透出頁面底色像破圖
+    { id: "bg", type: "background", paint: { "background-color": "#fafaf7" } },
+    { id: "carto", type: "raster", source: "carto" },
+  ],
 };
 
 // 樂居式層級切換:zoom 過門檻自動浮出點位,行政區色塊同步淡出
@@ -93,6 +97,7 @@ export default function PropertyMap() {
   const [presalePopup, setPresalePopup] = useState<PresalePopup | null>(null);
   const [zones, setZones] = useState<FeatureCollection | null>(null);
   const [stations, setStations] = useState<FeatureCollection | null>(null);
+  const [rails, setRails] = useState<FeatureCollection | null>(null);
   const [rentals, setRentals] = useState<FeatureCollection | null>(null);
   const [rentalPopup, setRentalPopup] = useState<RentalPopup | null>(null);
   const [catalog, setCatalog] = useState<FeatureCollection | null>(null);
@@ -112,6 +117,7 @@ export default function PropertyMap() {
     fetch("/api/districts").then((r) => r.json()).then(setDistricts);
     fetch("/api/zones").then((r) => r.json()).then(setZones);
     fetch("/api/stations").then((r) => r.json()).then(setStations);
+    fetch("/api/rail-lines").then((r) => r.json()).then(setRails);
     const qs = new URLSearchParams(location.search);
     const initialRooms = (["1", "2", "3", "4p"].includes(qs.get("rooms") ?? "") ? qs.get("rooms") : "all") as RoomFilter;
     const initialBudget = TOTAL_FILTERS.some((t) => t.key === qs.get("budget")) ? qs.get("budget")! : "all";
@@ -294,8 +300,14 @@ export default function PropertyMap() {
     const z = zoneLabels.find((l) => l.name === name);
     if (!z) return;
     loadDetail([z.bounds[0][0], z.bounds[0][1], z.bounds[1][0], z.bounds[1][1]]); // 與飛行動畫並行抓資料
-    mapRef.current?.fitBounds(z.bounds, {
-      padding: 54, maxZoom: POINT_ZOOM - 0.35, duration: 600,
+    // 點生活圈直接落在建案層級,不用再手動放大一次;
+    // 大圈保底跨過 POINT_ZOOM,小圈上限 15.5 避免過度放大
+    const map = mapRef.current?.getMap();
+    const cam = map?.cameraForBounds(z.bounds, { padding: 54 });
+    if (map && cam) map.easeTo({
+      ...cam,
+      zoom: Math.min(Math.max(cam.zoom ?? POINT_ZOOM, POINT_ZOOM + 0.15), 15.5),
+      duration: 600,
     });
   }
 
@@ -423,8 +435,16 @@ export default function PropertyMap() {
         mapStyle={BASE_STYLE}
         initialViewState={initialView}
         onLoad={(e) => {
-          e.target.resize(); // 容器尺寸就緒前 canvas 可能只畫一角
-          addMapIcons(e.target); // 房屋/膠囊/交流道圖示(canvas 現畫)
+          const map = e.target;
+          map.resize(); // 容器尺寸就緒前 canvas 可能只畫一角
+          // 內建 ResizeObserver 走 rAF,分頁被節流時 canvas 會停在舊尺寸好幾秒;
+          // 用 timer 當看門狗,載入後幾秒內發現 canvas 與容器不一致就強制校正
+          const watchdog = setInterval(() => {
+            const el = map.getContainer(), c = map.getCanvas();
+            if (Math.abs(el.clientWidth - c.clientWidth) > 1 || Math.abs(el.clientHeight - c.clientHeight) > 1) map.resize();
+          }, 300);
+          setTimeout(() => clearInterval(watchdog), 5000);
+          addMapIcons(map); // 房屋/膠囊/交流道圖示(canvas 現畫)
           setZoom(e.target.getZoom());
           if (e.target.getZoom() >= DETAIL_ZOOM) {
             const b = e.target.getBounds();
@@ -455,7 +475,19 @@ export default function PropertyMap() {
           }
         }}
         onClick={(e) => {
-          const f = e.features?.[0];
+          // 不用 e.features:react-map-gl 會沿用滾輪/雙擊縮放前的 hover 快取,
+          // 縮放後原地點擊會拿到舊層級的 feature(例如點建案卻命中 zone-fill 而縮回生活圈)。
+          // 以地圖當下 zoom 決定可點圖層,在點擊座標重新查詢。
+          const map = e.target;
+          const z = map.getZoom();
+          const clickable = [
+            ...(market === "presale"
+              ? z >= POINT_ZOOM ? ["pt-cluster", "pt-circle", "pt-pill"]
+                : z >= DETAIL_ZOOM ? ["zone-fill"] : ["district-fill"]
+              : z < DETAIL_ZOOM ? ["district-fill"] : []),
+            ...(market === "rental" ? ["rent-cluster", "rent-point", "rent-symbol", "rent-label"] : []),
+          ].filter((l) => map.getLayer(l));
+          const f = clickable.length ? map.queryRenderedFeatures(e.point, { layers: clickable })[0] : undefined;
           if (!f) return;
           if (market === "rental" && f.layer.id === "rent-cluster") {
             const src: any = mapRef.current?.getSource("rentals");
@@ -468,17 +500,17 @@ export default function PropertyMap() {
             const src: any = mapRef.current?.getSource("points");
             src?.getClusterExpansionZoom(f.properties!.cluster_id).then((z: number) =>
               mapRef.current?.easeTo({ center: (f.geometry as any).coordinates, zoom: z + 0.5, duration: 500 }));
-          } else if (market === "presale" && (f.layer.id === "pt-icon" || f.layer.id === "pt-pill")) {
+          } else if (market === "presale" && (f.layer.id === "pt-circle" || f.layer.id === "pt-pill")) {
             openPoint(f);
           } else if (market === "presale" && f.layer.id === "zone-fill") {
             zoomToZone((f.properties as any).name);
-          } else if (!detail) {
+          } else if (z < DETAIL_ZOOM) {
             drill((f.properties as any).name);
           }
         }}
         interactiveLayerIds={[
           ...(market === "presale"
-            ? pointsVisible ? ["pt-cluster", "pt-icon", "pt-pill"]
+            ? pointsVisible ? ["pt-cluster", "pt-circle", "pt-pill"]
               : zoneLevel ? ["zone-fill"] : ["district-fill"]
             : !detail ? ["district-fill"] : []),
           ...(market === "rental" ? ["rent-cluster", "rent-point", "rent-symbol", "rent-label"] : []),
@@ -575,13 +607,14 @@ export default function PropertyMap() {
                 "text-font": ["Open Sans Semibold"], "text-size": 13,
               }}
               paint={{ "text-color": "#fff" }} />
-            {/* 建案=房屋圖示:預售中空心、已完工實心；15 級起讓位給價格膠囊。 */}
-            <Layer id="pt-icon" type="symbol" filter={["!", ["has", "point_count"]]}
+            {/* 建案=圓點(與車站同語言:預售中空心、已完工實心);15 級起讓位給價格膠囊。 */}
+            <Layer id="pt-circle" type="circle" filter={["!", ["has", "point_count"]]}
               maxzoom={15}
-              layout={{
-                "icon-image": houseIconExpr() as any,
-                "icon-size": ["interpolate", ["linear"], ["zoom"], 12, 0.72, 15, 1] as any,
-                "icon-allow-overlap": true,
+              paint={{
+                "circle-color": ["case", ["==", ["get", "band"], "presale"], "#ffffff", "#0d5b4f"] as any,
+                "circle-stroke-color": "#0d5b4f",
+                "circle-stroke-width": 2.2,
+                "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 4.2, 15, 6.5] as any,
               }} />
             {/* 價格膠囊:白底圓角；格局篩選時顯示總價，否則顯示單價。 */}
             <Layer id="pt-pill" type="symbol" filter={["!", ["has", "point_count"]]}
@@ -596,11 +629,13 @@ export default function PropertyMap() {
               }}
               paint={{ "text-color": "#22303a" }} />
             <Layer id="pt-name" type="symbol" filter={["!", ["has", "point_count"]]}
-              minzoom={15}
+              minzoom={POINT_ZOOM}
               layout={{
                 "text-field": ["get", "name"] as any,
                 "text-font": ["Open Sans Semibold"], "text-size": 11,
-                "text-offset": [0, 1.5], "text-anchor": "top",
+                // 圓點層貼近一點,膠囊層讓出膠囊高度
+                "text-offset": ["step", ["zoom"], ["literal", [0, 0.9]], 15, ["literal", [0, 1.5]]] as any,
+                "text-anchor": "top",
                 "text-optional": true,
               }}
               paint={{ "text-color": "#22303a", "text-halo-color": "#fff", "text-halo-width": 1.5 }} />
@@ -660,6 +695,28 @@ export default function PropertyMap() {
             </Marker>
           );
         })}
+
+        {/* 軌道路線:營運畫實線、施工中畫虛線,墊在車站圓點下方。
+            只畫有站點的線(機捷/台鐵/綠線);規劃中路線未定案,刻意不畫。 */}
+        {rails && detail && (
+          <Source id="rails" type="geojson" data={rails}>
+            <Layer id="rail-op" type="line" filter={["==", ["get", "status"], "operating"]}
+              layout={{ "line-cap": "round", "line-join": "round" }}
+              paint={{
+                "line-color": ["match", ["get", "line"], ...Object.entries(LINE_COLOR).flat(), "#888"] as any,
+                "line-width": ["interpolate", ["linear"], ["zoom"], DETAIL_ZOOM, 1.6, 16, 3.4] as any,
+                "line-opacity": 0.42,
+              }} />
+            <Layer id="rail-con" type="line" filter={["==", ["get", "status"], "construction"]}
+              layout={{ "line-cap": "round", "line-join": "round" }}
+              paint={{
+                "line-color": ["match", ["get", "line"], ...Object.entries(LINE_COLOR).flat(), "#888"] as any,
+                "line-width": ["interpolate", ["linear"], ["zoom"], DETAIL_ZOOM, 1.6, 16, 3.4] as any,
+                "line-opacity": 0.55,
+                "line-dasharray": [2.4, 1.8],
+              }} />
+          </Source>
+        )}
 
         {/* 車站+交流道圖層:車站圓點(營運實心、施工空心)、交流道菱形;放大到細節層才出現 */}
         {stations && detail && (
