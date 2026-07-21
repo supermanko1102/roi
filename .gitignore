@@ -5,3 +5,4 @@ etl/downloads/
 tsconfig.tsbuildinfo
 .vercel
 .env*
+tmp/

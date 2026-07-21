@@ -71,6 +71,13 @@
       "when": 1784619882872,
       "tag": "0009_chubby_gorgon",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784628708915,
+      "tag": "0010_nappy_eddie_brock",
+      "breakpoints": true
     }
   ]
 }

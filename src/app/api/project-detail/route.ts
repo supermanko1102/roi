@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, asc, eq } from "drizzle-orm";
-import { db, communities, presale_deals, projects } from "@/lib/db";
+import { db, communities, presale_deals, projects, contract_materials } from "@/lib/db";
 import { ageBand } from "@/lib/age";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +34,20 @@ export async function GET(req: NextRequest) {
     .where(and(eq(presale_deals.project_name, name), eq(presale_deals.city, city), eq(presale_deals.district, district)))
     .orderBy(asc(presale_deals.deal_date)).limit(1500);
 
+  // 契約建材設備表(只在成功抽到時才回傳)
+  const [mat] = await db.select({
+    sections: contract_materials.sections, pdf_url: contract_materials.pdf_url,
+  }).from(contract_materials)
+    .where(and(
+      eq(contract_materials.project_name, name),
+      eq(contract_materials.city, city),
+      eq(contract_materials.district, district),
+      eq(contract_materials.status, "ok"),
+    ));
+  const materials = mat
+    ? { sections: JSON.parse(mat.sections ?? "[]") as { title: string; body: string }[], pdf_url: mat.pdf_url }
+    : null;
+
   const regDate = comm?.use_issue_date ?? comm?.first_reg;
   const regYear = regDate ? new Date(regDate).getFullYear() : null;
   const nowYear = new Date().getFullYear();
@@ -49,5 +63,6 @@ export async function GET(req: NextRequest) {
     band: completed ? ageBand(regYear, nowYear) : "presale",
     build_year: completed ? regYear : null,
     deals,
+    materials,
   });
 }

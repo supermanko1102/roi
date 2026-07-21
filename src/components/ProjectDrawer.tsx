@@ -27,6 +27,7 @@ type PDetail = {
   band: string;
   build_year: number | null;
   deals: PDeal[];
+  materials: { sections: { title: string; body: string }[]; pdf_url: string | null } | null;
 };
 
 const dealsTh = "border-b border-line px-1.5 py-[5px] text-left text-[9.5px] font-bold text-ink-soft";
@@ -37,6 +38,45 @@ function Fact({ label, value }: { label: string; value: string | number | null |
       <span className="mb-1 block text-[9px] text-ink-soft">{label}</span>
       <b className="num block text-[11px] font-bold wrap-anywhere">{value == null || value === "" ? "—" : value}</b>
     </div>
+  );
+}
+
+// 建材與設備:契約附件六抽出的分節,預設收合,展開後每節可再展開看細目
+function MaterialsSection({ sections, pdfUrl }: {
+  sections: { title: string; body: string }[]; pdfUrl: string | null;
+}) {
+  const [open, setOpen] = useState<number | null>(0);
+  return (
+    <section className="mt-[21px] border-t border-line pt-3.5">
+      <div className="flex items-baseline gap-2.5 text-[13.5px] font-extrabold">建材與設備
+        <span className="num text-[12.5px] text-teal">{sections.length} 項</span>
+      </div>
+      <div className="mt-2 overflow-hidden rounded-[10px] border border-line">
+        {sections.map((s, i) => (
+          <div key={i} className="border-t border-line first:border-t-0">
+            <button
+              className="flex w-full items-center justify-between gap-2 bg-white px-3 py-2 text-left text-[11.5px] font-bold text-ink hover:bg-[#f5f7f4]"
+              aria-expanded={open === i} onClick={() => setOpen(open === i ? null : i)}>
+              {s.title}
+              <span className={cn("text-ink-soft transition-transform", open === i && "rotate-90")}>›</span>
+            </button>
+            {open === i && (
+              <div className="whitespace-pre-line bg-[#fbfcfb] px-3 py-2.5 text-[10.5px] leading-relaxed text-ink-soft">
+                {s.body}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 text-[9px] leading-normal text-ink-soft">
+        摘自預售定型化契約備查之「建材設備表」。
+        {pdfUrl && (
+          <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="ml-1 font-bold text-teal underline">
+            看官方契約全文 PDF
+          </a>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -186,6 +226,10 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
                 </tbody>
               </table>
             </details>
+          )}
+
+          {detail.materials && detail.materials.sections.length > 0 && (
+            <MaterialsSection sections={detail.materials.sections} pdfUrl={detail.materials.pdf_url} />
           )}
 
           <div className="mt-[18px] border-t border-line pt-[11px] text-[9px] leading-normal text-ink-soft">價格已扣除車位。資料來源：內政部實價登錄。</div>

@@ -261,6 +261,25 @@ export const use_permits = pgTable("use_permits", {
   index("idx_use_permits_permit").on(t.city, t.permit_no_norm),
 ]);
 
+// 預售定型化契約備查的建材設備表(etl/fetch-contract-materials.ts 增量抓取)
+// 來源:lvr 預售屋建案查詢 → 契約 PDF(mlvr 直鏈)→ pdftotext 抽附件「建材設備表」
+export const contract_materials = pgTable("contract_materials", {
+  id: serial("id").primaryKey(),
+  city: text("city").notNull(),
+  district: text("district").notNull(),
+  project_name: text("project_name").notNull(),
+  mlvr_case_no: text("mlvr_case_no"),            // 下載路徑案號(如 G2H011312020003-01)
+  pdf_url: text("pdf_url"),                      // 房屋契約 PDF 官方直鏈
+  version_note: text("version_note"),            // 版次說明(檔名)
+  declare_date: text("declare_date"),            // 申報/變更備查日期(民國字串)
+  materials_text: text("materials_text"),        // 建材設備表全文
+  sections: text("sections"),                    // JSON:[{title, body}] 依 ※/分類標題切分
+  status: text("status").notNull(),              // ok | no_materials | no_case | fetch_failed
+  fetched_at: timestamp("fetched_at", { withTimezone: true }).defaultNow(),
+}, (t) => [
+  unique("contract_materials_project_key").on(t.city, t.district, t.project_name),
+]);
+
 // 房數帶彙總(compute-stats 重建):格局篩選時覆寫點位的價格/總價/筆數
 // kind=resale 的 key 是 addr_key(含城市前綴);kind=presale 的 key 是 `${city}|${district}|${name}`
 export const room_stats = pgTable("room_stats", {
