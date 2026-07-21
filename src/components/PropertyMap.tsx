@@ -434,6 +434,9 @@ export default function PropertyMap() {
         ref={mapRef}
         mapStyle={BASE_STYLE}
         initialViewState={initialView}
+        minZoom={8}
+        maxZoom={18}
+        maxBounds={[[117.6, 21.3], [123.2, 26.6]]}
         onLoad={(e) => {
           const map = e.target;
           map.resize(); // 容器尺寸就緒前 canvas 可能只畫一角
