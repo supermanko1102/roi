@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { fmtP } from "./drawer-kit";
+import BuildingGrid, { parseStack } from "./BuildingGrid";
 
 type PDeal = {
   deal_date: string | null; total_price: number | null; area_ping: number | null;
@@ -38,9 +39,10 @@ export default function ProjectDrawer({ district, name, onClose, saved, onToggle
 }) {
   const [detail, setDetail] = useState<PDetail | null>(null);
   const [err, setErr] = useState(false);
+  const [dealView, setDealView] = useState<"grid" | "list">("grid");
 
   useEffect(() => {
-    setDetail(null); setErr(false);
+    setDetail(null); setErr(false); setDealView("grid");
     fetch(`/api/project-detail?district=${encodeURIComponent(district)}&name=${encodeURIComponent(name)}`)
       .then((r) => { if (!r.ok) throw 0; return r.json(); })
       .then(setDetail).catch(() => setErr(true));
@@ -56,6 +58,10 @@ export default function ProjectDrawer({ district, name, onClose, saved, onToggle
   const cancelled = useMemo(() => (detail?.deals ?? []).filter((d) => d.is_cancelled), [detail]);
   const recentDeals = useMemo(() => [...active]
     .sort((a, b) => +new Date(b.deal_date ?? 0) - +new Date(a.deal_date ?? 0)), [active]);
+  // 可放進「樓層×戶別」矩陣的成交（含解約，解約在格內另標示）
+  const gridable = useMemo(() => (detail?.deals ?? [])
+    .filter((d) => d.floor_no != null && parseStack(d.unit_id) != null).length >= 3, [detail]);
+  const view = gridable ? dealView : "list";
 
   const p = detail?.project;
   const age = detail?.build_year ? new Date().getFullYear() - detail.build_year : null;
@@ -110,26 +116,40 @@ export default function ProjectDrawer({ district, name, onClose, saved, onToggle
           </section>
 
           <section className="sec">
-            <div className="sechead">最近成交紀錄
+            <div className="sechead">成交紀錄
               <span className="secval num">{recentDeals.length} 筆</span>
+              {gridable && (
+                <span className="view-toggle" role="tablist" aria-label="成交紀錄顯示方式">
+                  <button role="tab" aria-selected={view === "grid"}
+                    className={view === "grid" ? "on" : ""} onClick={() => setDealView("grid")}>棟別圖</button>
+                  <button role="tab" aria-selected={view === "list"}
+                    className={view === "list" ? "on" : ""} onClick={() => setDealView("list")}>列表</button>
+                </span>
+              )}
             </div>
-            <table className="deals num" style={{ marginTop: 8 }}>
-              <thead><tr><th>日期</th><th>樓層・格局</th><th>總價</th><th>單價</th></tr></thead>
-              <tbody>
-                {recentDeals.slice(0, 40).map((d, i) => (
-                  <tr key={i}>
-                    <td>{d.deal_date ?? "—"}</td>
-                    <td title={d.unit_id ?? ""}>
-                      {[d.floor_no != null ? `${d.floor_no}樓` : null, d.rooms != null ? `${d.rooms}房` : null]
-                        .filter(Boolean).join("・") || (d.unit_id ?? "—")}
-                    </td>
-                    <td>{d.total_price == null ? "—" : `${Math.round(d.total_price).toLocaleString()} 萬`}</td>
-                    <td>{d.unit_price == null ? "—" : `${fmtP(d.unit_price)} 萬`}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {recentDeals.length > 40 && <div className="table-note">顯示最近 40 筆</div>}
+            {view === "grid" ? (
+              <BuildingGrid deals={detail.deals} />
+            ) : (
+              <>
+                <table className="deals num" style={{ marginTop: 8 }}>
+                  <thead><tr><th>日期</th><th>樓層・格局</th><th>總價</th><th>單價</th></tr></thead>
+                  <tbody>
+                    {recentDeals.slice(0, 40).map((d, i) => (
+                      <tr key={i}>
+                        <td>{d.deal_date ?? "—"}</td>
+                        <td title={d.unit_id ?? ""}>
+                          {[d.floor_no != null ? `${d.floor_no}樓` : null, d.rooms != null ? `${d.rooms}房` : null]
+                            .filter(Boolean).join("・") || (d.unit_id ?? "—")}
+                        </td>
+                        <td>{d.total_price == null ? "—" : `${Math.round(d.total_price).toLocaleString()} 萬`}</td>
+                        <td>{d.unit_price == null ? "—" : `${fmtP(d.unit_price)} 萬`}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {recentDeals.length > 40 && <div className="table-note">顯示最近 40 筆</div>}
+              </>
+            )}
           </section>
 
           {cancelled.length > 0 && (

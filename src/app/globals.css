@@ -269,3 +269,30 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(19, 123, 104
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ── 棟別價格圖（樓層 × 戶別矩陣） ── */
+.view-toggle { display: inline-flex; margin-left: auto; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.view-toggle button { border: 0; padding: 4px 11px; background: #fff; color: var(--ink-soft); cursor: pointer; font-size: 10.5px; font-weight: 800; }
+.view-toggle button.on { background: var(--teal); color: #fff; }
+.sec .sechead:has(.view-toggle) { gap: 10px; }
+.sec .sechead:has(.view-toggle) .secval { margin-left: 0; }
+
+.bgrid-wrap { margin-top: 10px; }
+.bgrid-legend { display: flex; align-items: center; gap: 7px; margin-bottom: 9px; color: var(--ink-soft); font-size: 9.5px; }
+.bgrid-ramp { flex: 0 0 74px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, hsl(168 18% 93%), hsl(168 44% 35%)); }
+.bgrid-bname { margin: 12px 0 5px; color: var(--ink); font-size: 11.5px; font-weight: 800; }
+.bgrid-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+table.bgrid { border-collapse: separate; border-spacing: 2px; background: var(--surface); font-size: 11px; }
+table.bgrid th { position: sticky; top: 0; z-index: 2; min-width: 52px; padding: 5px 4px; background: var(--teal-dark); color: #fff; text-align: center; font-size: 10px; font-weight: 700; border-radius: 5px; }
+table.bgrid th.bgrid-floor { position: sticky; left: 0; z-index: 3; min-width: 34px; }
+table.bgrid thead th.bgrid-floor { background: var(--surface); }
+.bgrid-cell { position: relative; min-width: 52px; padding: 4px 5px 5px; border-radius: 5px; text-align: center; line-height: 1.25; }
+.bgrid-cell .bgrid-date { display: block; font-size: 8.5px; color: var(--ink-soft); }
+.bgrid-cell b { font-size: 12px; color: var(--ink); letter-spacing: -.02em; }
+.bgrid-cell.dark .bgrid-date { color: rgba(255,255,255,.75); }
+.bgrid-cell.dark b { color: #fff; }
+.bgrid-cell.cancelled { border: 1.5px dashed #b4544a; }
+.bgrid-cell.cancelled b { color: #9c4038; text-decoration: line-through; }
+.bgrid-extra { position: absolute; top: 3px; right: 3px; width: 5px; height: 5px; border-radius: 50%; background: #a87520; }
+.bgrid-empty { min-width: 52px; background: #f5f7f4; border-radius: 5px; }
+.grid-note { margin-top: 8px; color: var(--ink-soft); font-size: 9px; line-height: 1.6; }
