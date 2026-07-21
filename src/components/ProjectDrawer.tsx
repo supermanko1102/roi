@@ -2,6 +2,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { fmtP } from "./drawer-kit";
 import BuildingGrid, { parseStack } from "./BuildingGrid";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 type PDeal = {
   deal_date: string | null; total_price: number | null; area_ping: number | null;
@@ -24,11 +27,13 @@ type PDetail = {
   deals: PDeal[];
 };
 
+const dealsTh = "border-b border-line px-1.5 py-[5px] text-left text-[9.5px] font-bold text-ink-soft";
+
 function Fact({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
-    <div className="project-fact">
-      <span>{label}</span>
-      <b className="num">{value == null || value === "" ? "—" : value}</b>
+    <div className="min-w-0 rounded-[10px] border border-[#e4e8e5] bg-white p-2.5">
+      <span className="mb-1 block text-[9px] text-ink-soft">{label}</span>
+      <b className="num block text-[11px] font-bold [overflow-wrap:anywhere]">{value == null || value === "" ? "—" : value}</b>
     </div>
   );
 }
@@ -68,44 +73,50 @@ export default function ProjectDrawer({ district, name, onClose, saved, onToggle
   const presale = detail?.band === "presale";
 
   return (
-    <aside className="drawer compact-drawer" aria-label={`${name}建案資料`}>
-      <button className="dclose" onClick={onClose} aria-label="關閉">✕</button>
-      {err && <div className="note">載入失敗，請重試。</div>}
-      {!detail && !err && <div className="note">載入中…</div>}
+    <aside className="absolute inset-y-0 right-0 z-[55] w-[min(480px,100%)] animate-drawer-in overflow-y-auto bg-surface px-6 pb-8 pt-6 shadow-[-12px_0_50px_rgba(18,47,40,.18)] max-mob:top-auto max-mob:h-[min(84%,760px)] max-mob:w-full max-mob:animate-drawer-up max-mob:rounded-t-[20px] max-mob:px-[18px] max-mob:pb-[88px] max-mob:pt-[25px] max-mob:before:absolute max-mob:before:left-1/2 max-mob:before:top-2 max-mob:before:h-1 max-mob:before:w-[42px] max-mob:before:-translate-x-1/2 max-mob:before:rounded-full max-mob:before:bg-[#ced6d2] max-mob:before:content-[''] max-tiny:px-[15px]"
+      aria-label={`${name}建案資料`}>
+      <Button variant="ghost" size="icon-sm" className="absolute right-4 top-4 size-[31px] rounded-full bg-muted text-muted-foreground"
+        onClick={onClose} aria-label="關閉">✕</Button>
+      {err && <div className="py-[50px] text-center text-xs text-ink-soft">載入失敗，請重試。</div>}
+      {!detail && !err && <div className="py-[50px] text-center text-xs text-ink-soft">載入中…</div>}
       {detail && p && (
         <>
-          <h2>
+          <h2 className="my-0.5 mr-[34px] flex flex-wrap items-center gap-[7px] font-display text-[22px] font-bold leading-[1.25] max-mob:text-xl">
             <span>{p.name}</span>
-            <span className={`chip ${presale ? "presale" : ""}`}>
+            <Badge className={cn(
+              "h-auto flex-none rounded-full border-0 bg-[#e7f0ed] px-[9px] py-[3px] font-sans text-[10px] font-extrabold leading-[1.4] text-teal",
+              presale && "bg-teal text-white",
+            )}>
               {presale ? "預售" : age != null && age <= 1 ? "新成屋" : `${age} 年屋`}
-            </span>
+            </Badge>
           </h2>
-          <div className="dsub">
+          <div className="mb-[13px] mt-[5px] text-[11px] leading-[1.6] text-ink-soft">
             {p.district}
             {detail.community?.street ? `・${detail.community.street}` : ""}
           </div>
 
-          <div className="drawer-actions">
-            <button className={saved ? "saved" : ""} onClick={onToggleSaved} aria-pressed={saved}>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <Button variant="outline" aria-pressed={saved} onClick={onToggleSaved}
+              className="h-auto min-h-[34px] rounded-[9px] border-[#dec999] bg-[#fffaf0] px-[11px] py-[7px] text-[11px] font-extrabold text-[#83601e] hover:bg-[#fffaf0] aria-pressed:bg-[#a87520] aria-pressed:text-white aria-pressed:hover:bg-[#a87520]">
               {saved ? "★ 已加入比較" : "☆ 加入比較"}
-            </button>
+            </Button>
           </div>
 
-          <div className="hero project-summary">
-            <div className="hprice">成交單價中位數<b className="num">{p.unit_price == null ? "—" : fmtP(+p.unit_price)}</b>萬／坪</div>
-            <div className="summary-pairs">
+          <div className="mb-[11px] rounded-[14px] border border-[#e4e8e5] bg-[#f4f6f3] p-4">
+            <div className="text-xs text-ink-soft">成交單價中位數<b className="num mx-[3px] text-[31px] tracking-[-.04em] text-ink">{p.unit_price == null ? "—" : fmtP(+p.unit_price)}</b>萬／坪</div>
+            <div className="mt-[13px] grid grid-cols-2 gap-2">
               <Fact label="成交總價中位數" value={p.median_total == null ? null : `${Math.round(+p.median_total).toLocaleString()} 萬`} />
               <Fact label="成交坪數中位數" value={p.median_area == null ? null : `${Math.round(+p.median_area)} 坪`} />
             </div>
-            <div className="data-freshness">
+            <div className="mt-2 text-[9.5px] text-[#78857f]">
               {recentDeals[0]?.deal_date ? `最新成交 ${recentDeals[0].deal_date}` : "暫無成交日期"}
               ・{active.length} 筆成交
             </div>
           </div>
 
-          <section className="sec project-data" aria-label="建案基本資料">
-            <div className="sechead">基本資料</div>
-            <div className="project-facts">
+          <section className="mt-[21px]" aria-label="建案基本資料">
+            <div className="flex items-baseline justify-between text-[13.5px] font-extrabold">基本資料</div>
+            <div className="mt-[9px] grid grid-cols-2 gap-2">
               <Fact label="戶數" value={detail.community?.households ? `${detail.community.households} 戶` : null} />
               <Fact label="建造執照" value={detail.community?.permit_no} />
               <Fact label="首次登記" value={detail.community?.first_reg} />
@@ -115,15 +126,17 @@ export default function ProjectDrawer({ district, name, onClose, saved, onToggle
             </div>
           </section>
 
-          <section className="sec">
-            <div className="sechead">成交紀錄
-              <span className="secval num">{recentDeals.length} 筆</span>
+          <section className="mt-[21px]">
+            <div className={cn("flex items-baseline text-[13.5px] font-extrabold", gridable ? "gap-2.5" : "justify-between")}>成交紀錄
+              <span className="num text-[12.5px] text-teal">{recentDeals.length} 筆</span>
               {gridable && (
-                <span className="view-toggle" role="tablist" aria-label="成交紀錄顯示方式">
+                <span className="ml-auto inline-flex overflow-hidden rounded-full border border-line" role="tablist" aria-label="成交紀錄顯示方式">
                   <button role="tab" aria-selected={view === "grid"}
-                    className={view === "grid" ? "on" : ""} onClick={() => setDealView("grid")}>棟別圖</button>
+                    className="border-0 bg-white px-[11px] py-1 text-[10.5px] font-extrabold text-ink-soft aria-selected:bg-teal aria-selected:text-white"
+                    onClick={() => setDealView("grid")}>棟別圖</button>
                   <button role="tab" aria-selected={view === "list"}
-                    className={view === "list" ? "on" : ""} onClick={() => setDealView("list")}>列表</button>
+                    className="border-0 bg-white px-[11px] py-1 text-[10.5px] font-extrabold text-ink-soft aria-selected:bg-teal aria-selected:text-white"
+                    onClick={() => setDealView("list")}>列表</button>
                 </span>
               )}
             </div>
@@ -131,39 +144,39 @@ export default function ProjectDrawer({ district, name, onClose, saved, onToggle
               <BuildingGrid deals={detail.deals} />
             ) : (
               <>
-                <table className="deals num" style={{ marginTop: 8 }}>
-                  <thead><tr><th>日期</th><th>樓層・格局</th><th>總價</th><th>單價</th></tr></thead>
+                <table className="num mt-2 w-full border-collapse text-[11px]">
+                  <thead><tr><th className={dealsTh}>日期</th><th className={dealsTh}>樓層・格局</th><th className={dealsTh}>總價</th><th className={dealsTh}>單價</th></tr></thead>
                   <tbody>
                     {recentDeals.slice(0, 40).map((d, i) => (
-                      <tr key={i}>
-                        <td>{d.deal_date ?? "—"}</td>
-                        <td title={d.unit_id ?? ""}>
+                      <tr key={i} className="even:bg-[#f5f7f4]">
+                        <td className="p-1.5">{d.deal_date ?? "—"}</td>
+                        <td className="p-1.5" title={d.unit_id ?? ""}>
                           {[d.floor_no != null ? `${d.floor_no}樓` : null, d.rooms != null ? `${d.rooms}房` : null]
                             .filter(Boolean).join("・") || (d.unit_id ?? "—")}
                         </td>
-                        <td>{d.total_price == null ? "—" : `${Math.round(d.total_price).toLocaleString()} 萬`}</td>
-                        <td>{d.unit_price == null ? "—" : `${fmtP(d.unit_price)} 萬`}</td>
+                        <td className="p-1.5">{d.total_price == null ? "—" : `${Math.round(d.total_price).toLocaleString()} 萬`}</td>
+                        <td className="p-1.5">{d.unit_price == null ? "—" : `${fmtP(d.unit_price)} 萬`}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                {recentDeals.length > 40 && <div className="table-note">顯示最近 40 筆</div>}
+                {recentDeals.length > 40 && <div className="mt-[7px] text-right text-[9px] text-ink-soft">顯示最近 40 筆</div>}
               </>
             )}
           </section>
 
           {cancelled.length > 0 && (
-            <details className="record-details">
-              <summary>解約紀錄（{cancelled.length} 筆）</summary>
-              <table className="deals num">
-                <thead><tr><th>解約日</th><th>原成交日</th><th>樓層</th><th>總價</th></tr></thead>
+            <details className="mt-[18px] border-t border-line">
+              <summary className="py-3 text-[11px] font-extrabold text-teal">解約紀錄（{cancelled.length} 筆）</summary>
+              <table className="num w-full border-collapse text-[11px]">
+                <thead><tr><th className={dealsTh}>解約日</th><th className={dealsTh}>原成交日</th><th className={dealsTh}>樓層</th><th className={dealsTh}>總價</th></tr></thead>
                 <tbody>
                   {cancelled.map((d, i) => (
-                    <tr key={i}>
-                      <td>{d.cancel_date ?? "—"}</td>
-                      <td>{d.deal_date ?? "—"}</td>
-                      <td>{d.floor_no != null ? `${d.floor_no}樓` : "—"}</td>
-                      <td>{d.total_price == null ? "—" : `${Math.round(d.total_price).toLocaleString()} 萬`}</td>
+                    <tr key={i} className="even:bg-[#f5f7f4]">
+                      <td className="p-1.5">{d.cancel_date ?? "—"}</td>
+                      <td className="p-1.5">{d.deal_date ?? "—"}</td>
+                      <td className="p-1.5">{d.floor_no != null ? `${d.floor_no}樓` : "—"}</td>
+                      <td className="p-1.5">{d.total_price == null ? "—" : `${Math.round(d.total_price).toLocaleString()} 萬`}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -171,7 +184,7 @@ export default function ProjectDrawer({ district, name, onClose, saved, onToggle
             </details>
           )}
 
-          <div className="source-note">價格已扣除車位。資料來源：內政部實價登錄。</div>
+          <div className="mt-[18px] border-t border-line pt-[11px] text-[9px] leading-[1.5] text-ink-soft">價格已扣除車位。資料來源：內政部實價登錄。</div>
         </>
       )}
     </aside>
