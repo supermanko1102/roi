@@ -94,7 +94,7 @@ export function ProductHeader({ market, setMarket, query, setQuery, view, setVie
   share: () => void; shared: boolean;
 }) {
   return (
-    <header className="absolute inset-x-4 top-3.5 z-[25] grid min-h-[70px] grid-cols-[235px_auto_minmax(220px,1fr)_auto] items-center gap-[18px] rounded-[18px] border border-line/90 bg-surface/94 px-3 py-2.5 shadow-[0_8px_32px_rgba(18,47,40,.12)] backdrop-blur-[18px] max-nav:grid-cols-[188px_auto_minmax(170px,1fr)_auto] max-nav:gap-2.5 max-mob:inset-x-2 max-mob:top-2 max-mob:min-h-24 max-mob:grid-cols-[auto_1fr] max-mob:grid-rows-[34px_42px] max-mob:gap-x-2.5 max-mob:gap-y-[7px] max-mob:rounded-[15px] max-mob:bg-surface/98 max-mob:px-[9px] max-mob:py-[7px] max-mob:backdrop-blur-none">
+    <header className="absolute inset-x-4 top-3.5 z-25 grid min-h-[70px] grid-cols-[235px_auto_minmax(220px,1fr)_auto] items-center gap-[18px] rounded-[18px] border border-line/90 bg-surface/94 px-3 py-2.5 shadow-[0_8px_32px_rgba(18,47,40,.12)] backdrop-blur-[18px] max-nav:grid-cols-[188px_auto_minmax(170px,1fr)_auto] max-nav:gap-2.5 max-mob:inset-x-2 max-mob:top-2 max-mob:min-h-24 max-mob:grid-cols-[auto_1fr] max-mob:grid-rows-[34px_42px] max-mob:gap-x-2.5 max-mob:gap-y-[7px] max-mob:rounded-[15px] max-mob:bg-surface/98 max-mob:px-[9px] max-mob:py-[7px] max-mob:backdrop-blur-none">
       <div className="flex min-w-0 items-center gap-[11px]">
         <div className="grid size-[42px] flex-none place-items-center rounded-[13px] bg-teal-dark font-display text-xl font-extrabold leading-none text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,.14)] max-mob:size-8 max-mob:rounded-[10px] max-mob:text-base" aria-hidden="true">R</div>
         <div>
@@ -119,7 +119,7 @@ export function ProductHeader({ market, setMarket, query, setQuery, view, setVie
         {query && <button className="border-0 bg-transparent text-xl text-[#7c8984]" onClick={() => setQuery("")} aria-label="清除搜尋">×</button>}
       </label>
       <div className={cn(
-        "flex min-w-0 items-center justify-end gap-[7px] max-mob:fixed max-mob:inset-x-2 max-mob:bottom-[max(8px,env(safe-area-inset-bottom))] max-mob:z-[60] max-mob:grid max-mob:h-[54px] max-mob:grid-cols-3 max-mob:gap-1.5 max-mob:rounded-[15px] max-mob:border max-mob:border-line/95 max-mob:bg-surface/96 max-mob:p-1.5 max-mob:shadow-[0_8px_30px_rgba(18,47,40,.18)] max-mob:backdrop-blur-[14px] max-tiny:grid-cols-[1.25fr_1fr_1fr]",
+        "flex min-w-0 items-center justify-end gap-[7px] max-mob:fixed max-mob:inset-x-2 max-mob:bottom-[max(8px,env(safe-area-inset-bottom))] max-mob:z-60 max-mob:grid max-mob:h-[54px] max-mob:grid-cols-3 max-mob:gap-1.5 max-mob:rounded-[15px] max-mob:border max-mob:border-line/95 max-mob:bg-surface/96 max-mob:p-1.5 max-mob:shadow-[0_8px_30px_rgba(18,47,40,.18)] max-mob:backdrop-blur-[14px] max-tiny:grid-cols-[1.25fr_1fr_1fr]",
         market === "rental" && "max-mob:grid-cols-1",
       )}>
         <div className="flex rounded-[11px] bg-secondary p-[3px] max-mob:grid max-mob:min-w-0 max-mob:grid-cols-2" role="group" aria-label="檢視模式">
@@ -158,7 +158,7 @@ export function FilterPanel({ open, totalBand, setTotalBand, rooms, setRooms,
   ];
   return (
     <section className={cn(
-      "absolute right-4 top-24 z-[24] w-[min(650px,calc(100vw-32px))] rounded-[17px] border border-line bg-surface/98 p-[18px] shadow-lift transition-[opacity,transform,visibility] duration-[180ms] max-mob:fixed max-mob:inset-x-2 max-mob:bottom-[70px] max-mob:top-auto max-mob:z-[58] max-mob:max-h-[calc(100vh-186px)] max-mob:w-auto max-mob:overflow-y-auto max-mob:rounded-2xl max-mob:p-[15px]",
+      "absolute right-4 top-24 z-24 w-[min(650px,calc(100vw-32px))] rounded-[17px] border border-line bg-surface/98 p-[18px] shadow-lift transition-[opacity,transform,visibility] duration-[180ms] max-mob:fixed max-mob:inset-x-2 max-mob:bottom-[70px] max-mob:top-auto max-mob:z-58 max-mob:max-h-[calc(100vh-186px)] max-mob:w-auto max-mob:overflow-y-auto max-mob:rounded-2xl max-mob:p-[15px]",
       open ? "visible translate-y-0 opacity-100" : "invisible -translate-y-2 opacity-0 max-mob:translate-y-3",
     )} aria-label="建案篩選">
       <div className="mb-[15px] flex items-center justify-between">
@@ -205,7 +205,7 @@ function FilterButton({ on, onClick, tone, children }: {
 
 /* 疊在地圖上的側欄／面板容器 */
 const panelShell = (open: boolean) => cn(
-  "absolute bottom-[22px] left-4 top-[98px] z-20 flex w-[min(390px,calc(100vw-32px))] flex-col overflow-hidden rounded-[18px] border border-line bg-surface/98 shadow-lift transition-[opacity,transform,visibility] duration-200 max-mob:fixed max-mob:inset-x-0 max-mob:bottom-[69px] max-mob:top-28 max-mob:z-[22] max-mob:w-full max-mob:rounded-b-none max-mob:rounded-t-[18px] max-mob:border-x-0 max-mob:border-b-0",
+  "absolute bottom-[22px] left-4 top-[98px] z-20 flex w-[min(390px,calc(100vw-32px))] flex-col overflow-hidden rounded-[18px] border border-line bg-surface/98 shadow-lift transition-[opacity,transform,visibility] duration-200 max-mob:fixed max-mob:inset-x-0 max-mob:bottom-[69px] max-mob:top-28 max-mob:z-22 max-mob:w-full max-mob:rounded-b-none max-mob:rounded-t-[18px] max-mob:border-x-0 max-mob:border-b-0",
   open ? "visible translate-x-0 opacity-100 max-mob:translate-y-0"
     : "invisible -translate-x-[18px] opacity-0 max-mob:translate-x-0 max-mob:translate-y-[18px]",
 );
@@ -311,7 +311,7 @@ export function ComparePanel({ open, saved, onClose, onRemove, onOpen }: {
 }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[70] grid place-items-center bg-[#081c18]/55 p-6 backdrop-blur-sm max-mob:items-end max-mob:p-0"
+    <div className="fixed inset-0 z-70 grid place-items-center bg-[#081c18]/55 p-6 backdrop-blur-sm max-mob:items-end max-mob:p-0"
       role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <section className="max-h-[min(760px,calc(100vh-48px))] w-[min(1020px,100%)] overflow-y-auto rounded-[22px] bg-surface p-6 shadow-[0_28px_90px_rgba(0,0,0,.26)] max-mob:max-h-[88vh] max-mob:w-full max-mob:rounded-b-none max-mob:px-3.5 max-mob:pb-[calc(20px+env(safe-area-inset-bottom))] max-mob:pt-[19px]"
         role="dialog" aria-modal="true" aria-labelledby="compare-title">

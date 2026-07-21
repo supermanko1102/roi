@@ -2,7 +2,7 @@ import { LINE_COLOR } from "@/lib/map-colors";
 import { ROOM_LABEL, type RoomFilter } from "@/lib/rooms";
 import type { MarketMode } from "./product-kit";
 
-const noteCls = "mt-[5px] text-[9px] leading-[1.5] text-ink-soft empty:hidden";
+const noteCls = "mt-[5px] text-[9px] leading-normal text-ink-soft empty:hidden";
 
 // 左下圖例：說明數字口徑與目前篩選；價格不再映射成行政區色階。
 export default function MapLegend({ market, rooms, nearMetro, nearIC, detail, showProjects, showStations }: {

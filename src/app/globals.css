@@ -123,8 +123,9 @@ table.bgrid thead th.bgrid-floor { background: var(--color-surface); }
 .bgrid-cell { position: relative; min-width: 52px; padding: 4px 5px 5px; border-radius: 5px; text-align: center; line-height: 1.25; }
 .bgrid-cell .bgrid-date { display: block; font-size: 8.5px; color: var(--color-ink-soft); }
 .bgrid-cell b { font-size: 12px; color: var(--color-ink); letter-spacing: -.02em; }
-.bgrid-cell.dark .bgrid-date { color: rgba(255,255,255,.75); }
-.bgrid-cell.dark b { color: #fff; }
+/* deep＝深色底的格子（避免與 shadcn 的 .dark 深色模式 class 撞名） */
+.bgrid-cell.deep .bgrid-date { color: rgba(255,255,255,.75); }
+.bgrid-cell.deep b { color: #fff; }
 .bgrid-cell.cancelled { border: 1.5px dashed #b4544a; }
 .bgrid-cell.cancelled b { color: #9c4038; text-decoration: line-through; }
 .bgrid-extra { position: absolute; top: 3px; right: 3px; width: 5px; height: 5px; border-radius: 50%; background: #a87520; }

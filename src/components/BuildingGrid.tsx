@@ -151,7 +151,7 @@ export default function BuildingGrid({ deals }: { deals: GDeal[] }) {
                       ].filter(Boolean).join("・");
                       return (
                         <td key={s}
-                          className={`bgrid-cell${onlyCancelled ? " cancelled" : ""}${c?.dark ? " dark" : ""}`}
+                          className={`bgrid-cell${onlyCancelled ? " cancelled" : ""}${c?.dark ? " deep" : ""}`}
                           style={c ? { background: c.bg } : undefined}
                           title={tip}>
                           <span className="bgrid-date">{rocDate(deal.deal_date)}</span>

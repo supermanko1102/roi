@@ -33,7 +33,7 @@ function Fact({ label, value }: { label: string; value: string | number | null |
   return (
     <div className="min-w-0 rounded-[10px] border border-[#e4e8e5] bg-white p-2.5">
       <span className="mb-1 block text-[9px] text-ink-soft">{label}</span>
-      <b className="num block text-[11px] font-bold [overflow-wrap:anywhere]">{value == null || value === "" ? "—" : value}</b>
+      <b className="num block text-[11px] font-bold wrap-anywhere">{value == null || value === "" ? "—" : value}</b>
     </div>
   );
 }
@@ -73,7 +73,7 @@ export default function ProjectDrawer({ district, name, onClose, saved, onToggle
   const presale = detail?.band === "presale";
 
   return (
-    <aside className="absolute inset-y-0 right-0 z-[55] w-[min(480px,100%)] animate-drawer-in overflow-y-auto bg-surface px-6 pb-8 pt-6 shadow-[-12px_0_50px_rgba(18,47,40,.18)] max-mob:top-auto max-mob:h-[min(84%,760px)] max-mob:w-full max-mob:animate-drawer-up max-mob:rounded-t-[20px] max-mob:px-[18px] max-mob:pb-[88px] max-mob:pt-[25px] max-mob:before:absolute max-mob:before:left-1/2 max-mob:before:top-2 max-mob:before:h-1 max-mob:before:w-[42px] max-mob:before:-translate-x-1/2 max-mob:before:rounded-full max-mob:before:bg-[#ced6d2] max-mob:before:content-[''] max-tiny:px-[15px]"
+    <aside className="absolute inset-y-0 right-0 z-55 w-[min(480px,100%)] animate-drawer-in overflow-y-auto bg-surface px-6 pb-8 pt-6 shadow-[-12px_0_50px_rgba(18,47,40,.18)] max-mob:top-auto max-mob:h-[min(84%,760px)] max-mob:w-full max-mob:animate-drawer-up max-mob:rounded-t-[20px] max-mob:px-[18px] max-mob:pb-[88px] max-mob:pt-[25px] max-mob:before:absolute max-mob:before:left-1/2 max-mob:before:top-2 max-mob:before:h-1 max-mob:before:w-[42px] max-mob:before:-translate-x-1/2 max-mob:before:rounded-full max-mob:before:bg-[#ced6d2] max-mob:before:content-[''] max-tiny:px-[15px]"
       aria-label={`${name}建案資料`}>
       <Button variant="ghost" size="icon-sm" className="absolute right-4 top-4 size-[31px] rounded-full bg-muted text-muted-foreground"
         onClick={onClose} aria-label="關閉">✕</Button>
@@ -81,7 +81,7 @@ export default function ProjectDrawer({ district, name, onClose, saved, onToggle
       {!detail && !err && <div className="py-[50px] text-center text-xs text-ink-soft">載入中…</div>}
       {detail && p && (
         <>
-          <h2 className="my-0.5 mr-[34px] flex flex-wrap items-center gap-[7px] font-display text-[22px] font-bold leading-[1.25] max-mob:text-xl">
+          <h2 className="my-0.5 mr-[34px] flex flex-wrap items-center gap-[7px] font-display text-[22px] font-bold leading-tight max-mob:text-xl">
             <span>{p.name}</span>
             <Badge className={cn(
               "h-auto flex-none rounded-full border-0 bg-[#e7f0ed] px-[9px] py-[3px] font-sans text-[10px] font-extrabold leading-[1.4] text-teal",
@@ -184,7 +184,7 @@ export default function ProjectDrawer({ district, name, onClose, saved, onToggle
             </details>
           )}
 
-          <div className="mt-[18px] border-t border-line pt-[11px] text-[9px] leading-[1.5] text-ink-soft">價格已扣除車位。資料來源：內政部實價登錄。</div>
+          <div className="mt-[18px] border-t border-line pt-[11px] text-[9px] leading-normal text-ink-soft">價格已扣除車位。資料來源：內政部實價登錄。</div>
         </>
       )}
     </aside>
