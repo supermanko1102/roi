@@ -5,6 +5,7 @@ import BuildingGrid, { parseStack } from "./BuildingGrid";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { CITIES, cityDisplay } from "@/lib/cities";
 
 type PDeal = {
   deal_date: string | null; total_price: number | null; area_ping: number | null;
@@ -20,7 +21,8 @@ type PDetail = {
   };
   community: {
     households: number | null; street: string | null; permit_no: string | null;
-    first_reg: string | null; declare_date: string | null; phases: number;
+    first_reg: string | null; declare_date: string | null;
+    use_issue_date: string | null; phases: number;
   } | null;
   band: string;
   build_year: number | null;
@@ -38,8 +40,8 @@ function Fact({ label, value }: { label: string; value: string | number | null |
   );
 }
 
-export default function ProjectDrawer({ district, name, onClose, saved, onToggleSaved }: {
-  district: string; name: string; onClose: () => void;
+export default function ProjectDrawer({ city, district, name, onClose, saved, onToggleSaved }: {
+  city: string; district: string; name: string; onClose: () => void;
   saved: boolean; onToggleSaved: () => void;
 }) {
   const [detail, setDetail] = useState<PDetail | null>(null);
@@ -48,10 +50,10 @@ export default function ProjectDrawer({ district, name, onClose, saved, onToggle
 
   useEffect(() => {
     setDetail(null); setErr(false); setDealView("grid");
-    fetch(`/api/project-detail?district=${encodeURIComponent(district)}&name=${encodeURIComponent(name)}`)
+    fetch(`/api/project-detail?city=${encodeURIComponent(city)}&district=${encodeURIComponent(district)}&name=${encodeURIComponent(name)}`)
       .then((r) => { if (!r.ok) throw 0; return r.json(); })
       .then(setDetail).catch(() => setErr(true));
-  }, [district, name]);
+  }, [city, district, name]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -91,7 +93,7 @@ export default function ProjectDrawer({ district, name, onClose, saved, onToggle
             </Badge>
           </h2>
           <div className="mb-[13px] mt-[5px] text-[11px] leading-[1.6] text-ink-soft">
-            {p.district}
+            {CITIES.length > 1 ? cityDisplay(city) : ""}{p.district}
             {detail.community?.street ? `・${detail.community.street}` : ""}
           </div>
 
@@ -119,7 +121,9 @@ export default function ProjectDrawer({ district, name, onClose, saved, onToggle
             <div className="mt-[9px] grid grid-cols-2 gap-2">
               <Fact label="戶數" value={detail.community?.households ? `${detail.community.households} 戶` : null} />
               <Fact label="建造執照" value={detail.community?.permit_no} />
-              <Fact label="首次登記" value={detail.community?.first_reg} />
+              {detail.community?.use_issue_date
+                ? <Fact label="使照發照" value={detail.community.use_issue_date} />
+                : <Fact label="首次登記" value={detail.community?.first_reg} />}
               <Fact label="申報備查" value={detail.community?.declare_date} />
               <Fact label="成交筆數" value={`${active.length} 筆`} />
               <Fact label="解約筆數" value={`${cancelled.length} 筆`} />

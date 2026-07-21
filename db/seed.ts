@@ -7,7 +7,7 @@
 import { sql, eq, inArray } from "drizzle-orm";
 import { createDb, district_stats, projects, buildings, sale_deals } from "./client";
 
-const DISTRICTS: (typeof district_stats.$inferInsert)[] = [
+const DISTRICTS: Omit<typeof district_stats.$inferInsert, "city">[] = [
   { district: "桃園區", median_unit_price: 43.3, median_rent_ping: 740, est_roi: 2.05, presale_count: 128, rent_samples: 96, is_demo: true },
   { district: "龜山區", median_unit_price: 44.2, median_rent_ping: 865, est_roi: 2.35, presale_count: 87,  rent_samples: 74, is_demo: true },
   { district: "中壢區", median_unit_price: 38.4, median_rent_ping: 672, est_roi: 2.10, presale_count: 143, rent_samples: 88, is_demo: true },
@@ -84,7 +84,7 @@ const PROJECT_SEEDS: ProjSeed[] = [
   { name: "新屋星澄",   district: "新屋區", lat: 24.9660, lng: 121.0925, total: 490, area: 23, rent: 10000, rentN: 3, deals: 6 },
 ];
 
-const PROJECTS: (typeof projects.$inferInsert)[] = PROJECT_SEEDS.map((p) => ({
+const PROJECTS: Omit<typeof projects.$inferInsert, "city">[] = PROJECT_SEEDS.map((p) => ({
   name: p.name, district: p.district, lat: p.lat, lng: p.lng,
   median_total: p.total, median_area: p.area,
   unit_price: +(p.total / p.area * 0.88).toFixed(1),   // 粗估扣車位後單價
@@ -202,7 +202,7 @@ function generateResale() {
         const ds = dateStr(date);
         if (ds > last) last = ds;
         dealRows.push({
-          district: g.district, address: addr_key, addr_key,
+          city: "桃園市", district: g.district, address: addr_key, addr_key,
           deal_date: ds, total_price: total, parking_price,
           area_ping: +(area + parking_area).toFixed(1), parking_area_ping: parking_area,
           main_area_ping: main_area, unit_price: unit,
@@ -211,7 +211,7 @@ function generateResale() {
         });
       }
       bldgRows.push({
-        addr_key, district: g.district, lat, lng,
+        addr_key, city: "桃園市", district: g.district, lat, lng,
         deal_count: nDeals,
         median_unit_price: +median(unitPrices).toFixed(1),
         median_total: Math.round(median(totals)),
@@ -235,8 +235,9 @@ async function main() {
     return;
   }
 
-  await db.insert(district_stats).values(DISTRICTS).onConflictDoNothing();
-  await db.insert(projects).values(PROJECTS).onConflictDoNothing();
+  const DEMO_CITY = "桃園市";
+  await db.insert(district_stats).values(DISTRICTS.map((d) => ({ ...d, city: DEMO_CITY }))).onConflictDoNothing();
+  await db.insert(projects).values(PROJECTS.map((p) => ({ ...p, city: DEMO_CITY }))).onConflictDoNothing();
 
   // 棟級 demo:先清舊 demo 再插,重跑不累積
   const { bldgRows, dealRows } = generateResale();

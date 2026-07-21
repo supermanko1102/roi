@@ -13,6 +13,7 @@ import { type BandFilter } from "@/lib/age";
 import { type RoomFilter } from "@/lib/rooms";
 import { haversineM, geomBbox } from "@/lib/geo";
 import { LINE_COLOR, priceProp } from "@/lib/map-colors";
+import { CITIES, DEFAULT_VIEW } from "@/lib/cities";
 import { addMapIcons } from "@/lib/map-icons";
 import "maplibre-gl/dist/maplibre-gl.css";
 
@@ -29,7 +30,7 @@ const TOTAL_FILTERS: { key: string; label: string; min?: number; max?: number }[
 
 type PresalePopup = {
   lng: number; lat: number;
-  name: string; district: string; deal_count: number;
+  name: string; city: string; district: string; deal_count: number;
   price: number | null; median_total: number | null; median_area: number | null;
   band: string; build_year: number | null;
   cancel_count: number;
@@ -69,15 +70,18 @@ const BASE_STYLE: any = {
 const DETAIL_ZOOM = 12;
 // 重劃區/生活圈先獨立呈現；再放大一級才顯示建案點。
 const POINT_ZOOM = 14;
+// 多城市時全區遠景不塞 54 個區標,先顯示城市級標籤
+const CITY_LABEL_ZOOM = 9.8;
 
 function readInitialView() {
-  if (typeof window === "undefined") return { longitude: 121.25, latitude: 24.94, zoom: 10.3 };
+  if (typeof window === "undefined") return DEFAULT_VIEW;
   const q = new URLSearchParams(location.search);
-  const longitude = +(q.get("lng") ?? 121.25), latitude = +(q.get("lat") ?? 24.94), zoom = +(q.get("z") ?? 10.3);
+  const longitude = +(q.get("lng") ?? DEFAULT_VIEW.longitude), latitude = +(q.get("lat") ?? DEFAULT_VIEW.latitude),
+    zoom = +(q.get("z") ?? DEFAULT_VIEW.zoom);
   return {
-    longitude: Number.isFinite(longitude) ? longitude : 121.25,
-    latitude: Number.isFinite(latitude) ? latitude : 24.94,
-    zoom: Number.isFinite(zoom) ? zoom : 10.3,
+    longitude: Number.isFinite(longitude) ? longitude : DEFAULT_VIEW.longitude,
+    latitude: Number.isFinite(latitude) ? latitude : DEFAULT_VIEW.latitude,
+    zoom: Number.isFinite(zoom) ? zoom : DEFAULT_VIEW.zoom,
   };
 }
 
@@ -101,7 +105,7 @@ export default function PropertyMap() {
   const [rentals, setRentals] = useState<FeatureCollection | null>(null);
   const [rentalPopup, setRentalPopup] = useState<RentalPopup | null>(null);
   const [catalog, setCatalog] = useState<FeatureCollection | null>(null);
-  const [drawerProj, setDrawerProj] = useState<{ district: string; name: string } | null>(null);
+  const [drawerProj, setDrawerProj] = useState<{ city: string; district: string; name: string } | null>(null);
   const [query, setQuery] = useState("");
   const [view, setView] = useState<ViewMode>("map");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -129,13 +133,20 @@ export default function PropertyMap() {
     loadCatalog(initialRooms);
     try {
       const local = JSON.parse(localStorage.getItem("roi-shortlist") ?? "[]");
-      if (Array.isArray(local)) setSaved(local.slice(0, 3));
+      // 多城市之前存的比較清單沒有 city → 一律視為桃園市並重算 key
+      if (Array.isArray(local)) setSaved(local.slice(0, 3).map((p: any) =>
+        p.city ? p : { ...p, city: "桃園市", key: `桃園市|${p.district}|${p.name}` }));
     } catch { /* 忽略損壞的本機偏好 */ }
-    // 深連結:?proj=區|建案名 直接開抽屜(可分享)
+    // 深連結:?proj=城市|區|建案名 直接開抽屜(可分享);舊網址只有 區|建案名 → 桃園市
     const pj = qs.get("proj");
     if (initialMarket === "presale" && pj && pj.includes("|")) {
-      const [district, ...rest] = pj.split("|");
-      setDrawerProj({ district, name: rest.join("|") });
+      const seg = pj.split("|");
+      if (seg.length >= 3) {
+        const [city, district, ...rest] = seg;
+        setDrawerProj({ city, district, name: rest.join("|") });
+      } else {
+        setDrawerProj({ city: "桃園市", district: seg[0], name: seg[1] });
+      }
     }
     setUrlReady(true);
   }, []);
@@ -162,9 +173,9 @@ export default function PropertyMap() {
     for (const [k, v] of Object.entries(set)) v == null ? u.searchParams.delete(k) : u.searchParams.set(k, v);
     history.replaceState(null, "", u);
   }
-  function openProjDrawer(district: string, name: string) {
-    setDrawerProj({ district, name }); setPresalePopup(null);
-    syncUrl({ proj: `${district}|${name}` });
+  function openProjDrawer(city: string, district: string, name: string) {
+    setDrawerProj({ city, district, name }); setPresalePopup(null);
+    syncUrl({ proj: `${city}|${district}|${name}` });
   }
   function closeProjDrawer() {
     setDrawerProj(null);
@@ -263,7 +274,7 @@ export default function PropertyMap() {
   }, [rentals, query]);
   const rentalCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const r of rentalSummaries) counts[r.district] = (counts[r.district] ?? 0) + 1;
+    for (const r of rentalSummaries) counts[`${r.city}|${r.district}`] = (counts[`${r.city}|${r.district}`] ?? 0) + 1;
     return counts;
   }, [rentalSummaries]);
   const activeFilters = +(totalBand !== "all") + +(rooms !== "all") + +nearMetro + +nearIC + +showCancel;
@@ -275,11 +286,15 @@ export default function PropertyMap() {
   }, [points]);
 
   // 標籤放邊界框中心(粗略但夠用;更準可預算 pole of inaccessibility)
+  // key=城市|區名:跨市撞區名(如中正區)時識別用,顯示仍用 name
   const labels = useMemo(() => {
     if (!districts) return [];
     return districts.features.map((f: any) => {
       const [w, s, e, n] = geomBbox(f.geometry);
-      return { name: f.properties.name, lng: (w + e) / 2, lat: (s + n) / 2, props: f.properties };
+      return {
+        key: `${f.properties.city}|${f.properties.name}`,
+        name: f.properties.name, lng: (w + e) / 2, lat: (s + n) / 2, props: f.properties,
+      };
     });
   }, [districts]);
 
@@ -289,6 +304,7 @@ export default function PropertyMap() {
     return zones.features.map((f: any) => {
       const [w, s, e, n] = geomBbox(f.geometry);
       return {
+        key: f.properties.zone_key ?? f.properties.name,
         name: f.properties.name, lng: (w + e) / 2, lat: (s + n) / 2,
         bounds: [[w, s], [e, n]] as [[number, number], [number, number]],
         props: f.properties,
@@ -296,8 +312,8 @@ export default function PropertyMap() {
     });
   }, [zones]);
 
-  function zoomToZone(name: string) {
-    const z = zoneLabels.find((l) => l.name === name);
+  function zoomToZone(zoneKey: string) {
+    const z = zoneLabels.find((l) => l.key === zoneKey);
     if (!z) return;
     loadDetail([z.bounds[0][0], z.bounds[0][1], z.bounds[1][0], z.bounds[1][1]]); // 與飛行動畫並行抓資料
     // 點生活圈直接落在建案層級,不用再手動放大一次;
@@ -327,8 +343,9 @@ export default function PropertyMap() {
   }
 
   // 點行政區 → 縮放到該區;顯示什麼由 zoom 門檻決定,與滾輪放大走同一條路
-  function drill(name: string) {
-    const feat = (districts?.features ?? []).find((f: any) => f.properties.name === name) as any;
+  function drill(key: string) {
+    const feat = (districts?.features ?? [])
+      .find((f: any) => `${f.properties.city}|${f.properties.name}` === key) as any;
     if (!feat) return;
     const [w, s, e, n] = geomBbox(feat.geometry);
     if (market === "presale") loadDetail([w, s, e, n]);
@@ -338,16 +355,19 @@ export default function PropertyMap() {
     if (map && cam) map.easeTo({ ...cam, zoom: Math.max(cam.zoom ?? DETAIL_ZOOM, DETAIL_ZOOM + 0.1), duration: 700 });
   }
   function back() {
-    mapRef.current?.flyTo({ center: [121.25, 24.94], zoom: 10.3, duration: 700 });
+    mapRef.current?.flyTo({
+      center: [DEFAULT_VIEW.longitude, DEFAULT_VIEW.latitude],
+      zoom: DEFAULT_VIEW.zoom, duration: 700,
+    });
   }
 
   function openPoint(f: any) {
     const p = f.properties;
     // 抽屜開著時點別的建案直接切換內容,維持「掃描→查看→再掃描」的節奏
-    if (drawerProj) { openProjDrawer(p.district, p.name); return; }
+    if (drawerProj) { openProjDrawer(p.city, p.district, p.name); return; }
     const [lng, lat] = f.geometry.coordinates;
     setPresalePopup({
-      lng, lat, name: p.name, district: p.district, deal_count: p.deal_count,
+      lng, lat, name: p.name, city: p.city, district: p.district, deal_count: p.deal_count,
       price: p.price ?? null, median_total: p.median_total ?? null,
       median_area: p.median_area ?? null, band: p.band, build_year: p.build_year ?? null,
       cancel_count: p.cancel_count ?? 0,
@@ -373,7 +393,7 @@ export default function PropertyMap() {
   function openSummary(p: ProjectSummary) {
     setCompareOpen(false); setView("map");
     mapRef.current?.flyTo({ center: [p.lng, p.lat], zoom: 15.4, duration: 650 });
-    openProjDrawer(p.district, p.name);
+    openProjDrawer(p.city, p.district, p.name);
   }
 
   function openRentalSummary(r: RentalSummary) {
@@ -506,9 +526,11 @@ export default function PropertyMap() {
           } else if (market === "presale" && (f.layer.id === "pt-circle" || f.layer.id === "pt-pill")) {
             openPoint(f);
           } else if (market === "presale" && f.layer.id === "zone-fill") {
-            zoomToZone((f.properties as any).name);
+            const zp = f.properties as any;
+            zoomToZone(zp.zone_key ?? zp.name);
           } else if (z < DETAIL_ZOOM) {
-            drill((f.properties as any).name);
+            const dp = f.properties as any;
+            drill(`${dp.city}|${dp.name}`);
           }
         }}
         interactiveLayerIds={[
@@ -664,15 +686,27 @@ export default function PropertyMap() {
           </Source>
         )}
 
-        {!detail && labels.map((l) => {
+        {!detail && CITIES.length > 1 && zoom < CITY_LABEL_ZOOM && CITIES.map((c) => (
+          <Marker key={c.name} longitude={c.center[0]} latitude={c.center[1]} anchor="center">
+            <button type="button" className="dlabel"
+              onClick={(e) => {
+                e.stopPropagation();
+                mapRef.current?.flyTo({ center: c.center, zoom: c.zoom, duration: 700 });
+              }}>
+              <span className="dname">{c.display}</span>
+            </button>
+          </Marker>
+        ))}
+
+        {!detail && (CITIES.length === 1 || zoom >= CITY_LABEL_ZOOM) && labels.map((l) => {
           const price = l.props[priceProp(band)];
-          const count = rentalCounts[l.name] ?? 0;
+          const count = rentalCounts[l.key] ?? 0;
           const noData = market === "presale" && price == null;
           return (
-            <Marker key={l.name} longitude={l.lng} latitude={l.lat} anchor="center">
+            <Marker key={l.key} longitude={l.lng} latitude={l.lat} anchor="center">
               <button type="button"
                 className={`dlabel ${noData ? "nodata" : ""}`}
-                onClick={(e) => { e.stopPropagation(); drill(l.name); }}
+                onClick={(e) => { e.stopPropagation(); drill(l.key); }}
               >
                 <span className="dname">{l.name}</span>
                 <span className="dval num">
@@ -686,9 +720,9 @@ export default function PropertyMap() {
         {market === "presale" && zoneLevel && zoneLabels.map((l) => {
           const price = l.props[priceProp(band)];
           return (
-            <Marker key={l.name} longitude={l.lng} latitude={l.lat} anchor="center">
+            <Marker key={l.key} longitude={l.lng} latitude={l.lat} anchor="center">
               <button type="button" className="zlabel"
-                onClick={(e) => { e.stopPropagation(); zoomToZone(l.name); }}
+                onClick={(e) => { e.stopPropagation(); zoomToZone(l.key); }}
                 title={`${l.name}:預售 ${l.props[`n_${band}`] ?? 0} 筆成交`}>
                 <span className="zname">{l.name}</span>
                 <span className="zval num">
@@ -782,7 +816,7 @@ export default function PropertyMap() {
                 <div className="cancelnote">⚠ 本案曾有 {presalePopup.cancel_count} 筆解約(未計入價格統計)</div>
               )}
               <button className="detailbtn"
-                onClick={() => openProjDrawer(presalePopup.district, presalePopup.name)}>
+                onClick={() => openProjDrawer(presalePopup.city, presalePopup.district, presalePopup.name)}>
                 查看基本資料與成交紀錄 →
               </button>
             </div>
@@ -832,24 +866,26 @@ export default function PropertyMap() {
       <ComparePanel open={market === "presale" && compareOpen} saved={saved} onClose={() => setCompareOpen(false)}
         onRemove={toggleSaved} onOpen={openSummary} />
 
-      {drawerProj && <ProjectDrawer district={drawerProj.district} name={drawerProj.name}
+      {drawerProj && <ProjectDrawer city={drawerProj.city} district={drawerProj.district} name={drawerProj.name}
         onClose={closeProjDrawer}
-        saved={saved.some((p) => p.key === `${drawerProj.district}|${drawerProj.name}`)}
+        saved={saved.some((p) => p.key === `${drawerProj.city}|${drawerProj.district}|${drawerProj.name}`)}
         onToggleSaved={() => {
           const found = (enrichPoints(catalog)?.features as any[] | undefined)?.find(
-            (f) => `${f.properties.district}|${f.properties.name}` === `${drawerProj.district}|${drawerProj.name}`);
+            (f) => `${f.properties.city}|${f.properties.district}|${f.properties.name}` ===
+              `${drawerProj.city}|${drawerProj.district}|${drawerProj.name}`);
           if (found) toggleSaved(summaryFromFeature(found));
         }} />}
 
       <MapLegend market={market} rooms={rooms} nearMetro={nearMetro} nearIC={nearIC}
         detail={detail} showProjects={pointsVisible} showStations={stations != null} />
 
-      {detail && <button className="backbtn" onClick={back}>← 返回全市</button>}
+      {detail && <button className="backbtn" onClick={back}>← 返回{CITIES.length > 1 ? "全區" : "全市"}</button>}
       <div className="map-status">
         <strong>{market === "rental" ? rentalSummaries.length : zoneLevel ? "生活圈" : (projectSummaries.length || "—")}</strong>
         <span>{market === "rental"
           ? "棟屋齡 1–10 年出租實登・已排除社宅"
-          : zoneLevel ? "層級・再放大顯示建案" : detail ? "個符合建案" : "個全市建案・點行政區開始探索"}</span>
+          : zoneLevel ? "層級・再放大顯示建案" : detail ? "個符合建案"
+          : `個${CITIES.length > 1 ? "全區" : "全市"}建案・點行政區開始探索`}</span>
       </div>
     </div>
   );

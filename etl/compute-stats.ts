@@ -30,13 +30,13 @@ async function main() {
 
   await db.execute(sql`
     WITH p AS (
-      SELECT district,
+      SELECT city, district,
              percentile_cont(0.5) WITHIN GROUP (ORDER BY unit_price) AS mup,
              count(*) AS pc
-      FROM presale_deals WHERE is_cancelled IS NOT TRUE GROUP BY district
+      FROM presale_deals WHERE is_cancelled IS NOT TRUE GROUP BY city, district
     ),
     r AS (
-      SELECT district,
+      SELECT city, district,
              percentile_cont(0.5) WITHIN GROUP (ORDER BY rent_per_ping) AS mrp,
              count(*) AS rc,
              percentile_cont(0.5) WITHIN GROUP (ORDER BY rent_per_ping) FILTER (WHERE NOT is_social) AS mrp_mkt,
@@ -45,10 +45,10 @@ async function main() {
       WHERE build_year BETWEEN extract(year FROM now()) - ${MAX_RENT_BUILDING_AGE}
                             AND extract(year FROM now()) - ${MIN_RENT_BUILDING_AGE}
         AND (building_type IS NULL OR building_type ~ ${RESIDENTIAL})
-      GROUP BY district
+      GROUP BY city, district
     ),
     sa AS (
-      SELECT district,
+      SELECT city, district,
              percentile_cont(0.5) WITHIN GROUP (ORDER BY unit_price) AS mup_resale,
              count(*) AS sc
       FROM sale_deals
@@ -56,14 +56,14 @@ async function main() {
         AND build_year BETWEEN extract(year FROM now()) - ${MAX_RENT_BUILDING_AGE}
                             AND extract(year FROM now()) - ${MIN_RENT_BUILDING_AGE}
         AND unit_price > 0
-      GROUP BY district
+      GROUP BY city, district
     )
-    INSERT INTO district_stats(district, median_unit_price, median_rent_ping, est_roi,
+    INSERT INTO district_stats(city, district, median_unit_price, median_rent_ping, est_roi,
                                median_rent_ping_market, est_roi_market,
                                median_unit_price_resale, est_roi_resale, est_roi_resale_market,
                                resale_count, presale_premium,
                                presale_count, rent_samples, rent_samples_market, is_demo, updated_at)
-    SELECT p.district, p.mup, r.mrp,
+    SELECT p.city, p.district, p.mup, r.mrp,
            CASE WHEN r.rc >= ${MIN_SAMPLES} AND p.mup > 0
                 THEN round((r.mrp * 12 / (p.mup * 10000) * 100)::numeric, 2) END,
            r.mrp_mkt,
@@ -78,8 +78,8 @@ async function main() {
            CASE WHEN sa.sc >= ${MIN_SAMPLES} AND sa.mup_resale > 0
                 THEN round(((p.mup / sa.mup_resale - 1) * 100)::numeric, 2) END,
            p.pc, coalesce(r.rc, 0), coalesce(r.rc_mkt, 0), false, now()
-    FROM p LEFT JOIN r USING (district) LEFT JOIN sa USING (district)
-    ON CONFLICT (district) DO UPDATE SET
+    FROM p LEFT JOIN r USING (city, district) LEFT JOIN sa USING (city, district)
+    ON CONFLICT (city, district) DO UPDATE SET
       median_unit_price = EXCLUDED.median_unit_price,
       median_rent_ping  = EXCLUDED.median_rent_ping,
       est_roi           = EXCLUDED.est_roi,
@@ -101,13 +101,13 @@ async function main() {
   // 解約件不計入價格/筆數統計,另計 cancel_count 供前端標記
   await db.execute(sql`
     WITH cx AS (
-      SELECT project_name, district, count(*) AS n
-      FROM presale_deals WHERE is_cancelled GROUP BY project_name, district
+      SELECT project_name, city, district, count(*) AS n
+      FROM presale_deals WHERE is_cancelled GROUP BY project_name, city, district
     )
-    INSERT INTO projects(name, district, median_total, median_area, unit_price,
+    INSERT INTO projects(name, city, district, median_total, median_area, unit_price,
                          est_rent, est_roi, est_rent_market, est_roi_market,
                          rent_samples, rent_samples_market, deal_count, cancel_count, is_demo)
-    SELECT d.project_name, d.district,
+    SELECT d.project_name, d.city, d.district,
            percentile_cont(0.5) WITHIN GROUP (ORDER BY d.total_price),
            percentile_cont(0.5) WITHIN GROUP (ORDER BY d.area_ping),
            percentile_cont(0.5) WITHIN GROUP (ORDER BY d.unit_price),
@@ -121,13 +121,13 @@ async function main() {
                      / (percentile_cont(0.5) WITHIN GROUP (ORDER BY d.total_price) * 10000) * 100)::numeric, 2) END,
            s.rent_samples, s.rent_samples_market, count(*), coalesce(max(cx.n), 0), false
     FROM presale_deals d
-    JOIN district_stats s ON s.district = d.district
-    LEFT JOIN cx ON cx.project_name = d.project_name AND cx.district = d.district
+    JOIN district_stats s ON s.city = d.city AND s.district = d.district
+    LEFT JOIN cx ON cx.project_name = d.project_name AND cx.city = d.city AND cx.district = d.district
     WHERE d.project_name IS NOT NULL AND d.project_name <> '' AND d.is_cancelled IS NOT TRUE
-    GROUP BY d.project_name, d.district, s.median_rent_ping, s.rent_samples,
+    GROUP BY d.project_name, d.city, d.district, s.median_rent_ping, s.rent_samples,
              s.median_rent_ping_market, s.rent_samples_market
     HAVING count(*) >= 3
-    ON CONFLICT (name, district) DO UPDATE SET
+    ON CONFLICT (city, name, district) DO UPDATE SET
       median_total = EXCLUDED.median_total,
       median_area  = EXCLUDED.median_area,
       unit_price   = EXCLUDED.unit_price,
@@ -146,9 +146,9 @@ async function main() {
   if (realSales > 0) {
     await db.delete(buildings);
     await db.execute(sql`
-      INSERT INTO buildings(addr_key, district, lat, lng, deal_count,
+      INSERT INTO buildings(addr_key, city, district, lat, lng, deal_count,
                             median_unit_price, median_total, building_type, build_year, last_deal)
-      SELECT s.addr_key, min(s.district), g.lat, g.lng, count(*),
+      SELECT s.addr_key, min(s.city), min(s.district), g.lat, g.lng, count(*),
              percentile_cont(0.5) WITHIN GROUP (ORDER BY s.unit_price),
              percentile_cont(0.5) WITHIN GROUP (ORDER BY s.total_price),
              mode() WITHIN GROUP (ORDER BY s.building_type),
@@ -178,7 +178,7 @@ async function main() {
   `);
   await db.execute(sql`
     INSERT INTO room_stats(kind, key, room_band, deal_count, median_unit_price, median_total)
-    SELECT 'presale', d.district || '|' || d.project_name,
+    SELECT 'presale', d.city || '|' || d.district || '|' || d.project_name,
            CASE WHEN d.rooms <= 1 THEN '1' WHEN d.rooms = 2 THEN '2'
                 WHEN d.rooms = 3 THEN '3' ELSE '4p' END AS band,
            count(*),
@@ -187,7 +187,7 @@ async function main() {
     FROM presale_deals d
     WHERE d.project_name IS NOT NULL AND d.project_name <> ''
       AND d.is_cancelled IS NOT TRUE AND d.rooms IS NOT NULL AND d.unit_price > 0
-    GROUP BY d.district || '|' || d.project_name, band;
+    GROUP BY d.city || '|' || d.district || '|' || d.project_name, band;
   `);
 
   // 有真資料後把 demo 清掉

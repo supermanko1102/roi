@@ -4,7 +4,7 @@
  *   門牌型:中園路198號(可含 …號旁/對面/之鄰地 等尾綴)→ 直接查門牌
  *   路口型:春日路與青溪二路、春日路青溪二路路口 → 雙向查詢確切交叉路口
  *   路段型:中豐北路一段上/興北一路附近等 → 不產生假座標,標記 none
- * 結果寫回 projects.lat/lng,並以 proj|區|地址 為鍵快取到 geocode_cache;
+ * 結果寫回 projects.lat/lng,並以 proj|城市|區|地址 為鍵快取到 geocode_cache;
  * compute-stats 重建 projects 會清掉座標,重跑本script走快取即時回填。
  * 用法:tsx etl/geocode-projects.ts [--limit 50] [--concurrency 4]
  *      tsx etl/geocode-projects.ts --project 建案名 --refresh
@@ -38,8 +38,8 @@ async function query(text: string): Promise<Item[]> {
 
 type LocatedSite = { lat: number; lng: number; precision: "door" | "cross" };
 
-async function locate(district: string, raw: string): Promise<LocatedSite | null> {
-  const p = parseSiteAddress(district, raw);
+async function locate(city: string, district: string, raw: string): Promise<LocatedSite | null> {
+  const p = parseSiteAddress(city, district, raw);
   if (!p) return null;
   // 只有路名不足以代表建案位置；寧可不顯示，也不再偽裝成精確座標。
   if (p.kind === "road") return null;
@@ -74,10 +74,10 @@ async function main() {
 
   // 代表地址:該建案預售交易中最常見的工地位置
   const base = db.select({
-    id: projects.id, name: projects.name, district: projects.district,
+    id: projects.id, name: projects.name, city: projects.city, district: projects.district,
     address: sql<string | null>`(
       SELECT mode() WITHIN GROUP (ORDER BY d.address) FROM presale_deals d
-      WHERE d.project_name = ${projects.name} AND d.district = ${projects.district}
+      WHERE d.project_name = ${projects.name} AND d.city = ${projects.city} AND d.district = ${projects.district}
         AND d.address IS NOT NULL
     )`,
   }).from(projects)
@@ -90,10 +90,10 @@ async function main() {
     while (true) {
       const i = next++;
       if (i >= rows.length) return;
-      const { id, district, address } = rows[i];
+      const { id, city, district, address } = rows[i];
       done++;
       if (!address) { miss++; continue; }
-      const cacheKey = `proj|${district}|${address}`;
+      const cacheKey = `proj|${city}|${district}|${address}`;
       try {
         const [c] = await db.select().from(geocode_cache).where(eq(geocode_cache.addr_key, cacheKey));
         const cacheIsPrecise = c?.precision === "door" || c?.precision === "cross";
@@ -105,7 +105,7 @@ async function main() {
         }
         if (loc) cached++;
         else {
-          loc = await locate(district, address);
+          loc = await locate(city, district, address);
           await db.insert(geocode_cache).values({
             addr_key: cacheKey, lat: loc?.lat, lng: loc?.lng,
             precision: loc?.precision ?? "none",

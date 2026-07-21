@@ -1,0 +1,1 @@
+ALTER TABLE "communities" ADD COLUMN "use_issue_date" date;

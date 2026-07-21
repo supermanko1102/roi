@@ -1,19 +1,20 @@
 /**
- * 下載內政部實價登錄整批資料(桃園)
- * 資料源:https://plvr.land.moi.gov.tw
+ * 下載內政部實價登錄整批資料(城市清單見 src/lib/cities)
+ * 資料源:https://plvr.land.moi.gov.tw(全國一包 zip,依檔名前綴挑城市)
  * 用法:
  *   tsx etl/download-lvr.ts              # 最新一期
  *   tsx etl/download-lvr.ts 114S4 115S1  # 指定季別(民國年S季)
- * 產出:etl/downloads/{season}/h_lvr_land_b.csv(桃園預售)、h_lvr_land_c.csv(桃園租賃)
+ * 產出:etl/downloads/{season}/{code}_lvr_land_{a|b|c|a_land}.csv
  */
 import fs from "node:fs";
 import path from "node:path";
 import AdmZip from "adm-zip";
+import { CITIES } from "../src/lib/cities";
 
 const OUT = path.join(import.meta.dirname, "downloads");
-// h = 桃園市;要擴市就加代碼(a台北 f新北 b台中 e高雄...)
 // a=中古買賣 b=預售 c=租賃;a_land=買賣交易的坐落地號(社區歸戶用)
-const WANTED = ["h_lvr_land_a.csv", "h_lvr_land_b.csv", "h_lvr_land_c.csv", "h_lvr_land_a_land.csv"];
+const KINDS = ["a", "b", "c", "a_land"];
+const wantedFor = (code: string) => KINDS.map((k) => `${code}_lvr_land_${k}.csv`);
 
 /**
  * 每旬(1/11/21)發布上一旬的登錄;季界在 2/11、5/11、8/11、11/11。
@@ -58,15 +59,24 @@ async function download(season: string | null, label = season ?? "latest") {
   }
   const dir = path.join(OUT, label);
   fs.mkdirSync(dir, { recursive: true });
-  let hit = 0;
+  const hits = new Map(CITIES.map((c) => [c.code, 0]));
+  const wanted = new Map(CITIES.flatMap((c) => wantedFor(c.code).map((f) => [f, c.code] as const)));
   for (const entry of zip.getEntries()) {
-    if (WANTED.includes(entry.entryName.toLowerCase())) {
-      fs.writeFileSync(path.join(dir, entry.entryName.toLowerCase()), entry.getData());
-      console.log(`  saved ${entry.entryName} (${(entry.header.size / 1024).toFixed(0)} KB)`);
-      hit++;
+    const name = entry.entryName.toLowerCase();
+    const code = wanted.get(name);
+    if (code != null) {
+      fs.writeFileSync(path.join(dir, name), entry.getData());
+      console.log(`  saved ${name} (${(entry.header.size / 1024).toFixed(0)} KB)`);
+      hits.set(code, (hits.get(code) ?? 0) + 1);
     }
   }
-  if (!hit) console.warn("  找不到桃園檔案,zip 內容:", zip.getEntries().map(e => e.entryName).slice(0, 20));
+  // 缺檔不能靜默:某城市整組沒抓到通常是代碼寫錯或該期未含該市
+  for (const c of CITIES) {
+    if (!hits.get(c.code)) {
+      console.warn(`  [warn] ${label} 找不到${c.name}(${c.code}_*)檔案,zip 內容:`,
+        zip.getEntries().map((e) => e.entryName).slice(0, 20));
+    }
+  }
 }
 
 const seasons = process.argv.slice(2);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { MIN_RENT_BUILDING_AGE, MAX_RENT_BUILDING_AGE } from "@/lib/rent";
+import { cityPrefixRe } from "@/lib/cities";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
 
   const result = await db.execute(sql`
     WITH rental_base AS (
-      SELECT DISTINCT r.addr_key, r.district, r.address, r.deal_date,
+      SELECT DISTINCT r.addr_key, r.city, r.district, r.address, r.deal_date,
              r.monthly_rent, r.housing_rent, r.parking_rent, r.area_ping, r.rent_per_ping,
              r.build_year, r.building_type
       FROM rent_deals r
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest) {
         AND r.area_ping BETWEEN 3 AND 200
         AND r.rent_per_ping BETWEEN 150 AND 5000
     )
-    SELECT r.addr_key, min(r.district) AS district,
+    SELECT r.addr_key, min(r.city) AS city, min(r.district) AS district,
            g.lng, g.lat, max(c.name) AS community_name,
            max(r.build_year)::int AS build_year,
            mode() WITHIN GROUP (ORDER BY r.building_type) AS building_type,
@@ -72,9 +73,10 @@ export async function GET(req: NextRequest) {
       properties: {
         key: row.addr_key,
         name: row.community_name ?? null,
+        city: row.city,
         district: row.district,
         // 只顯示棟級門牌，不公開樓層或室號。
-        address: String(row.addr_key).replace(/^桃園市/, ""),
+        address: String(row.addr_key).replace(cityPrefixRe, ""),
         building_type: row.building_type,
         build_year: row.build_year,
         age: Math.max(0, currentYear - row.build_year),

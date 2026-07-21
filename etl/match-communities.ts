@@ -25,19 +25,22 @@ import { sql } from "drizzle-orm";
 import {
   createDb, communities, physical_communities, community_cases, building_community,
 } from "../db/client";
+import { CITIES } from "../src/lib/cities";
+import { normAddrKey, normPermitNo } from "./addr";
 
 const DL = path.join(import.meta.dirname, "downloads");
 const CASE_DIR = path.join(DL, "buildcase");
 const CASE_ZIP_URL = "https://plvr.land.moi.gov.tw/Download?type=zip&PayType=saleremark&fileName=lvr_buildcasecsv.zip";
-const CASE_FILES = ["h_lvr_buildcase.csv", "h_lvr_buildingland.csv"];
+const caseFilesFor = (code: string) => [`${code}_lvr_buildcase.csv`, `${code}_lvr_buildingland.csv`];
+const ALL_CASE_FILES = CITIES.flatMap((c) => caseFilesFor(c.code));
 const MAX_YEAR_GAP = 4;
 const BATCH = 500;
 
 const entityKey = (c: typeof communities.$inferInsert) => {
   const name = c.name.normalize("NFKC").replace(/[\s‐‑–—－-]/g, "").toLowerCase();
-  // 同一實體社區可能分期、分建照備查；使用「行政區＋標準化建案名」作主實體鍵，
+  // 同一實體社區可能分期、分建照備查；使用「城市＋行政區＋標準化建案名」作主實體鍵，
   // 建照留作來源欄位，避免一個社區因不同建照被拆成多個實體。
-  return `${c.district}|name:${name}`;
+  return `${c.city}|${c.district}|name:${name}`;
 };
 
 const rocDate = (s?: string): string | null => {
@@ -68,7 +71,7 @@ function parseParcelCode(code: string): string | null {
 }
 
 async function ensureCaseFiles(refresh: boolean) {
-  if (!refresh && CASE_FILES.every((f) => fs.existsSync(path.join(CASE_DIR, f)))) return;
+  if (!refresh && ALL_CASE_FILES.every((f) => fs.existsSync(path.join(CASE_DIR, f)))) return;
   console.log(`[communities] 下載建案備查 <- ${CASE_ZIP_URL}`);
   const res = await fetch(CASE_ZIP_URL, {
     headers: { "User-Agent": "Mozilla/5.0", Referer: "https://plvr.land.moi.gov.tw/DownloadOpenData" },
@@ -78,7 +81,13 @@ async function ensureCaseFiles(refresh: boolean) {
   fs.mkdirSync(CASE_DIR, { recursive: true });
   for (const entry of zip.getEntries()) {
     const name = entry.entryName.toLowerCase();
-    if (CASE_FILES.includes(name)) fs.writeFileSync(path.join(CASE_DIR, name), entry.getData());
+    if (ALL_CASE_FILES.includes(name)) fs.writeFileSync(path.join(CASE_DIR, name), entry.getData());
+  }
+  // 備查 zip 是否含各市檔案要在這裡驗證(缺檔不能靜默)
+  for (const c of CITIES) {
+    for (const f of caseFilesFor(c.code)) {
+      if (!fs.existsSync(path.join(CASE_DIR, f))) console.warn(`  [warn] 備查 zip 缺 ${f}(${c.name})`);
+    }
   }
 }
 
@@ -87,71 +96,97 @@ async function main() {
   await ensureCaseFiles(refresh);
   const { db, pool } = createDb();
 
-  // ---- 建案側:case → 基本資料 + 地號集合 ----
+  // ---- 使照:建照號碼(正規化)→ 最早發照日(先跑 etl:use-permits;無資料的城市 map 為空) ----
+  const permitIssue = new Map<string, string>();
+  {
+    const { rows } = await db.execute(sql`
+      SELECT city, permit_no_norm, min(issue_date) AS issue_date FROM use_permits
+      WHERE permit_no_norm IS NOT NULL AND issue_date IS NOT NULL
+      GROUP BY city, permit_no_norm`);
+    for (const r of rows as { city: string; permit_no_norm: string; issue_date: string }[])
+      permitIssue.set(`${r.city}|${r.permit_no_norm}`, String(r.issue_date).slice(0, 10));
+    if (permitIssue.size) console.log(`[communities] 使照 ${permitIssue.size} 個建照號碼可供屋齡判定`);
+  }
+
+  // ---- 建案側:case → 基本資料 + 地號集合(逐城市) ----
   type CaseInfo = typeof communities.$inferInsert;
   const cases = new Map<string, CaseInfo>();
-  {
-    const [h, ...rows] = readCsv(path.join(CASE_DIR, "h_lvr_buildcase.csv"));
-    const iDist = col(h, "鄉鎮市區"), iName = col(h, "建案名稱"), iStreet = col(h, "坐落街道");
-    const iHh = col(h, "層棟戶數"), iPermit = col(h, "建造執照"), iReg = col(h, "第1次登記");
-    const iDecl = col(h, "申報備查"), iNo = col(h, "編號");
-    for (const r of rows) {
-      const case_no = r[iNo]?.trim();
-      if (!case_no || !r[iName]) continue;
-      const hhm = (r[iHh] ?? "").match(/(\d+)戶/) ?? (r[iHh] ?? "").match(/^(\d+)$/);
-      cases.set(case_no, {
-        case_no, name: r[iName].trim(), district: r[iDist],
-        households: hhm ? +hhm[1] : null,
-        street: r[iStreet] || null, permit_no: r[iPermit] || null,
-        first_reg: rocDate(r[iReg]), declare_date: rocDate(r[iDecl]),
-      });
-    }
-  }
   const parcelToCases = new Map<string, string[]>();
-  {
-    const [h, ...rows] = readCsv(path.join(CASE_DIR, "h_lvr_buildingland.csv"));
-    const iNo = col(h, "編號"), iLand = col(h, "土地位置");
-    for (const r of rows) {
-      const c = cases.get(r[iNo]?.trim());
-      const p = parseParcelText(r[iLand] ?? "");
-      if (!c || !p) continue;
-      const key = `${c.district}|${p.sec}|${p.no}`;
-      (parcelToCases.get(key) ?? parcelToCases.set(key, []).get(key)!).push(c.case_no);
+  for (const city of CITIES) {
+    const caseFile = path.join(CASE_DIR, `${city.code}_lvr_buildcase.csv`);
+    const landCaseFile = path.join(CASE_DIR, `${city.code}_lvr_buildingland.csv`);
+    if (!fs.existsSync(caseFile) || !fs.existsSync(landCaseFile)) continue;
+    {
+      const [h, ...rows] = readCsv(caseFile);
+      const iDist = col(h, "鄉鎮市區"), iName = col(h, "建案名稱"), iStreet = col(h, "坐落街道");
+      const iHh = col(h, "層棟戶數"), iPermit = col(h, "建造執照"), iReg = col(h, "第1次登記");
+      const iDecl = col(h, "申報備查"), iNo = col(h, "編號");
+      for (const r of rows) {
+        const case_no = r[iNo]?.trim();
+        if (!case_no || !r[iName]) continue;
+        const hhm = (r[iHh] ?? "").match(/(\d+)戶/) ?? (r[iHh] ?? "").match(/^(\d+)$/);
+        const permitNo = r[iPermit] || null;
+        const permitNorm = normPermitNo(permitNo);
+        cases.set(case_no, {
+          case_no, name: r[iName].trim(), city: city.name, district: r[iDist],
+          households: hhm ? +hhm[1] : null,
+          street: r[iStreet] || null, permit_no: permitNo,
+          first_reg: rocDate(r[iReg]), declare_date: rocDate(r[iDecl]),
+          use_issue_date: permitNorm ? permitIssue.get(`${city.name}|${permitNorm}`) ?? null : null,
+        });
+      }
+    }
+    {
+      const [h, ...rows] = readCsv(landCaseFile);
+      const iNo = col(h, "編號"), iLand = col(h, "土地位置");
+      for (const r of rows) {
+        const c = cases.get(r[iNo]?.trim());
+        const p = parseParcelText(r[iLand] ?? "");
+        if (!c || !p) continue;
+        const key = `${c.city}|${c.district}|${p.sec}|${p.no}`;
+        (parcelToCases.get(key) ?? parcelToCases.set(key, []).get(key)!).push(c.case_no);
+      }
     }
   }
 
-  // ---- 交易側:addr_key → 地號集合(掃所有期別) ----
+  // ---- 交易側:addr_key → 地號集合(掃所有期別 × 城市) ----
   const addrParcels = new Map<string, Set<string>>();
   let seasonsUsed = 0;
   for (const season of fs.readdirSync(DL)) {
-    const aFile = path.join(DL, season, "h_lvr_land_a.csv");
-    const landFile = path.join(DL, season, "h_lvr_land_a_land.csv");
-    if (!fs.existsSync(aFile) || !fs.existsSync(landFile)) {
-      if (fs.existsSync(aFile)) console.warn(`  [warn] ${season} 缺 a_land.csv,先 pnpm etl:download ${season} 補齊`);
-      continue;
-    }
-    seasonsUsed++;
-    const serials = new Map<string, { addr_key: string; district: string }>();
-    {
-      const [h, ...rows] = readCsv(aFile);
-      const iDist = col(h, "鄉鎮市區"), iAddr = col(h, "土地位置"), iNo = col(h, "編號");
+    if (season === "buildcase") continue;
+    let seasonHasData = false;
+    for (const city of CITIES) {
+      const aFile = path.join(DL, season, `${city.code}_lvr_land_a.csv`);
+      const landFile = path.join(DL, season, `${city.code}_lvr_land_a_land.csv`);
+      if (!fs.existsSync(aFile) || !fs.existsSync(landFile)) {
+        if (fs.existsSync(aFile)) console.warn(`  [warn] ${season} 缺 ${city.code}_…a_land.csv,先 pnpm etl:download ${season} 補齊`);
+        continue;
+      }
+      seasonHasData = true;
+      const serials = new Map<string, { addr_key: string; district: string }>();
+      {
+        const [h, ...rows] = readCsv(aFile);
+        const iDist = col(h, "鄉鎮市區"), iAddr = col(h, "土地位置"), iNo = col(h, "編號");
+        for (const r of rows) {
+          const addr = r[iAddr] ?? "";
+          // 純土地交易的位置是「○○段690地號」,不是門牌,跳過
+          if (!addr.includes("號") || /地號/.test(addr) || !r[iNo]) continue;
+          const addrKey = normAddrKey(city, r[iDist], addr);
+          if (addrKey) serials.set(r[iNo], { addr_key: addrKey, district: r[iDist] });
+        }
+      }
+      const [h, ...rows] = readCsv(landFile);
+      const iNo = col(h, "編號"), iSec = col(h, "土地位置"), iCode = col(h, "地號");
       for (const r of rows) {
-        const addr = r[iAddr] ?? "";
-        // 純土地交易的位置是「○○段690地號」,不是門牌,跳過
-        if (!addr.includes("號") || /地號/.test(addr) || !r[iNo]) continue;
-        serials.set(r[iNo], { addr_key: addr.replace(/號.*$/, "號"), district: r[iDist] });
+        const s = serials.get(r[iNo]);
+        const sec = (r[iSec] ?? "").trim();
+        const no = parseParcelCode(r[iCode] ?? "");
+        if (!s || !sec.endsWith("段") || !no) continue;
+        const key = `${city.name}|${s.district}|${sec}|${no}`;
+        (addrParcels.get(s.addr_key) ?? addrParcels.set(s.addr_key, new Set()).get(s.addr_key)!).add(key);
       }
     }
-    const [h, ...rows] = readCsv(landFile);
-    const iNo = col(h, "編號"), iSec = col(h, "土地位置"), iCode = col(h, "地號");
-    for (const r of rows) {
-      const s = serials.get(r[iNo]);
-      const sec = (r[iSec] ?? "").trim();
-      const no = parseParcelCode(r[iCode] ?? "");
-      if (!s || !sec.endsWith("段") || !no) continue;
-      const key = `${s.district}|${sec}|${no}`;
-      (addrParcels.get(s.addr_key) ?? addrParcels.set(s.addr_key, new Set()).get(s.addr_key)!).add(key);
-    }
+    if (seasonHasData) seasonsUsed++;
   }
   console.log(`[communities] 建案 ${cases.size} 個(${parcelToCases.size} 筆地號)、` +
     `門牌 ${addrParcels.size} 個(掃 ${seasonsUsed} 期)`);
@@ -177,20 +212,23 @@ async function main() {
     if (best) assignments.push({ addr_key, case_no: best[0], matched_parcels: best[1] });
   }
 
-  // ---- 實體社區:同區標準化建案名歸併，容納分期與不同建照 ----
+  // ---- 實體社區:同市同區標準化建案名歸併，容納分期與不同建照 ----
   const entityDefs = new Map<string, {
-    name: string; district: string; permit_no: string | null; caseNos: string[];
-    years: number[]; lats: number[]; lngs: number[];
+    name: string; city: string; district: string; permit_no: string | null; caseNos: string[];
+    years: number[]; permitYears: number[]; lats: number[]; lngs: number[];
   }>();
   for (const c of cases.values()) {
     const key = entityKey(c);
     const e = entityDefs.get(key) ?? {
-      name: c.name, district: c.district, permit_no: c.permit_no ?? null,
-      caseNos: [], years: [], lats: [], lngs: [],
+      name: c.name, city: c.city, district: c.district, permit_no: c.permit_no ?? null,
+      caseNos: [], years: [], permitYears: [], lats: [], lngs: [],
     };
     e.caseNos.push(c.case_no);
     const y = c.first_reg ? +c.first_reg.slice(0, 4) : null;
     if (y) e.years.push(y);
+    // 使照發照年:比首次登記更接近實際完工,有就優先
+    const py = c.use_issue_date ? +String(c.use_issue_date).slice(0, 4) : null;
+    if (py) e.permitYears.push(py);
     entityDefs.set(key, e);
   }
   for (const a of assignments) {
@@ -212,8 +250,9 @@ async function main() {
   const entityId = new Map<string, number>();
   for (const [key, e] of entityDefs) {
     const [row] = await db.insert(physical_communities).values({
-      name: e.name, district: e.district, permit_no: e.permit_no,
-      build_year: e.years.length ? Math.max(...e.years) : null,
+      name: e.name, city: e.city, district: e.district, permit_no: e.permit_no,
+      build_year: e.permitYears.length ? Math.max(...e.permitYears)
+        : e.years.length ? Math.max(...e.years) : null,
       lat: e.lats.length ? e.lats.reduce((a, b) => a + b, 0) / e.lats.length : null,
       lng: e.lngs.length ? e.lngs.reduce((a, b) => a + b, 0) / e.lngs.length : null,
     }).returning({ id: physical_communities.id });

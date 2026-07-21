@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { RoomFilter } from "@/lib/rooms";
+import { CITIES, cityDisplay } from "@/lib/cities";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -11,6 +12,7 @@ export type MarketMode = "presale" | "rental";
 export type ProjectSummary = {
   key: string;
   name: string;
+  city: string;
   district: string;
   lng: number;
   lat: number;
@@ -25,6 +27,7 @@ export type ProjectSummary = {
 export type RentalSummary = {
   key: string;
   name: string | null;
+  city: string;
   district: string;
   address: string;
   buildingType: string;
@@ -43,8 +46,9 @@ export type RentalSummary = {
 export function summaryFromFeature(f: any): ProjectSummary {
   const p = f.properties;
   return {
-    key: `${p.district}|${p.name}`,
+    key: `${p.city}|${p.district}|${p.name}`,
     name: p.name,
+    city: p.city,
     district: p.district,
     lng: +f.geometry.coordinates[0],
     lat: +f.geometry.coordinates[1],
@@ -62,6 +66,7 @@ export function rentalSummaryFromFeature(f: any): RentalSummary {
   return {
     key: p.key,
     name: p.name ?? null,
+    city: p.city,
     district: p.district,
     address: p.address,
     buildingType: p.building_type,
@@ -223,8 +228,12 @@ function EmptyState({ title, hint, large }: { title: string; hint: string; large
   );
 }
 
-function DistrictBadge({ children }: { children: ReactNode }) {
-  return <Badge variant="secondary" className="h-auto flex-none rounded-full border-0 bg-muted px-[7px] py-0.5 text-[9.5px] font-normal text-muted-foreground">{children}</Badge>;
+function DistrictBadge({ city, children }: { city?: string; children: ReactNode }) {
+  return (
+    <Badge variant="secondary" className="h-auto flex-none rounded-full border-0 bg-muted px-[7px] py-0.5 text-[9.5px] font-normal text-muted-foreground">
+      {city && CITIES.length > 1 ? `${cityDisplay(city)}・` : ""}{children}
+    </Badge>
+  );
 }
 
 export function ResultsPanel({ open, projects, totalCount, saved, onOpen, onToggleSaved }: {
@@ -245,7 +254,7 @@ export function ResultsPanel({ open, projects, totalCount, saved, onOpen, onTogg
             <button className="group w-full border-0 bg-transparent py-3.5 pl-2 pr-10 text-left" onClick={() => onOpen(p)}>
               <div className="flex items-center gap-2">
                 <strong className="truncate text-sm transition-colors duration-150 group-hover:text-teal">{p.name}</strong>
-                <DistrictBadge>{p.district}</DistrictBadge>
+                <DistrictBadge city={p.city}>{p.district}</DistrictBadge>
               </div>
               <div className="mt-2 flex items-baseline gap-2.5">
                 <b className="num text-[17px] text-ink">{money(p.total)}</b>
@@ -283,7 +292,7 @@ export function RentalResultsPanel({ open, rentals, totalCount, onOpen }: {
             <button className="group w-full border-0 bg-transparent px-2 py-3.5 text-left" onClick={() => onOpen(r)}>
               <div className="flex items-center gap-2">
                 <strong className="truncate text-sm transition-colors duration-150 group-hover:text-teal">{r.name ?? r.address}</strong>
-                <DistrictBadge>{r.district}</DistrictBadge>
+                <DistrictBadge city={r.city}>{r.district}</DistrictBadge>
               </div>
               {r.name && <div className="mt-[5px] truncate text-[10px] text-ink-soft">{r.address}</div>}
               <div className="mt-2 flex items-baseline gap-2.5">

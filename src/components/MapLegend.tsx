@@ -1,5 +1,6 @@
 import { LINE_COLOR } from "@/lib/map-colors";
 import { ROOM_LABEL, type RoomFilter } from "@/lib/rooms";
+import { CITIES } from "@/lib/cities";
 import type { MarketMode } from "./product-kit";
 
 const noteCls = "mt-[5px] text-[9px] leading-normal text-ink-soft empty:hidden";
@@ -24,14 +25,17 @@ export default function MapLegend({ market, rooms, nearMetro, nearIC, detail, sh
           market === "presale" && nearIC ? "只顯示 2 公里內有交流道的建案" : null,
         ].filter(Boolean).join("・")}
       </div>
-      {detail && showStations && (
+      {detail && showStations && (CITIES.length > 1 ? (
+        // 多城市線太多逐條列不下:通用說明,顏色跟站點小圓點一致
+        <div className={noteCls}>● 車站(依路線色) ○ 施工中路線 <span style={{ color: "#37474f" }}>◆</span> 交流道</div>
+      ) : (
         <div className={noteCls}>
           <span style={{ color: LINE_COLOR["機場捷運"] }}>●</span> 機捷{" "}
           <span style={{ color: LINE_COLOR["台鐵"] }}>●</span> 台鐵{" "}
           <span style={{ color: LINE_COLOR["桃園捷運綠線"] }}>○</span> 綠線(施工中){" "}
           <span style={{ color: "#37474f" }}>◆</span> 交流道
         </div>
-      )}
+      ))}
     </div>
   );
 }

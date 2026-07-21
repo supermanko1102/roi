@@ -4,6 +4,7 @@ import path from "node:path";
 import { loadUnifiedPoints, type UnifiedPoint } from "@/lib/points";
 import { AGE_BANDS } from "@/lib/age";
 import { makeContains } from "@/lib/geo";
+import { CITY_NAMES } from "@/lib/cities";
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +29,9 @@ function bandStats(pts: UnifiedPoint[]) {
 }
 
 export async function GET() {
-  const geoPath = path.join(process.cwd(), "data", "taoyuan-zones.geojson");
+  const geoPath = path.join(process.cwd(), "data", "zones.geojson");
   const geo = JSON.parse(fs.readFileSync(geoPath, "utf-8"));
+  geo.features = geo.features.filter((f: any) => CITY_NAMES.includes(f.properties.city));
 
   const points = await loadUnifiedPoints();
 

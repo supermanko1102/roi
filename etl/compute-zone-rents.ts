@@ -13,8 +13,9 @@ import path from "node:path";
 import { sql } from "drizzle-orm";
 import { createDb, zone_stats } from "../db/client";
 import { MIN_RENT_BUILDING_AGE, MAX_RENT_BUILDING_AGE } from "../src/lib/rent";
+import { cityPrefixRe } from "../src/lib/cities";
 
-const ZONES = path.join(import.meta.dirname, "..", "data", "taoyuan-zones.geojson");
+const ZONES = path.join(import.meta.dirname, "..", "data", "zones.geojson");
 const RESIDENTIAL = /^(住宅大樓|華廈|透天厝|公寓|套房)/;
 const VOTE_SHARE = 0.6, VOTE_MIN = 3;
 
@@ -44,12 +45,13 @@ function makeContains(geom: any) {
   };
 }
 
-// 「桃園市中壢區環北路３９８號」→ 區|街(段) 與 區|街(段)|巷(門牌是全形數字)
+// 「桃園市中壢區環北路３９８號」→ 市|區|街(段) 與 市|區|街(段)|巷(門牌是全形數字)
+const streetRe = new RegExp(`${cityPrefixRe.source}([^區]+區)(.+?(?:路|街|大道)(?:[一二三四五六七八九十]段)?)`);
 function streetKeys(addr: string): { street: string | null; lane: string | null } {
-  const m = addr.match(/^桃園市([^區]+區)(.+?(?:路|街|大道)(?:[一二三四五六七八九十]段)?)/);
+  const m = addr.match(streetRe);
   if (!m) return { street: null, lane: null };
   const lane = addr.match(/([0-9０-９]+巷)/);
-  return { street: `${m[1]}|${m[2]}`, lane: lane ? `${m[1]}|${m[2]}|${lane[1]}` : null };
+  return { street: `${m[1]}|${m[2]}|${m[3]}`, lane: lane ? `${m[1]}|${m[2]}|${m[3]}|${lane[1]}` : null };
 }
 const median = (xs: number[]) => {
   const s = [...xs].sort((a, b) => a - b), m = s.length >> 1;
@@ -58,15 +60,19 @@ const median = (xs: number[]) => {
 
 async function main() {
   const { db, pool } = createDb();
+  // 生活圈檔可帶 city property(Phase 3 合併多市檔);桃園舊檔沒有 → 預設桃園市
   const zones = JSON.parse(fs.readFileSync(ZONES, "utf-8")).features
-    .map((f: any) => ({ name: f.properties.name as string, contains: makeContains(f.geometry) }));
+    .map((f: any) => ({
+      key: `${f.properties.city ?? "桃園市"}|${f.properties.name}`,
+      contains: makeContains(f.geometry),
+    }));
   const zoneOf = (lng: number, lat: number) =>
-    zones.find((z: any) => z.contains(lng, lat))?.name ?? null;
+    zones.find((z: any) => z.contains(lng, lat))?.key ?? null;
 
-  // 已定位門牌 → 所在圈;同時累積街道得票
+  // 已定位門牌 → 所在圈;同時累積街道得票(addr_key 已全帶城市前綴,排除 proj| 快取即可)
   const { rows: geos } = await db.execute(sql`
     SELECT addr_key, lng, lat FROM geocode_cache
-    WHERE precision = 'door' AND addr_key LIKE '桃園市%'`);
+    WHERE precision = 'door' AND addr_key NOT LIKE 'proj|%'`);
   const addrZone = new Map<string, string>();
   const votes = new Map<string, Map<string, number>>();
   for (const g of geos as { addr_key: string; lng: number; lat: number }[]) {
@@ -109,14 +115,18 @@ async function main() {
   }
 
   await db.delete(zone_stats);
-  const out = [...byZone.entries()].map(([zone, xs]) => ({
-    zone, median_rent_ping_market: Math.round(median(xs)), rent_samples_market: xs.length,
-  }));
+  const out = [...byZone.entries()].map(([zoneKey, xs]) => {
+    const [city, ...rest] = zoneKey.split("|");
+    return {
+      city, zone: rest.join("|"),
+      median_rent_ping_market: Math.round(median(xs)), rent_samples_market: xs.length,
+    };
+  });
   if (out.length) await db.insert(zone_stats).values(out);
 
   console.log(`[zone-rents] 歸圈:門牌直配 ${hitDoor}、街道多數決 ${hitStreet}、圈外/未知 ${missed}`);
   for (const o of out.sort((a, b) => b.rent_samples_market - a.rent_samples_market))
-    console.log(`  ${o.zone}: ${o.median_rent_ping_market} 元/坪(n=${o.rent_samples_market})`);
+    console.log(`  ${o.city} ${o.zone}: ${o.median_rent_ping_market} 元/坪(n=${o.rent_samples_market})`);
   await pool.end();
 }
 main().catch((e) => { console.error(e); process.exit(1); });

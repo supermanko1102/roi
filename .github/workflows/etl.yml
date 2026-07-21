@@ -13,7 +13,8 @@ concurrency:
 jobs:
   etl:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    # 北北桃三市:每旬增量約 30–60 分,留餘裕;首次全量回填請在本機跑(見 plan Phase 4 runbook)
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
 

@@ -15,12 +15,14 @@
     "etl:geocode": "tsx etl/geocode.ts",
     "etl:stats": "tsx etl/compute-stats.ts",
     "etl:geocode-projects": "tsx etl/geocode-projects.ts",
+    "etl:use-permits": "tsx etl/import-use-permits.ts",
     "etl:communities": "tsx etl/match-communities.ts",
     "etl:rent-benchmarks": "tsx etl/import-rent-benchmarks.ts",
     "etl:zones": "tsx etl/build-zones.ts",
+    "etl:zones-ntpc": "tsx etl/build-ntpc-zones.ts",
     "etl:zones-leju": "tsx etl/leju-zones.ts",
     "etl:zone-rents": "tsx etl/compute-zone-rents.ts",
-    "etl:all": "pnpm etl:download && pnpm etl:parse && pnpm etl:geocode && pnpm etl:stats && pnpm etl:geocode-projects && pnpm etl:communities && pnpm etl:rent-benchmarks && pnpm etl:zone-rents"
+    "etl:all": "pnpm etl:download && pnpm etl:parse && pnpm etl:geocode && pnpm etl:stats && pnpm etl:geocode-projects && pnpm etl:use-permits && pnpm etl:communities && pnpm etl:rent-benchmarks && pnpm etl:zone-rents"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

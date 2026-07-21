@@ -10,6 +10,7 @@ export type UnifiedPoint = {
   kind: "presale" | "resale";     // 資料來源(預售彙總 vs 中古歸戶),非使用者面向的分類
   band: AgeBand;
   lat: number; lng: number;
+  city: string;
   district: string;
   price: number | null;           // 扣車位中位單價(萬/坪)
   deal_count: number;
@@ -33,7 +34,7 @@ export async function loadUnifiedPoints(opts: { bbox?: Bbox; district?: string; 
 
   const [bldgs, projs, comms, linked] = await Promise.all([
     kind === "presale" ? Promise.resolve([]) : db.select({
-      addr_key: buildings.addr_key, district: buildings.district,
+      addr_key: buildings.addr_key, city: buildings.city, district: buildings.district,
       lat: buildings.lat, lng: buildings.lng, deal_count: buildings.deal_count,
       median_unit_price: buildings.median_unit_price, median_total: buildings.median_total,
       building_type: buildings.building_type, build_year: buildings.build_year,
@@ -48,7 +49,8 @@ export async function loadUnifiedPoints(opts: { bbox?: Bbox; district?: string; 
       .where(and(isNotNull(projects.lat),
                  district ? eq(projects.district, district) : box(projects.lat, projects.lng))),
     db.select({ case_no: communities.case_no, name: communities.name,
-                district: communities.district, first_reg: communities.first_reg })
+                city: communities.city, district: communities.district,
+                first_reg: communities.first_reg, use_issue_date: communities.use_issue_date })
       .from(communities),
     db.selectDistinct({ case_no: building_community.case_no }).from(building_community),
   ]);
@@ -66,7 +68,7 @@ export async function loadUnifiedPoints(opts: { bbox?: Bbox; district?: string; 
     if (rooms && !rm) continue;
     pts.push({
       kind: "resale", band: ageBand(b.build_year, nowYear),
-      lat: b.lat!, lng: b.lng!, district: b.district,
+      lat: b.lat!, lng: b.lng!, city: b.city, district: b.district,
       price: rm ? rm.median_unit_price : b.median_unit_price,
       deal_count: (rm ? rm.deal_count : b.deal_count) ?? 0,
       name: b.community, addr_key: b.addr_key,
@@ -76,28 +78,30 @@ export async function loadUnifiedPoints(opts: { bbox?: Bbox; district?: string; 
     });
   }
 
-  // 建案 → 備查建案(name+district)接完工日:
+  // 建案 → 備查建案(city+district+name)接完工日:
   //   未備查/未完工 → 預售帶;已完工 → 依 first_reg 落帶;
   //   已完工且該案已有中古歸戶點位 → 略過(同社區避免雙點,棟級點已代表它)
   const commByKey = new Map<string, typeof comms>();
   for (const c of comms) {
-    const k = `${c.district}|${c.name}`;
+    const k = `${c.city}|${c.district}|${c.name}`;
     (commByKey.get(k) ?? commByKey.set(k, []).get(k)!).push(c);
   }
   const linkedSet = new Set(linked.map((l) => l.case_no));
 
   for (const p of projs) {
-    const matches = commByKey.get(`${p.district}|${p.name}`) ?? [];
-    const m = matches.find((c) => c.first_reg != null) ?? matches[0];
-    const regYear = m?.first_reg ? new Date(m.first_reg).getFullYear() : null;
+    const matches = commByKey.get(`${p.city}|${p.district}|${p.name}`) ?? [];
+    // 完工日:使照發照 > 備查首次登記(桃園無使照資料,自然走 first_reg)
+    const m = matches.find((c) => (c.use_issue_date ?? c.first_reg) != null) ?? matches[0];
+    const regDate = m?.use_issue_date ?? m?.first_reg;
+    const regYear = regDate ? new Date(regDate).getFullYear() : null;
     const completed = regYear != null && regYear <= nowYear;
     // 預售 only 前台沒有中古點可代表同社區,不做去重略過
     if (kind !== "presale" && completed && matches.some((c) => linkedSet.has(c.case_no))) continue;
-    const rm = rooms ? roomMap.get(`presale|${p.district}|${p.name}`) : undefined;
+    const rm = rooms ? roomMap.get(`presale|${p.city}|${p.district}|${p.name}`) : undefined;
     if (rooms && !rm) continue;
     pts.push({
       kind: "presale", band: completed ? ageBand(regYear, nowYear) : "presale",
-      lat: p.lat!, lng: p.lng!, district: p.district,
+      lat: p.lat!, lng: p.lng!, city: p.city, district: p.district,
       price: rm ? rm.median_unit_price : p.unit_price,
       deal_count: (rm ? rm.deal_count : p.deal_count) ?? 0,
       name: p.name, addr_key: null,
@@ -141,7 +145,7 @@ export function toFeatureCollection(pts: UnifiedPoint[]) {
       type: "Feature" as const,
       geometry: { type: "Point" as const, coordinates: renderCoordinates.get(p) ?? [p.lng, p.lat] },
       properties: {
-        kind: p.kind, band: p.band, district: p.district,
+        kind: p.kind, band: p.band, city: p.city, district: p.district,
         price: p.price != null ? +p.price.toFixed(1) : null,
         deal_count: p.deal_count,
         median_total: p.median_total != null ? +p.median_total.toFixed(0) : null,

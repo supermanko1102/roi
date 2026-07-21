@@ -1,17 +1,18 @@
 /**
- * 抓軌道「路線幾何」(OSM),跑一次即可 → data/rail-lines.geojson
- * 只畫產品裡有站點的線:機場捷運(營運+中壢延伸段)、台鐵、桃園捷運綠線(施工中)。
+ * 抓軌道「路線幾何」(OSM),城市異動後重跑 → data/rail-lines.geojson
+ * 只畫產品裡有站點的線:各市捷運營運線、台鐵、施工中捷運(桃園綠線/三鶯線等)。
  * 規劃中路線(棕線/青線/橘線等)刻意不畫:未定案、無開放幾何,畫了誤導購屋判斷。
  * 不需 TDX 憑證;Overpass 免費、限流時輪替鏡像。
  */
 import fs from "node:fs";
 import path from "node:path";
+import { ALL_BBOX } from "../src/lib/cities";
 
 const ROOT = path.join(import.meta.dirname, "..");
 const OUT = path.join(ROOT, "data", "rail-lines.geojson");
 
-// 與 fetch-stations 同一個 bbox(含機捷北段通勤脈絡)
-const BBOX = { s: 24.75, w: 120.95, n: 25.1, e: 121.35 };
+// 與 fetch-stations 同源:啟用城市 bbox 聯集
+const BBOX = ALL_BBOX;
 
 const OVERPASS_MIRRORS = [
   "https://overpass-api.de/api/interpreter",
@@ -45,21 +46,39 @@ type LineFeat = {
   geometry: { type: "LineString"; coordinates: [number, number][] };
 };
 
-// 依 way 的 tags 歸類到產品的三條線;歸不進去的(高鐵、林口線、三鶯線、支線側線)回 null
+// 名稱 → 產品線名(北捷各線含歷史命名;順序重要,先特例後通則)
+const METRO_LINES: [RegExp, string][] = [
+  [/機場捷運|桃園捷運.*機場|桃園國際機場/, "機場捷運"],
+  [/桃園.*綠線|捷運綠線/, "桃園捷運綠線"],
+  [/文湖線|木柵線|內湖線/, "文湖線"],
+  [/淡水信義線|淡水線|信義線/, "淡水信義線"],
+  [/松山新店線|新店線|松山線|小碧潭/, "松山新店線"],
+  [/中和新蘆線|新蘆線|中和線|蘆洲線|新莊線/, "中和新蘆線"],
+  [/板南線|南港線|板橋線|土城線/, "板南線"],
+  [/環狀線/, "環狀線"],
+  [/淡海輕軌/, "淡海輕軌"],
+  [/安坑輕軌|安坑線/, "安坑輕軌"],
+  [/三鶯線/, "三鶯線"],
+  [/萬大|萬大樹林線/, "萬大線"],
+];
+
+// 依 way 的 tags 歸類到產品線;歸不進去的(高鐵、林口線、支線側線、規劃線)回 null
 function classify(t: Record<string, string>): LineFeat["properties"] | null {
   const name = `${t.name ?? ""}${t["name:zh"] ?? ""}`;
   const isConstruction = t.railway === "construction";
   const railKind = isConstruction ? (t.construction ?? t["construction:railway"] ?? "") : t.railway;
 
   if (/高鐵|高速鐵路|High Speed/i.test(name) || t.operator === "台灣高鐵") return null;
-  if (/三鶯|林口線|地下化/.test(name)) return null;
+  if (/林口線|地下化|貓空纜車/.test(name)) return null;
 
-  if (/機場捷運|桃園捷運.*機場|桃園國際機場/.test(name) || /^A\d/.test(t.ref ?? ""))
-    return { line: "機場捷運", status: isConstruction ? "construction" : "operating" };
-  if (/綠線/.test(name) || /^GE?\d/.test(t.ref ?? ""))
-    return { line: "桃園捷運綠線", status: "construction" };
+  const ref = t.ref ?? "";
+  if (/^A\d/.test(ref)) return { line: "機場捷運", status: isConstruction ? "construction" : "operating" };
+  if (/^GE?\d/.test(ref)) return { line: "桃園捷運綠線", status: "construction" };
+  for (const [re, line] of METRO_LINES) {
+    if (re.test(name)) return { line, status: isConstruction ? "construction" : "operating" };
+  }
 
-  // 一般鐵路且非站場側線 → 台鐵縱貫線(bbox 內已排除高鐵/林口線)
+  // 一般鐵路且非站場側線 → 台鐵(bbox 內已排除高鐵/林口線)
   if (!isConstruction && railKind === "rail" && !t.service && t.usage !== "industrial" && t.usage !== "military")
     return { line: "台鐵", status: "operating" };
   return null;

@@ -3,7 +3,7 @@
  * 屬性名刻意用 snake_case,讓 select 回傳的 JSON 形狀與既有 API/前端一致。
  */
 import {
-  pgTable, serial, text, date, numeric, integer, boolean, timestamp, index, unique,
+  pgTable, serial, text, date, numeric, integer, boolean, timestamp, index, unique, primaryKey,
 } from "drizzle-orm/pg-core";
 
 const money = (name: string) => numeric(name, { mode: "number" });
@@ -11,6 +11,7 @@ const money = (name: string) => numeric(name, { mode: "number" });
 // 原始交易資料(ETL 寫入)
 export const presale_deals = pgTable("presale_deals", {
   id: serial("id").primaryKey(),
+  city: text("city").notNull(),                  // 城市(資料原生寫法,如「臺北市」;見 lib/cities)
   district: text("district").notNull(),          // 鄉鎮市區(CSV 原生欄位,免 geocoding)
   project_name: text("project_name"),            // 建案名稱
   address: text("address"),                      // 區段化門牌
@@ -30,13 +31,14 @@ export const presale_deals = pgTable("presale_deals", {
   unit_id: text("unit_id"),                      // 棟及號(如「B棟6-9F號」;distinct 計戶數/去化用)
   raw_season: text("raw_season"),
 }, (t) => [
-  index("idx_presale_district").on(t.district),
+  index("idx_presale_district").on(t.city, t.district),
   index("idx_presale_project").on(t.project_name),
 ]);
 
 // 中古/成屋買賣(a 檔;僅含建物之交易,純土地/車位已濾除)
 export const sale_deals = pgTable("sale_deals", {
   id: serial("id").primaryKey(),
+  city: text("city").notNull(),
   district: text("district").notNull(),
   address: text("address"),
   deal_date: date("deal_date"),
@@ -57,7 +59,7 @@ export const sale_deals = pgTable("sale_deals", {
   total_floors: integer("total_floors"),         // 總樓層數
   raw_season: text("raw_season"),
 }, (t) => [
-  index("idx_sale_district").on(t.district),
+  index("idx_sale_district").on(t.city, t.district),
   index("idx_sale_addr_key").on(t.addr_key),
 ]);
 
@@ -73,6 +75,7 @@ export const geocode_cache = pgTable("geocode_cache", {
 // 棟級彙總(compute-stats 由 sale_deals × geocode_cache 重建)
 export const buildings = pgTable("buildings", {
   addr_key: text("addr_key").primaryKey(),
+  city: text("city").notNull(),
   district: text("district").notNull(),
   lat: money("lat"),
   lng: money("lng"),
@@ -83,11 +86,12 @@ export const buildings = pgTable("buildings", {
   build_year: integer("build_year"),
   last_deal: date("last_deal"),
 }, (t) => [
-  index("idx_buildings_district").on(t.district),
+  index("idx_buildings_district").on(t.city, t.district),
 ]);
 
 export const rent_deals = pgTable("rent_deals", {
   id: serial("id").primaryKey(),
+  city: text("city").notNull(),
   district: text("district").notNull(),
   address: text("address"),
   deal_date: date("deal_date"),
@@ -110,7 +114,7 @@ export const rent_deals = pgTable("rent_deals", {
   addr_key: text("addr_key"),                    // 去樓層門牌(實登2.0起租賃有完整門牌)
   raw_season: text("raw_season"),
 }, (t) => [
-  index("idx_rent_district").on(t.district),
+  index("idx_rent_district").on(t.city, t.district),
   index("idx_rent_addr_key").on(t.addr_key),
 ]);
 
@@ -118,27 +122,30 @@ export const rent_deals = pgTable("rent_deals", {
 export const communities = pgTable("communities", {
   case_no: text("case_no").primaryKey(),      // 備查編號
   name: text("name").notNull(),               // 建案名稱
+  city: text("city").notNull(),
   district: text("district").notNull(),
   households: integer("households"),          // 戶數
   street: text("street"),                     // 坐落街道(工地位置描述)
   permit_no: text("permit_no"),               // 建造執照字號
   first_reg: date("first_reg"),               // 第1次登記日期(≈完工/交屋)
   declare_date: date("declare_date"),         // 申報備查日期
+  use_issue_date: date("use_issue_date"),     // 使照發照日(建照號碼 join use_permits;優先於 first_reg 判屋齡)
 }, (t) => [
-  index("idx_communities_district").on(t.district),
+  index("idx_communities_district").on(t.city, t.district),
 ]);
 
 // 實體社區：一個社區可對應多個預售備查案(case_no)與多個門牌。
 export const physical_communities = pgTable("physical_communities", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  city: text("city").notNull(),
   district: text("district").notNull(),
   permit_no: text("permit_no"),
   build_year: integer("build_year"),
   lat: money("lat"),
   lng: money("lng"),
 }, (t) => [
-  index("idx_physical_communities_district").on(t.district),
+  index("idx_physical_communities_district").on(t.city, t.district),
 ]);
 
 export const community_cases = pgTable("community_cases", {
@@ -183,15 +190,19 @@ export const rent_benchmarks = pgTable("rent_benchmarks", {
 
 // 生活圈租金行情(compute-zone-rents 重建;供圈級投報與抽屜推估用)
 export const zone_stats = pgTable("zone_stats", {
-  zone: text("zone").primaryKey(),               // 生活圈名(對應 taoyuan-zones.geojson 的 name)
+  city: text("city").notNull(),
+  zone: text("zone").notNull(),                  // 生活圈名(對應 zones geojson 的 name)
   median_rent_ping_market: money("median_rent_ping_market"), // 元/坪/月,排除社宅
   rent_samples_market: integer("rent_samples_market").default(0),
   updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-});
+}, (t) => [
+  primaryKey({ columns: [t.city, t.zone] }),
+]);
 
 // 彙總層(compute-stats 重算;seed 先塞示範值)
 export const district_stats = pgTable("district_stats", {
-  district: text("district").primaryKey(),
+  city: text("city").notNull(),
+  district: text("district").notNull(),
   median_unit_price: money("median_unit_price"), // 預售中位單價 萬/坪
   median_rent_ping: money("median_rent_ping"),   // 租金中位 元/坪/月(混合:含社宅)
   est_roi: money("est_roi"),                     // 推估年投報 %(混合口徑)
@@ -207,11 +218,14 @@ export const district_stats = pgTable("district_stats", {
   rent_samples_market: integer("rent_samples_market").default(0),
   is_demo: boolean("is_demo").default(false),
   updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-});
+}, (t) => [
+  primaryKey({ columns: [t.city, t.district] }),
+]);
 
 export const projects = pgTable("projects", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  city: text("city").notNull(),
   district: text("district").notNull(),
   lat: money("lat"),
   lng: money("lng"),
@@ -228,11 +242,27 @@ export const projects = pgTable("projects", {
   cancel_count: integer("cancel_count").default(0), // 曾解約筆數(不計入價格統計)
   is_demo: boolean("is_demo").default(false),
 }, (t) => [
-  unique("projects_name_district_key").on(t.name, t.district),
+  unique("projects_name_district_key").on(t.city, t.name, t.district),
+]);
+
+// 使用執照(雙北開放資料;etl/import-use-permits.ts 逐市重建)
+// 屋齡判定順序:使照發照日 > 備查第1次登記(桃園無使照資料,維持備查推算)
+export const use_permits = pgTable("use_permits", {
+  id: serial("id").primaryKey(),
+  city: text("city").notNull(),
+  license_no: text("license_no").notNull(),      // 使照號碼(原文)
+  permit_no_norm: text("permit_no_norm"),        // 正規化建照號碼(與 communities.permit_no join 用)
+  issue_date: date("issue_date"),                // 發照日期
+  complete_date: date("complete_date"),          // 完工日期(台北摘要才有)
+  address: text("address"),
+  source: text("source"),
+}, (t) => [
+  unique("use_permits_city_license_key").on(t.city, t.license_no),
+  index("idx_use_permits_permit").on(t.city, t.permit_no_norm),
 ]);
 
 // 房數帶彙總(compute-stats 重建):格局篩選時覆寫點位的價格/總價/筆數
-// kind=resale 的 key 是 addr_key;kind=presale 的 key 是 `${district}|${name}`
+// kind=resale 的 key 是 addr_key(含城市前綴);kind=presale 的 key 是 `${city}|${district}|${name}`
 export const room_stats = pgTable("room_stats", {
   kind: text("kind").notNull(),                  // resale | presale
   key: text("key").notNull(),

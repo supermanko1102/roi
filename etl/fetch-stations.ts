@@ -1,18 +1,19 @@
 /**
- * 抓桃園「交通機能」靜態資料,跑一次即可:
- *  - data/stations.geojson:軌道車站(TDX:機捷/台鐵;OSM:綠線等施工中站)
+ * 抓啟用城市的「交通機能」靜態資料,城市異動後重跑:
+ *  - data/stations.geojson:軌道車站(TDX:各市捷運 operator/台鐵;OSM:施工中站)
  *    + 國道交流道(OSM motorway_junction),以 kind 區分:station | interchange
- *  - data/bus-stops.geojson:桃園公車站牌(TDX,分頁抓;只給 API 端算密度,不上地圖)
- * TDX client credentials 讀 .env / .env.example
+ *  - data/bus-stops.geojson:公車站牌(TDX,分頁抓;只給 API 端算密度,不上地圖)
+ * TDX client credentials 讀 .env / .env.example;城市/operator 清單見 src/lib/cities
  */
 import fs from "node:fs";
 import path from "node:path";
+import { ALL_BBOX, CITIES } from "../src/lib/cities";
 
 const ROOT = path.join(import.meta.dirname, "..");
 const OUT = path.join(ROOT, "data", "stations.geojson");
 
-// 桃園外擴一點的 bbox(含機捷北段到台北車站 A1,通勤脈絡需要)
-const BBOX = { s: 24.75, w: 120.95, n: 25.10, e: 121.35 };
+// 啟用城市 bbox 聯集(桃園單獨啟用時仍含機捷北段到台北車站的通勤脈絡,靠 A1_KEEP)
+const BBOX = ALL_BBOX;
 const A1_KEEP = new Set(["台北車站", "臺北車站", "三重站", "新北產業園區站"]); // 機捷北段照留,通勤終點
 
 function loadEnv(): Record<string, string> {
@@ -95,16 +96,33 @@ async function main() {
 
   const token = await tdxToken(env);
 
-  // 機場捷運(桃園捷運公司目前僅營運機場線)
-  const tymc = await tdx(token, "https://tdx.transportdata.tw/api/basic/v2/Rail/Metro/Station/TYMC?%24format=JSON");
-  for (const s of tymc) {
-    feats.push({
-      name: s.StationName?.Zh_tw ?? s.StationID,
-      line: "機場捷運", status: "operating", kind: "station",
-      lat: s.StationPosition?.PositionLat, lng: s.StationPosition?.PositionLon,
-    });
+  // 各市捷運:StationOfLine 給站↔線對應、Line 給線名、Station 給座標
+  // TYMC 只營運機場線,線名沿用產品慣稱「機場捷運」
+  for (const city of CITIES) {
+    for (const op of city.metroOperators) {
+      const base = "https://tdx.transportdata.tw/api/basic/v2/Rail/Metro";
+      const lines = await tdx(token, `${base}/Line/${op}?%24format=JSON`);
+      const sol = await tdx(token, `${base}/StationOfLine/${op}?%24format=JSON`);
+      const stations = await tdx(token, `${base}/Station/${op}?%24format=JSON`);
+      const lineName = new Map<string, string>(
+        lines.map((l: any) => [l.LineID, l.LineName?.Zh_tw ?? l.LineID]));
+      const pos = new Map<string, any>(stations.map((s: any) => [s.StationID, s.StationPosition]));
+      let n = 0;
+      for (const l of sol) {
+        const ln = op === "TYMC" ? "機場捷運" : (lineName.get(l.LineID) ?? l.LineID);
+        for (const s of l.Stations ?? []) {
+          const p = pos.get(s.StationID);
+          feats.push({
+            name: s.StationName?.Zh_tw ?? s.StationID,
+            line: ln, status: "operating", kind: "station",
+            lat: p?.PositionLat, lng: p?.PositionLon,
+          });
+          n++;
+        }
+      }
+      console.log(`${city.display} ${op} ${n} 站(${sol.length} 線)`);
+    }
   }
-  console.log(`機捷 ${tymc.length} 站`);
 
   // 台鐵全線 → 篩 bbox 內
   const tra = await tdx(token, "https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/Station?%24format=JSON");
@@ -131,11 +149,14 @@ async function main() {
       const t = e.tags ?? {};
       const name: string = t.name ?? "", ref: string = t.ref ?? "";
       if (!name) continue;
-      if (/^GE?\d/.test(ref)) {
-        feats.push({ name, line: "桃園捷運綠線", status: "construction", kind: "station", lat: e.lat, lng: e.lon });
-        n++;
-      } else if (/^A\d/.test(ref)) {
-        feats.push({ name, line: "機場捷運", status: "construction", kind: "station", lat: e.lat, lng: e.lon });
+      // ref 前綴 → 線名(施工中站;新城市的施工線在這裡加)
+      const line =
+        /^GE?\d/.test(ref) ? "桃園捷運綠線" :
+        /^A\d/.test(ref) ? "機場捷運" :
+        /^LB\d/.test(ref) ? "三鶯線" :
+        /^LG\d/.test(ref) ? "萬大線" : null;
+      if (line) {
+        feats.push({ name, line, status: "construction", kind: "station", lat: e.lat, lng: e.lon });
         n++;
       }
     }
@@ -171,15 +192,17 @@ async function main() {
 
   // 公車站牌:TDX 分頁抓,只留名稱+座標(給 API 端算「出門有沒有公車」的密度)
   const stops: { name: string; lat: number; lng: number }[] = [];
-  for (let skip = 0; ; skip += 3000) {
-    const page = await tdx(token,
-      `https://tdx.transportdata.tw/api/basic/v2/Bus/Stop/City/Taoyuan?%24select=StopName,StopPosition&%24top=3000&%24skip=${skip}&%24format=JSON`);
-    for (const s of page) {
-      const lat = s.StopPosition?.PositionLat, lng = s.StopPosition?.PositionLon;
-      if (Number.isFinite(lat) && Number.isFinite(lng))
-        stops.push({ name: s.StopName?.Zh_tw ?? "", lat, lng });
+  for (const city of CITIES) {
+    for (let skip = 0; ; skip += 3000) {
+      const page = await tdx(token,
+        `https://tdx.transportdata.tw/api/basic/v2/Bus/Stop/City/${city.tdxBusCity}?%24select=StopName,StopPosition&%24top=3000&%24skip=${skip}&%24format=JSON`);
+      for (const s of page) {
+        const lat = s.StopPosition?.PositionLat, lng = s.StopPosition?.PositionLon;
+        if (Number.isFinite(lat) && Number.isFinite(lng))
+          stops.push({ name: s.StopName?.Zh_tw ?? "", lat, lng });
+      }
+      if (page.length < 3000) break;
     }
-    if (page.length < 3000) break;
   }
   fs.writeFileSync(path.join(ROOT, "data", "bus-stops.geojson"), JSON.stringify({
     type: "FeatureCollection",

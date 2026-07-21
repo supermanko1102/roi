@@ -50,6 +50,27 @@
       "when": 1784274484585,
       "tag": "0006_outgoing_spot",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784617396960,
+      "tag": "0007_first_gideon",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784619279096,
+      "tag": "0008_colossal_grim_reaper",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784619882872,
+      "tag": "0009_chubby_gorgon",
+      "breakpoints": true
     }
   ]
 }
