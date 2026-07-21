@@ -112,7 +112,7 @@ export function ProductHeader({ market, setMarket, query, setQuery, view, setVie
           onClick={() => setMarket("rental")}>租屋</Button>
       </div>
       <label className="flex h-[46px] items-center gap-[9px] rounded-[13px] border border-line bg-white px-[13px] transition-[border-color,box-shadow] duration-150 focus-within:border-[#69a99c] focus-within:shadow-[0_0_0_4px_rgba(13,91,79,.08)] max-mob:col-span-full max-mob:row-start-2 max-mob:h-10">
-        <span className="-rotate-[18deg] text-[22px] text-teal" aria-hidden="true">⌕</span>
+        <span className="rotate-[-18deg] text-[22px] text-teal" aria-hidden="true">⌕</span>
         <input value={query} onChange={(e) => setQuery(e.target.value)}
           className="w-full min-w-0 border-0 bg-transparent text-[13px] text-ink outline-none placeholder:text-[#93a09b]"
           placeholder={market === "presale" ? "搜尋建案、行政區" : "搜尋社區、地址、行政區"}
@@ -159,7 +159,7 @@ export function FilterPanel({ open, totalBand, setTotalBand, rooms, setRooms,
   ];
   return (
     <section className={cn(
-      "absolute right-4 top-24 z-24 w-[min(650px,calc(100vw-32px))] rounded-[17px] border border-line bg-surface/98 p-[18px] shadow-lift transition-[opacity,transform,visibility] duration-[180ms] max-mob:fixed max-mob:inset-x-2 max-mob:bottom-[70px] max-mob:top-auto max-mob:z-58 max-mob:max-h-[calc(100vh-186px)] max-mob:w-auto max-mob:overflow-y-auto max-mob:rounded-2xl max-mob:p-[15px]",
+      "absolute right-4 top-24 z-24 w-[min(650px,calc(100vw-32px))] rounded-[17px] border border-line bg-surface/98 p-[18px] shadow-lift transition-[opacity,transform,visibility] duration-180 max-mob:fixed max-mob:inset-x-2 max-mob:bottom-[70px] max-mob:top-auto max-mob:z-58 max-mob:max-h-[calc(100vh-186px)] max-mob:w-auto max-mob:overflow-y-auto max-mob:rounded-2xl max-mob:p-[15px]",
       open ? "visible translate-y-0 opacity-100" : "invisible -translate-y-2 opacity-0 max-mob:translate-y-3",
     )} aria-label="建案篩選">
       <div className="mb-[15px] flex items-center justify-between">
