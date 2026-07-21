@@ -131,3 +131,19 @@ table.bgrid thead th.bgrid-floor { background: var(--color-surface); }
 .bgrid-extra { position: absolute; top: 3px; right: 3px; width: 5px; height: 5px; border-radius: 50%; background: #a87520; }
 .bgrid-empty { min-width: 52px; background: #f5f7f4; border-radius: 5px; }
 .grid-note { margin-top: 8px; color: var(--color-ink-soft); font-size: 9px; line-height: 1.6; }
+
+/* 棟別圖：格子點選與詳情卡 */
+.bgrid-cell { cursor: pointer; }
+.bgrid-cell:hover { box-shadow: inset 0 0 0 1.5px var(--color-teal); }
+.bgrid-cell.sel { box-shadow: inset 0 0 0 2px var(--color-teal); }
+.bgrid-cell:focus-visible { outline: 2px solid var(--color-teal); outline-offset: -2px; }
+.bgrid-detail { margin-top: 7px; padding: 9px 11px; border: 1px solid var(--color-line); border-radius: 10px; background: #fff; }
+.bgrid-detail-head { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; font-size: 11px; font-weight: 800; color: var(--color-ink); }
+.bgrid-detail-head span { color: var(--color-ink-soft); font-size: 9.5px; font-weight: 700; }
+.bgrid-detail-head button { margin-left: auto; width: 20px; height: 20px; border: 0; border-radius: 50%; background: #edf1ef; color: var(--color-ink-soft); cursor: pointer; font-size: 10px; line-height: 1; }
+.bgrid-detail-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 4px 0; border-top: 1px dashed var(--color-line); color: var(--color-ink-soft); font-size: 10px; }
+.bgrid-detail-row:first-of-type { border-top: 0; }
+.bgrid-detail-row b { color: var(--color-ink); font-size: 11.5px; }
+.bgrid-detail-row .bd-date { color: var(--color-ink); font-weight: 700; }
+.bgrid-detail-row.cancelled .bd-date, .bgrid-detail-row.cancelled b { color: #9c4038; text-decoration: line-through; }
+.bgrid-detail-row .bd-cancel { color: #9c4038; font-style: normal; font-weight: 800; }

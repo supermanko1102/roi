@@ -1,12 +1,12 @@
 "use client";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { fmtP } from "./drawer-kit";
 
 type GDeal = {
   deal_date: string | null; total_price: number | null; area_ping: number | null;
-  unit_price: number | null; rooms: number | null;
+  unit_price: number | null; rooms: number | null; baths: number | null;
   floor_no: number | null; unit_id: string | null;
-  is_cancelled: boolean | null;
+  is_cancelled: boolean | null; cancel_date: string | null;
 };
 
 // 全形轉半形（棟及號常混用 ０-９、Ａ-Ｚ、－ 等全形字元）
@@ -43,9 +43,12 @@ function cellColor(t: number): { bg: string; dark: boolean } {
   return { bg: `hsl(168 ${sat}% ${l}%)`, dark: l < 58 };
 }
 
-type Cell = { deal: GDeal; extra: number; onlyCancelled: boolean };
+type Cell = { deal: GDeal; deals: GDeal[]; extra: number; onlyCancelled: boolean };
 
 export default function BuildingGrid({ deals }: { deals: GDeal[] }) {
+  const [sel, setSel] = useState<{ grid: string; stack: string; floor: number } | null>(null);
+  useEffect(() => { setSel(null); }, [deals]);
+
   const model = useMemo(() => {
     const parsed = deals
       .map((d) => ({ d, key: parseStack(d.unit_id) }))
@@ -77,13 +80,13 @@ export default function BuildingGrid({ deals }: { deals: GDeal[] }) {
       const cells = new Map<string, Cell>();
       for (const [stack, byFloor] of stacksMap) {
         for (const [floor, arr] of byFloor) {
-          const active = arr.filter((d) => !d.is_cancelled)
-            .sort((a, b) => +new Date(b.deal_date ?? 0) - +new Date(a.deal_date ?? 0));
-          const deal = active[0] ?? arr[0];
-          cells.set(`${stack}|${floor}`, { deal, extra: arr.length - 1, onlyCancelled: active.length === 0 });
+          const byDate = [...arr].sort((a, b) => +new Date(b.deal_date ?? 0) - +new Date(a.deal_date ?? 0));
+          const active = byDate.filter((d) => !d.is_cancelled);
+          const deal = active[0] ?? byDate[0];
+          cells.set(`${stack}|${floor}`, { deal, deals: byDate, extra: arr.length - 1, onlyCancelled: active.length === 0 });
         }
       }
-      return { name: bname, stacks, floors, cells };
+      return { name: bname, stacks, floors, cells, colsAreBuildings: false };
     });
 
     // 「棟」本身就是垂直戶別的建案（A1棟、A2棟…每棟一直排）：
@@ -102,23 +105,30 @@ export default function BuildingGrid({ deals }: { deals: GDeal[] }) {
           floorSet.add(+floor);
         }
       }
-      grids = [{ name: "", stacks: cols.sort(cmp), floors: [...floorSet].sort((a, b) => b - a), cells }];
+      grids = [{ name: "", stacks: cols.sort(cmp), floors: [...floorSet].sort((a, b) => b - a), cells, colsAreBuildings: true }];
     }
 
-    return { buildings: grids, unplaced, lo, hi };
+    // 全案價差過小時（< 2 萬/坪）不上色，避免色階把微小差異視覺放大
+    return { buildings: grids, unplaced, lo, hi, flat: hi - lo < 2 };
   }, [deals]);
 
   if (!model.buildings.length) return <div className="grid-note">此建案的棟及號資料不足，無法繪製棟別圖。</div>;
 
-  const { lo, hi } = model;
+  const { lo, hi, flat } = model;
   const t = (p: number) => hi > lo ? Math.min(1, Math.max(0, (p - lo) / (hi - lo))) : 0.5;
 
   return (
     <div className="bgrid-wrap">
       <div className="bgrid-legend">
         <span>單價（萬/坪）</span>
-        <i className="bgrid-ramp" aria-hidden />
-        <span className="num">{fmtP(lo)} 低 ～ {fmtP(hi)} 高</span>
+        {flat ? (
+          <span className="num">{fmtP(lo)} ～ {fmtP(hi)}・價差小，未上色</span>
+        ) : (
+          <>
+            <i className="bgrid-ramp" aria-hidden />
+            <span className="num">{fmtP(lo)} 低 ～ {fmtP(hi)} 高</span>
+          </>
+        )}
       </div>
       {model.buildings.map((b) => (
         <div key={b.name || "single"} className="bgrid-building">
@@ -140,20 +150,23 @@ export default function BuildingGrid({ deals }: { deals: GDeal[] }) {
                       if (!cell) return <td key={s} className="bgrid-empty" />;
                       const { deal, extra, onlyCancelled } = cell;
                       const price = deal.unit_price != null ? Number(deal.unit_price) : null;
-                      const c = price != null && !onlyCancelled ? cellColor(t(price)) : null;
-                      const tip = [
-                        deal.deal_date, `${f}樓 ${s !== "—" ? `${s}戶` : ""}`,
-                        deal.rooms != null ? `${deal.rooms}房` : null,
-                        deal.area_ping != null ? `${fmtP(Number(deal.area_ping))}坪` : null,
-                        deal.total_price != null ? `總價 ${Math.round(Number(deal.total_price)).toLocaleString()}萬` : null,
-                        onlyCancelled ? "已解約" : null,
-                        extra > 0 ? `另有 ${extra} 筆紀錄` : null,
-                      ].filter(Boolean).join("・");
+                      const c = price != null && !onlyCancelled
+                        ? (flat ? { bg: "hsl(168 15% 90%)", dark: false } : cellColor(t(price)))
+                        : null;
+                      const selected = sel != null && sel.grid === b.name && sel.stack === s && sel.floor === f;
+                      const unitLabel = b.colsAreBuildings ? `${s}棟` : s !== "—" ? `${s}戶` : "";
                       return (
-                        <td key={s}
-                          className={`bgrid-cell${onlyCancelled ? " cancelled" : ""}${c?.dark ? " deep" : ""}`}
+                        <td key={s} role="button" tabIndex={0} aria-pressed={selected}
+                          aria-label={`${unitLabel} ${f}樓，${price == null ? "無單價" : `單價 ${fmtP(price)} 萬`}${onlyCancelled ? "，已解約" : ""}`}
+                          className={`bgrid-cell${onlyCancelled ? " cancelled" : ""}${c?.dark ? " deep" : ""}${selected ? " sel" : ""}`}
                           style={c ? { background: c.bg } : undefined}
-                          title={tip}>
+                          onClick={() => setSel(selected ? null : { grid: b.name, stack: s, floor: f })}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setSel(selected ? null : { grid: b.name, stack: s, floor: f });
+                            }
+                          }}>
                           <span className="bgrid-date">{rocDate(deal.deal_date)}</span>
                           <b>{price == null ? "—" : fmtP(price)}</b>
                           {extra > 0 && <i className="bgrid-extra" aria-label={`${extra} 筆其他紀錄`} />}
@@ -165,10 +178,38 @@ export default function BuildingGrid({ deals }: { deals: GDeal[] }) {
               </tbody>
             </table>
           </div>
+          {sel != null && sel.grid === b.name && (() => {
+            const cell = b.cells.get(`${sel.stack}|${sel.floor}`);
+            if (!cell) return null;
+            const unitLabel = b.colsAreBuildings ? `${sel.stack}棟`
+              : `${b.name ? `${b.name}　` : ""}${sel.stack !== "—" ? `${sel.stack}戶` : ""}`;
+            return (
+              <div className="bgrid-detail" role="region" aria-label="戶別成交詳情">
+                <div className="bgrid-detail-head">
+                  <b>{unitLabel}　{sel.floor} 樓</b>
+                  {cell.deals.length > 1 && <span className="num">{cell.deals.length} 筆紀錄</span>}
+                  <button onClick={() => setSel(null)} aria-label="關閉詳情">✕</button>
+                </div>
+                {cell.deals.map((d, i) => (
+                  <div key={i} className={`bgrid-detail-row num${d.is_cancelled ? " cancelled" : ""}`}>
+                    <span className="bd-date">{d.deal_date ?? "—"}</span>
+                    <span className="bd-spec">
+                      {[d.rooms != null ? `${d.rooms}房${d.baths != null ? `${d.baths}衛` : ""}` : null,
+                        d.area_ping != null ? `${fmtP(Number(d.area_ping))} 坪` : null]
+                        .filter(Boolean).join("・") || "—"}
+                    </span>
+                    <span>總價 <b>{d.total_price == null ? "—" : Math.round(Number(d.total_price)).toLocaleString()}</b> 萬</span>
+                    <span>單價 <b>{d.unit_price == null ? "—" : fmtP(Number(d.unit_price))}</b> 萬/坪</span>
+                    {d.is_cancelled && <em className="bd-cancel">已解約{d.cancel_date ? `・${d.cancel_date}` : ""}</em>}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       ))}
       <div className="grid-note">
-        深色＝單價較高。空格＝尚無揭露。虛線框＝已解約。
+        {flat ? "" : "深色＝單價較高。"}空格＝尚無揭露。虛線框＝已解約。點格子可看該戶詳情。
         {model.unplaced > 0 && `另有 ${model.unplaced} 筆缺樓層或戶別資訊，僅列於「列表」。`}
       </div>
     </div>
