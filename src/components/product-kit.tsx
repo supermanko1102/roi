@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { RoomFilter } from "@/lib/rooms";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 export type ViewMode = "map" | "list";
@@ -309,19 +310,20 @@ export function ComparePanel({ open, saved, onClose, onRemove, onOpen }: {
   open: boolean; saved: ProjectSummary[]; onClose: () => void;
   onRemove: (p: ProjectSummary) => void; onOpen: (p: ProjectSummary) => void;
 }) {
-  if (!open) return null;
   return (
-    <div className="fixed inset-0 z-70 grid place-items-center bg-[#081c18]/55 p-6 backdrop-blur-sm max-mob:items-end max-mob:p-0"
-      role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <section className="max-h-[min(760px,calc(100vh-48px))] w-[min(1020px,100%)] overflow-y-auto rounded-[22px] bg-surface p-6 shadow-[0_28px_90px_rgba(0,0,0,.26)] max-mob:max-h-[88vh] max-mob:w-full max-mob:rounded-b-none max-mob:px-3.5 max-mob:pb-[calc(20px+env(safe-area-inset-bottom))] max-mob:pt-[19px]"
-        role="dialog" aria-modal="true" aria-labelledby="compare-title">
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent showCloseButton={false}
+        overlayClassName="z-70 bg-[#081c18]/55 supports-backdrop-filter:backdrop-blur-sm"
+        className="z-70 block max-h-[min(760px,calc(100vh-48px))] w-[min(1020px,calc(100vw-48px))] max-w-none gap-0 overflow-y-auto rounded-[22px] bg-surface p-6 shadow-[0_28px_90px_rgba(0,0,0,.26)] ring-0 sm:max-w-none max-mob:bottom-0 max-mob:left-0 max-mob:top-auto max-mob:w-full max-mob:max-w-full max-mob:translate-x-0 max-mob:translate-y-0 max-mob:max-h-[88vh] max-mob:rounded-b-none max-mob:px-3.5 max-mob:pb-[calc(20px+env(safe-area-inset-bottom))] max-mob:pt-[19px] max-mob:data-open:slide-in-from-bottom-4">
         <div className="mb-[22px] flex items-start justify-between">
           <div>
             <span className="text-[9.5px] font-extrabold tracking-[.18em] text-teal">SHORTLIST</span>
-            <h2 id="compare-title" className="mt-[3px] font-display text-[26px] font-bold leading-[1.1]">建案比較</h2>
+            <DialogTitle className="mt-[3px] font-display text-[26px] font-bold leading-[1.1]">建案比較</DialogTitle>
           </div>
-          <Button variant="secondary" size="icon" className="size-9 rounded-full bg-muted text-[21px]"
-            onClick={onClose} aria-label="關閉比較">×</Button>
+          <DialogClose aria-label="關閉比較"
+            render={<Button variant="secondary" size="icon" className="size-9 rounded-full bg-muted text-[21px]" />}>
+            ×
+          </DialogClose>
         </div>
         {saved.length === 0 ? (
           <EmptyState large title="還沒有比較名單" hint="在列表或建案詳情按下星號，最多加入三個建案。" />
@@ -348,8 +350,8 @@ export function ComparePanel({ open, saved, onClose, onRemove, onOpen }: {
             ))}
           </div>
         )}
-      </section>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
