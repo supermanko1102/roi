@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, asc, eq } from "drizzle-orm";
-import { db, communities, presale_deals, projects, contract_materials } from "@/lib/db";
+import { and, asc, desc, eq, gt, inArray } from "drizzle-orm";
+import { db, building_community, communities, presale_deals, projects, sale_deals, contract_materials } from "@/lib/db";
 import { ageBand } from "@/lib/age";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +53,25 @@ export async function GET(req: NextRequest) {
   const nowYear = new Date().getFullYear();
   const completed = regYear != null && regYear <= nowYear;
 
+  // 交屋後轉售:地號歸戶(building_community)把 a 檔門牌接回本案。
+  // 只取交屋(使照/首次登記)之後的成交——預售期交易可能同時揭露在 a/b 檔,以日期切開避免重複。
+  let resales: {
+    deal_date: string | null; floor_no: number | null; rooms: number | null; baths: number | null;
+    total_price: number | null; unit_price: number | null; area_ping: number | null;
+  }[] = [];
+  const caseNos = comms.map((c) => c.case_no);
+  if (completed && regDate && caseNos.length) {
+    resales = await db.select({
+      deal_date: sale_deals.deal_date, floor_no: sale_deals.floor_no,
+      rooms: sale_deals.rooms, baths: sale_deals.baths,
+      total_price: sale_deals.total_price, unit_price: sale_deals.unit_price,
+      area_ping: sale_deals.area_ping,
+    }).from(sale_deals)
+      .innerJoin(building_community, eq(building_community.addr_key, sale_deals.addr_key))
+      .where(and(inArray(building_community.case_no, caseNos), gt(sale_deals.deal_date, regDate)))
+      .orderBy(desc(sale_deals.deal_date)).limit(200);
+  }
+
   return NextResponse.json({
     project: p,
     community: comm && {
@@ -63,6 +82,7 @@ export async function GET(req: NextRequest) {
     band: completed ? ageBand(regYear, nowYear) : "presale",
     build_year: completed ? regYear : null,
     deals,
+    resales,
     materials,
   });
 }

@@ -43,9 +43,14 @@ function cellColor(t: number): { bg: string; dark: boolean } {
   return { bg: `hsl(168 ${sat}% ${l}%)`, dark: l < 58 };
 }
 
-type Cell = { deal: GDeal; deals: GDeal[]; extra: number; onlyCancelled: boolean };
+export type GResale = {
+  deal_date: string | null; floor_no: number | null; rooms: number | null; baths: number | null;
+  total_price: number | null; unit_price: number | null; area_ping: number | null;
+};
 
-export default function BuildingGrid({ deals }: { deals: GDeal[] }) {
+type Cell = { deal: GDeal; deals: GDeal[]; extra: number; onlyCancelled: boolean; resales: GResale[] };
+
+export default function BuildingGrid({ deals, resales = [] }: { deals: GDeal[]; resales?: GResale[] }) {
   const [sel, setSel] = useState<{ grid: string; stack: string; floor: number } | null>(null);
   useEffect(() => { setSel(null); }, [deals]);
 
@@ -83,7 +88,7 @@ export default function BuildingGrid({ deals }: { deals: GDeal[] }) {
           const byDate = [...arr].sort((a, b) => +new Date(b.deal_date ?? 0) - +new Date(a.deal_date ?? 0));
           const active = byDate.filter((d) => !d.is_cancelled);
           const deal = active[0] ?? byDate[0];
-          cells.set(`${stack}|${floor}`, { deal, deals: byDate, extra: arr.length - 1, onlyCancelled: active.length === 0 });
+          cells.set(`${stack}|${floor}`, { deal, deals: byDate, extra: arr.length - 1, onlyCancelled: active.length === 0, resales: [] });
         }
       }
       return { name: bname, stacks, floors, cells, colsAreBuildings: false };
@@ -108,9 +113,28 @@ export default function BuildingGrid({ deals }: { deals: GDeal[] }) {
       grids = [{ name: "", stacks: cols.sort(cmp), floors: [...floorSet].sort((a, b) => b - a), cells, colsAreBuildings: true }];
     }
 
+    // 交屋後轉售(a 檔)沒有棟及號,用「樓層＋權狀坪數」對預售成交指紋回推戶別:
+    // 同層唯一命中才放進格子,對不到或同層多戶同坪數的收進 loose 列表,不硬猜。
+    const loose: GResale[] = [];
+    for (const r of resales) {
+      if (r.floor_no == null || r.area_ping == null) { loose.push(r); continue; }
+      const matches = new Set<Cell>();
+      for (const g of grids) {
+        for (const [key, cell] of g.cells) {
+          if (+key.split("|")[1] !== r.floor_no) continue;
+          if (cell.deals.some((d) => d.area_ping != null
+            && Math.abs(Number(d.area_ping) - Number(r.area_ping)) <= 0.5)) matches.add(cell);
+        }
+      }
+      if (matches.size === 1) [...matches][0].resales.push(r);
+      else loose.push(r);
+    }
+    for (const g of grids) for (const cell of g.cells.values())
+      cell.resales.sort((a, b) => +new Date(b.deal_date ?? 0) - +new Date(a.deal_date ?? 0));
+
     // 全案價差過小時（< 2 萬/坪）不上色，避免色階把微小差異視覺放大
-    return { buildings: grids, unplaced, lo, hi, flat: hi - lo < 2 };
-  }, [deals]);
+    return { buildings: grids, unplaced, lo, hi, flat: hi - lo < 2, loose };
+  }, [deals, resales]);
 
   if (!model.buildings.length) return <div className="grid-note">此建案的棟及號資料不足，無法繪製棟別圖。</div>;
 
@@ -155,9 +179,10 @@ export default function BuildingGrid({ deals }: { deals: GDeal[] }) {
                         : null;
                       const selected = sel != null && sel.grid === b.name && sel.stack === s && sel.floor === f;
                       const unitLabel = b.colsAreBuildings ? `${s}棟` : s !== "—" ? `${s}戶` : "";
+                      const rs = cell.resales;
                       return (
                         <td key={s} role="button" tabIndex={0} aria-pressed={selected}
-                          aria-label={`${unitLabel} ${f}樓，${price == null ? "無單價" : `單價 ${fmtP(price)} 萬`}${onlyCancelled ? "，已解約" : ""}`}
+                          aria-label={`${unitLabel} ${f}樓，${price == null ? "無單價" : `單價 ${fmtP(price)} 萬`}${onlyCancelled ? "，已解約" : ""}${rs.length ? `，交屋後轉售 ${rs.length} 筆` : ""}`}
                           className={`bgrid-cell${onlyCancelled ? " cancelled" : ""}${c?.dark ? " deep" : ""}${selected ? " sel" : ""}`}
                           style={c ? { background: c.bg } : undefined}
                           onClick={() => setSel(selected ? null : { grid: b.name, stack: s, floor: f })}
@@ -170,6 +195,7 @@ export default function BuildingGrid({ deals }: { deals: GDeal[] }) {
                           <span className="bgrid-date">{rocDate(deal.deal_date)}</span>
                           <b>{price == null ? "—" : fmtP(price)}</b>
                           {extra > 0 && <i className="bgrid-extra" aria-label={`${extra} 筆其他紀錄`} />}
+                          {rs.length > 0 && <i className="bgrid-rs" aria-hidden />}
                         </td>
                       );
                     })}
@@ -203,15 +229,45 @@ export default function BuildingGrid({ deals }: { deals: GDeal[] }) {
                     {d.is_cancelled && <em className="bd-cancel">已解約{d.cancel_date ? `・${d.cancel_date}` : ""}</em>}
                   </div>
                 ))}
+                {cell.resales.map((r, i) => (
+                  <div key={`rs-${i}`} className="bgrid-detail-row num resale">
+                    <span className="bd-date">{r.deal_date ?? "—"}</span>
+                    <em className="bd-tag">轉售</em>
+                    <span className="bd-spec">
+                      {[r.rooms != null ? `${r.rooms}房${r.baths != null ? `${r.baths}衛` : ""}` : null,
+                        r.area_ping != null ? `${fmtP(Number(r.area_ping))} 坪` : null]
+                        .filter(Boolean).join("・") || "—"}
+                    </span>
+                    <span>總價 <b>{r.total_price == null ? "—" : Math.round(Number(r.total_price)).toLocaleString()}</b> 萬</span>
+                    <span>單價 <b>{r.unit_price == null ? "—" : fmtP(Number(r.unit_price))}</b> 萬/坪</span>
+                  </div>
+                ))}
               </div>
             );
           })()}
         </div>
       ))}
       <div className="grid-note">
-        {flat ? "" : "深色＝單價較高。"}空格＝尚無揭露。虛線框＝已解約。點格子可看該戶詳情。
+        {flat ? "" : "深色＝單價較高。"}空格＝尚無揭露。虛線框＝已解約。橘角＝交屋後轉售。點格子可看該戶詳情。
         {model.unplaced > 0 && `另有 ${model.unplaced} 筆缺樓層或戶別資訊，僅列於「列表」。`}
       </div>
+      {model.loose.length > 0 && (
+        <details className="bgrid-loose">
+          <summary>其他轉售（{model.loose.length} 筆，無法唯一對應戶別）</summary>
+          <table className="bgrid-loose-table num">
+            <tbody>
+              {model.loose.map((r, i) => (
+                <tr key={i}>
+                  <td>{r.deal_date ?? "—"}</td>
+                  <td>{r.floor_no != null ? `${r.floor_no}樓` : "—"}{r.rooms != null ? `・${r.rooms}房` : ""}</td>
+                  <td>{r.total_price == null ? "—" : `${Math.round(Number(r.total_price)).toLocaleString()} 萬`}</td>
+                  <td>{r.unit_price == null ? "—" : `${fmtP(Number(r.unit_price))} 萬`}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      )}
     </div>
   );
 }

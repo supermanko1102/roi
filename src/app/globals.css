@@ -147,3 +147,12 @@ table.bgrid thead th.bgrid-floor { background: var(--color-surface); }
 .bgrid-detail-row .bd-date { color: var(--color-ink); font-weight: 700; }
 .bgrid-detail-row.cancelled .bd-date, .bgrid-detail-row.cancelled b { color: #9c4038; text-decoration: line-through; }
 .bgrid-detail-row .bd-cancel { color: #9c4038; font-style: normal; font-weight: 800; }
+
+/* 棟別圖:交屋後轉售標記與清單 */
+.bgrid-rs { position: absolute; top: 0; left: 0; width: 0; height: 0; border-top: 8px solid var(--color-amber); border-right: 8px solid transparent; border-top-left-radius: 5px; }
+.bgrid-detail-row .bd-tag { padding: 0 4px; border: 1px solid #e3cd9d; border-radius: 4px; background: #fff8ec; color: var(--color-amber); font-size: 8.5px; font-style: normal; font-weight: 800; }
+.bgrid-loose { margin-top: 8px; }
+.bgrid-loose summary { color: var(--color-ink-soft); cursor: pointer; font-size: 10px; font-weight: 700; }
+.bgrid-loose-table { width: 100%; margin-top: 6px; border-collapse: collapse; font-size: 10.5px; }
+.bgrid-loose-table td { padding: 4px 6px; }
+.bgrid-loose-table tr:nth-child(even) { background: #f5f7f4; }

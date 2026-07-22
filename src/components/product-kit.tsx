@@ -1,18 +1,13 @@
 import { useRef, useState, type ReactNode } from "react";
 import type { RoomFilter } from "@/lib/rooms";
+import { walkMinutes } from "@/lib/geo";
+import { TOTAL_FILTERS } from "@/lib/map-const";
+import type { PresaleFeature, RentalFeature, SearchSuggestion } from "@/lib/map-types";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 export type MarketMode = "presale" | "rental";
-
-// 搜尋下拉建議:選中後直接飛到目標(建案開抽屜、行政區/生活圈縮放),不經過列表
-export type SearchSuggestion = {
-  kind: "project" | "district" | "zone" | "rental";
-  key: string;
-  label: string;
-  sub?: string;
-};
 
 const SUGGEST_KIND: Record<SearchSuggestion["kind"], string> = {
   project: "建案", district: "行政區", zone: "生活圈", rental: "社區",
@@ -52,11 +47,11 @@ export type RentalSummary = {
   lastDeal: string | null;
 };
 
-export function summaryFromFeature(f: any): ProjectSummary {
+export function summaryFromFeature(f: PresaleFeature): ProjectSummary {
   const p = f.properties;
   return {
     key: `${p.city}|${p.district}|${p.name}`,
-    name: p.name,
+    name: p.name!,
     city: p.city,
     district: p.district,
     lng: +f.geometry.coordinates[0],
@@ -70,7 +65,7 @@ export function summaryFromFeature(f: any): ProjectSummary {
   };
 }
 
-export function rentalSummaryFromFeature(f: any): RentalSummary {
+export function rentalSummaryFromFeature(f: RentalFeature): RentalSummary {
   const p = f.properties;
   return {
     key: p.key,
@@ -94,7 +89,7 @@ export function rentalSummaryFromFeature(f: any): RentalSummary {
 
 const money = (v: number | null) => v == null ? "—" : `${Math.round(v).toLocaleString()} 萬`;
 const price = (v: number | null) => v == null ? "—" : `${v.toFixed(1)} 萬/坪`;
-const walk = (m: number | null) => m == null ? null : Math.max(1, Math.round(m * 1.3 / 80));
+const walk = (m: number | null) => m == null ? null : walkMinutes(m);
 
 /* 行動版底欄按鈕的共同覆寫 */
 const mobHeadBtn = "max-mob:h-10 max-mob:w-full max-mob:px-[7px] max-mob:text-[11px]";
@@ -193,10 +188,6 @@ export function FilterPanel({ open, totalBand, setTotalBand, rooms, setRooms,
   showCancel: boolean; setShowCancel: (v: boolean) => void;
   reset: () => void;
 }) {
-  const budgets = [
-    ["all", "不限"], ["1000", "1,000萬內"], ["1500", "1,000–1,500萬"],
-    ["2000", "1,500–2,000萬"], ["2000p", "2,000萬以上"],
-  ];
   const roomItems: [RoomFilter, string][] = [
     ["all", "不限"], ["1", "1房"], ["2", "2房"], ["3", "3房"], ["4p", "4房以上"],
   ];
@@ -211,7 +202,7 @@ export function FilterPanel({ open, totalBand, setTotalBand, rooms, setRooms,
           onClick={reset}>全部清除</Button>
       </div>
       <FilterGroup label="成交總價">
-        {budgets.map(([key, label]) => <FilterButton key={key} on={totalBand === key}
+        {TOTAL_FILTERS.map(({ key, label }) => <FilterButton key={key} on={totalBand === key}
           onClick={() => setTotalBand(key)}>{label}</FilterButton>)}
       </FilterGroup>
       <FilterGroup label="房型">

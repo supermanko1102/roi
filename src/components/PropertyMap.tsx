@@ -1,34 +1,34 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Map, { Source, Layer, Marker, Popup, MapRef } from "react-map-gl/maplibre";
-import type { FeatureCollection } from "geojson";
 import ProjectDrawer from "./ProjectDrawer";
 import MapLegend from "./MapLegend";
 import {
   ComparePanel, FilterPanel, ProductHeader,
   rentalSummaryFromFeature, summaryFromFeature,
-  type MarketMode, type ProjectSummary, type RentalSummary, type SearchSuggestion,
+  type MarketMode, type ProjectSummary, type RentalSummary,
 } from "./product-kit";
 import { type BandFilter } from "@/lib/age";
 import { type RoomFilter } from "@/lib/rooms";
-import { haversineM, geomBbox } from "@/lib/geo";
+import { geomBbox, walkMinutes } from "@/lib/geo";
 import { LINE_COLOR, priceProp } from "@/lib/map-colors";
-import { CITIES, DEFAULT_VIEW, cityDisplay } from "@/lib/cities";
+import { CITIES, DEFAULT_VIEW } from "@/lib/cities";
 import { addMapIcons } from "@/lib/map-icons";
+import {
+  CITY_LABEL_ZOOM, DETAIL_ZOOM, POINT_ZOOM, PROJECT_ZOOM, SHOW_IC_M, SHOW_STATION_M, TOTAL_FILTERS, ZOOM_STEPS,
+} from "@/lib/map-const";
+import { buildSuggestions, enrichNearestTransport, filterPoints } from "@/lib/map-view";
+import type {
+  DistrictFC, MapLabel, PresaleFC, PresaleProps, RentalFC, RentalProps,
+  SearchSuggestion, StationFC, TransportStop, ZoneFC,
+} from "@/lib/map-types";
+import type { FeatureCollection } from "geojson";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 // 預售與租屋是兩個並列的瀏覽模式，不互相疊加。
+// 本檔管狀態、URL 同步、資料載入、互動與圖層;純運算在 lib/map-view、門檻常數在 lib/map-const。
 
-// 總價帶篩選:預售買家用預算找案,不是用單價
-const TOTAL_FILTERS: { key: string; label: string; min?: number; max?: number }[] = [
-  { key: "all", label: "不限總價" },
-  { key: "1000", label: "1,000萬內", max: 1000 },
-  { key: "1500", label: "1,000–1,500萬", min: 1000, max: 1500 },
-  { key: "2000", label: "1,500–2,000萬", min: 1500, max: 2000 },
-  { key: "2000p", label: "2,000萬+", min: 2000 },
-];
-
-type PresalePopup = {
+type PresalePopupData = {
   lng: number; lat: number;
   name: string; city: string; district: string; deal_count: number;
   price: number | null; median_total: number | null; median_area: number | null;
@@ -38,7 +38,7 @@ type PresalePopup = {
   ic_name: string | null; ic_m: number | null;                          // 最近交流道
 };
 
-type RentalPopup = {
+type RentalPopupData = {
   lng: number; lat: number; name: string | null; district: string; address: string;
   building_type: string; build_year: number; age: number; monthly_rent: number;
   housing_rent: number; parking_rent: number | null;
@@ -66,16 +66,6 @@ const BASE_STYLE: any = {
   ],
 };
 
-// 樂居式層級切換:zoom 過門檻自動浮出點位,行政區色塊同步淡出
-const DETAIL_ZOOM = 14;
-// 重劃區/生活圈先獨立呈現；再放大一級才顯示建案點。
-const POINT_ZOOM = 16;
-// 多城市時全區遠景不塞 54 個區標,先顯示城市級標籤
-const CITY_LABEL_ZOOM = 12;
-// 滾輪改階梯式縮放:每滾一格跳到下一個語意層級(全區→行政區→生活圈→建案→街廓),
-// 不會停在生活圈半透明、點又還沒出來的中間態;必須遞增排序
-const ZOOM_STEPS = [10, CITY_LABEL_ZOOM, DETAIL_ZOOM, POINT_ZOOM, 17.5];
-
 function readInitialView() {
   if (typeof window === "undefined") return DEFAULT_VIEW;
   const q = new URLSearchParams(location.search);
@@ -91,7 +81,7 @@ function readInitialView() {
 export default function PropertyMap() {
   const mapRef = useRef<MapRef>(null);
   const initialView = useMemo(readInitialView, []);
-  const [districts, setDistricts] = useState<FeatureCollection | null>(null);
+  const [districts, setDistricts] = useState<DistrictFC | null>(null);
   const band: BandFilter = "presale";
   const [market, setMarket] = useState<MarketMode>("presale");
   const [rooms, setRooms] = useState<RoomFilter>("all");
@@ -100,14 +90,14 @@ export default function PropertyMap() {
   const [nearIC, setNearIC] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
   const [zoom, setZoom] = useState(initialView.zoom);
-  const [points, setPoints] = useState<FeatureCollection | null>(null);
-  const [presalePopup, setPresalePopup] = useState<PresalePopup | null>(null);
-  const [zones, setZones] = useState<FeatureCollection | null>(null);
-  const [stations, setStations] = useState<FeatureCollection | null>(null);
+  const [points, setPoints] = useState<PresaleFC | null>(null);
+  const [presalePopup, setPresalePopup] = useState<PresalePopupData | null>(null);
+  const [zones, setZones] = useState<ZoneFC | null>(null);
+  const [stations, setStations] = useState<StationFC | null>(null);
   const [rails, setRails] = useState<FeatureCollection | null>(null);
-  const [rentals, setRentals] = useState<FeatureCollection | null>(null);
-  const [rentalPopup, setRentalPopup] = useState<RentalPopup | null>(null);
-  const [catalog, setCatalog] = useState<FeatureCollection | null>(null);
+  const [rentals, setRentals] = useState<RentalFC | null>(null);
+  const [rentalPopup, setRentalPopup] = useState<RentalPopupData | null>(null);
+  const [catalog, setCatalog] = useState<PresaleFC | null>(null);
   const [drawerProj, setDrawerProj] = useState<{ city: string; district: string; name: string } | null>(null);
   const [query, setQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -210,64 +200,26 @@ export default function PropertyMap() {
   }
 
   // 車站/交流道索引(最近距離用;stations.geojson 用 kind 區分)
-  const transportIdx = useMemo(() => (stations?.features ?? []).map((f: any) => ({
-    name: f.properties.name as string, line: f.properties.line as string,
-    status: f.properties.status as string,
-    kind: (f.properties.kind ?? "station") as string,
-    lng: f.geometry.coordinates[0] as number, lat: f.geometry.coordinates[1] as number,
+  const transportIdx = useMemo<TransportStop[]>(() => (stations?.features ?? []).map((f) => ({
+    name: f.properties.name, line: f.properties.line, status: f.properties.status,
+    kind: f.properties.kind ?? "station",
+    lng: f.geometry.coordinates[0], lat: f.geometry.coordinates[1],
   })), [stations]);
   const railIdx = useMemo(() => transportIdx.filter((t) => t.kind === "station"), [transportIdx]);
   const icIdx = useMemo(() => transportIdx.filter((t) => t.kind === "interchange"), [transportIdx]);
 
-  // 同一套交通距離同時餵地圖點位與列表。
-  const enrichPoints = useMemo(() => (base: FeatureCollection | null) => {
-    if (!base) return null;
-    return { ...base, features: (base.features as any[]).map((f) => {
-      const p = f.properties;
-      const [lng, lat] = f.geometry.coordinates;
-      let st: { name: string; line: string; m: number } | null = null;
-      for (const s of railIdx) {
-        const m = haversineM(lat, lng, s.lat, s.lng);
-        if (!st || m < st.m) st = { name: s.name, line: s.line, m };
-      }
-      let ic: { name: string; m: number } | null = null;
-      for (const s of icIdx) {
-        const m = haversineM(lat, lng, s.lat, s.lng);
-        if (!ic || m < ic.m) ic = { name: s.name, m };
-      }
-      return { ...f, properties: {
-        ...p,
-        ...(st ? { st_name: st.name, st_line: st.line, st_m: Math.round(st.m) } : {}),
-        ...(ic ? { ic_name: ic.name, ic_m: Math.round(ic.m) } : {}),
-      } };
-    }) } as FeatureCollection;
-  }, [railIdx, icIdx]);
-
-  const applyFilters = useMemo(() => (base: FeatureCollection | null) => {
-    if (!base) return null;
-    const tf = TOTAL_FILTERS.find((t) => t.key === totalBand)!;
-    const needle = query.trim().toLocaleLowerCase("zh-Hant");
-    const feats = (base.features as any[])
-      .filter((f) => {
-        const t = f.properties.median_total;
-        if (tf.min != null && (t == null || t < tf.min)) return false;
-        if (tf.max != null && (t == null || t >= tf.max)) return false;
-        if (needle && !`${f.properties.name ?? ""} ${f.properties.district ?? ""}`.toLocaleLowerCase("zh-Hant").includes(needle)) return false;
-        return true;
-      })
-      .filter((f) => !nearMetro || (f.properties.st_m != null && f.properties.st_m <= 800))
-      .filter((f) => !nearIC || (f.properties.ic_m != null && f.properties.ic_m <= 2000));
-    return { ...base, features: feats } as FeatureCollection;
-  }, [totalBand, query, nearMetro, nearIC]);
-
-  const visiblePoints = useMemo(() => applyFilters(enrichPoints(points)), [points, enrichPoints, applyFilters]);
-  const visibleCatalog = useMemo(() => applyFilters(enrichPoints(catalog)), [catalog, enrichPoints, applyFilters]);
-  const projectSummaries = useMemo(() => ((visibleCatalog?.features ?? []) as any[])
+  // 同一套交通距離同時餵地圖點位與搜尋建議
+  const enrichedPoints = useMemo(() => enrichNearestTransport(points, railIdx, icIdx), [points, railIdx, icIdx]);
+  const enrichedCatalog = useMemo(() => enrichNearestTransport(catalog, railIdx, icIdx), [catalog, railIdx, icIdx]);
+  const pointFilter = useMemo(() => ({ totalBand, query, nearMetro, nearIC }), [totalBand, query, nearMetro, nearIC]);
+  const visiblePoints = useMemo(() => filterPoints(enrichedPoints, pointFilter), [enrichedPoints, pointFilter]);
+  const visibleCatalog = useMemo(() => filterPoints(enrichedCatalog, pointFilter), [enrichedCatalog, pointFilter]);
+  const projectSummaries = useMemo(() => (visibleCatalog?.features ?? [])
     .map(summaryFromFeature)
     .sort((a, b) => a.name.localeCompare(b.name, "zh-Hant")), [visibleCatalog]);
   const rentalSummaries = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("zh-Hant");
-    return ((rentals?.features ?? []) as any[])
+    return (rentals?.features ?? [])
       .filter((f) => !needle || `${f.properties.name ?? ""} ${f.properties.address ?? ""} ${f.properties.district ?? ""}`
         .toLocaleLowerCase("zh-Hant").includes(needle))
       .map(rentalSummaryFromFeature)
@@ -283,14 +235,14 @@ export default function PropertyMap() {
   // 解約標記:獨立於屋齡帶篩選,永遠拿全部點位過濾
   const cancelPoints = useMemo(() => {
     if (!points) return null;
-    return { ...points, features: (points.features as any[]).filter((f) => (f.properties.cancel_count ?? 0) > 0) };
+    return { ...points, features: points.features.filter((f) => (f.properties.cancel_count ?? 0) > 0) };
   }, [points]);
 
   // 標籤放邊界框中心(粗略但夠用;更準可預算 pole of inaccessibility)
   // key=城市|區名:跨市撞區名(如中正區)時識別用,顯示仍用 name
-  const labels = useMemo(() => {
+  const labels = useMemo<MapLabel[]>(() => {
     if (!districts) return [];
-    return districts.features.map((f: any) => {
+    return districts.features.map((f) => {
       const [w, s, e, n] = geomBbox(f.geometry);
       return {
         key: `${f.properties.city}|${f.properties.name}`,
@@ -300,9 +252,9 @@ export default function PropertyMap() {
   }, [districts]);
 
   // 重劃區標籤同樣放邊界框中心(邊界是官方圖資的 Polygon/MultiPolygon)
-  const zoneLabels = useMemo(() => {
+  const zoneLabels = useMemo<MapLabel[]>(() => {
     if (!zones) return [];
-    return zones.features.map((f: any) => {
+    return zones.features.map((f) => {
       const [w, s, e, n] = geomBbox(f.geometry);
       return {
         key: f.properties.zone_key ?? f.properties.name,
@@ -313,43 +265,14 @@ export default function PropertyMap() {
     });
   }, [zones]);
 
-  // 搜尋下拉建議:比對建案/生活圈/行政區(租屋模式比對社區名與地址),取代原本的列表模式
-  const suggestions = useMemo<SearchSuggestion[]>(() => {
-    const needle = query.trim().toLocaleLowerCase("zh-Hant");
-    if (!needle) return [];
-    const hit = (s: string | null | undefined) => (s ?? "").toLocaleLowerCase("zh-Hant").includes(needle);
-    const cityTag = (city?: string) => (city && CITIES.length > 1 ? `${cityDisplay(city)}・` : "");
-    if (market === "rental") {
-      return ((rentals?.features ?? []) as any[])
-        .filter((f) => hit(f.properties.name) || hit(f.properties.address) || hit(f.properties.district))
-        .slice(0, 8)
-        .map((f) => ({
-          kind: "rental" as const, key: f.properties.key,
-          label: f.properties.name ?? f.properties.address,
-          sub: `${cityTag(f.properties.city)}${f.properties.district}`,
-        }));
-    }
-    const projs = ((catalog?.features ?? []) as any[])
-      .filter((f) => hit(f.properties.name)).slice(0, 6)
-      .map((f) => ({
-        kind: "project" as const,
-        key: `${f.properties.city}|${f.properties.district}|${f.properties.name}`,
-        label: f.properties.name as string,
-        sub: `${cityTag(f.properties.city)}${f.properties.district}${f.properties.price != null ? `・$${(+f.properties.price).toFixed(1)}` : ""}`,
-      }));
-    const zs = zoneLabels.filter((l) => hit(l.name)).slice(0, 3)
-      .map((l) => ({ kind: "zone" as const, key: l.key as string, label: l.name as string,
-        sub: cityTag(l.props.city).replace(/・$/, "") || undefined }));
-    const ds = labels.filter((l) => hit(l.name)).slice(0, 3)
-      .map((l) => ({ kind: "district" as const, key: l.key, label: l.name as string,
-        sub: cityTag(l.props.city).replace(/・$/, "") || undefined }));
-    return [...projs, ...zs, ...ds];
-  }, [query, market, catalog, rentals, zoneLabels, labels]);
+  const suggestions = useMemo(() => buildSuggestions({
+    query, market, catalog, rentals, zoneLabels, districtLabels: labels,
+  }), [query, market, catalog, rentals, zoneLabels, labels]);
 
   function pickSuggestion(s: SearchSuggestion) {
     setQuery(""); // 選中即導航:query 是導航輸入,不留著當篩選
     if (s.kind === "project") {
-      const f = (catalog?.features as any[] | undefined)?.find(
+      const f = catalog?.features.find(
         (x) => `${x.properties.city}|${x.properties.district}|${x.properties.name}` === s.key);
       if (f) openSummary(summaryFromFeature(f));
     } else if (s.kind === "zone") {
@@ -357,14 +280,14 @@ export default function PropertyMap() {
     } else if (s.kind === "district") {
       drill(s.key);
     } else {
-      const f = (rentals?.features as any[] | undefined)?.find((x) => x.properties.key === s.key);
+      const f = rentals?.features.find((x) => x.properties.key === s.key);
       if (f) openRentalSummary(rentalSummaryFromFeature(f));
     }
   }
 
   function zoomToZone(zoneKey: string) {
     const z = zoneLabels.find((l) => l.key === zoneKey);
-    if (!z) return;
+    if (!z?.bounds) return;
     loadDetail([z.bounds[0][0], z.bounds[0][1], z.bounds[1][0], z.bounds[1][1]]); // 與飛行動畫並行抓資料
     // 點生活圈直接落在建案層級,不用再手動放大一次;
     // 大圈保底跨過 POINT_ZOOM,小圈上限 +1.5 避免過度放大
@@ -395,7 +318,7 @@ export default function PropertyMap() {
   // 點行政區 → 縮放到該區;顯示什麼由 zoom 門檻決定,與滾輪放大走同一條路
   function drill(key: string) {
     const feat = (districts?.features ?? [])
-      .find((f: any) => `${f.properties.city}|${f.properties.name}` === key) as any;
+      .find((f) => `${f.properties.city}|${f.properties.name}` === key);
     if (!feat) return;
     const [w, s, e, n] = geomBbox(feat.geometry);
     if (market === "presale") loadDetail([w, s, e, n]);
@@ -412,12 +335,12 @@ export default function PropertyMap() {
   }
 
   function openPoint(f: any) {
-    const p = f.properties;
+    const p = f.properties as PresaleProps;
     // 抽屜開著時點別的建案直接切換內容,維持「掃描→查看→再掃描」的節奏
-    if (drawerProj) { openProjDrawer(p.city, p.district, p.name); return; }
+    if (drawerProj) { openProjDrawer(p.city, p.district, p.name!); return; }
     const [lng, lat] = f.geometry.coordinates;
     setPresalePopup({
-      lng, lat, name: p.name, city: p.city, district: p.district, deal_count: p.deal_count,
+      lng, lat, name: p.name!, city: p.city, district: p.district, deal_count: p.deal_count,
       price: p.price ?? null, median_total: p.median_total ?? null,
       median_area: p.median_area ?? null, band: p.band, build_year: p.build_year ?? null,
       cancel_count: p.cancel_count ?? 0,
@@ -427,7 +350,7 @@ export default function PropertyMap() {
   }
 
   function openRental(f: any) {
-    const p = f.properties, [lng, lat] = f.geometry.coordinates;
+    const p = f.properties as RentalProps, [lng, lat] = f.geometry.coordinates;
     setPresalePopup(null);
     setRentalPopup({
       lng, lat, name: p.name ?? null, district: p.district, address: p.address,
@@ -442,12 +365,12 @@ export default function PropertyMap() {
 
   function openSummary(p: ProjectSummary) {
     setCompareOpen(false);
-    mapRef.current?.flyTo({ center: [p.lng, p.lat], zoom: 15.4, duration: 650 });
+    mapRef.current?.flyTo({ center: [p.lng, p.lat], zoom: PROJECT_ZOOM, duration: 650 });
     openProjDrawer(p.city, p.district, p.name);
   }
 
   function openRentalSummary(r: RentalSummary) {
-    mapRef.current?.flyTo({ center: [r.lng, r.lat], zoom: 15.4, duration: 650 });
+    mapRef.current?.flyTo({ center: [r.lng, r.lat], zoom: PROJECT_ZOOM, duration: 650 });
     setRentalPopup({
       lng: r.lng, lat: r.lat, name: r.name, district: r.district, address: r.address,
       building_type: r.buildingType, build_year: new Date().getFullYear() - r.age, age: r.age,
@@ -744,53 +667,6 @@ export default function PropertyMap() {
           </Source>
         )}
 
-        {!detail && CITIES.length > 1 && zoom < CITY_LABEL_ZOOM && CITIES.map((c) => (
-          <Marker key={c.name} longitude={c.center[0]} latitude={c.center[1]} anchor="center">
-            <button type="button" className="dlabel"
-              onClick={(e) => {
-                e.stopPropagation();
-                mapRef.current?.flyTo({ center: c.center, zoom: c.zoom, duration: 700 });
-              }}>
-              <span className="dname">{c.display}</span>
-            </button>
-          </Marker>
-        ))}
-
-        {!detail && (CITIES.length === 1 || zoom >= CITY_LABEL_ZOOM) && labels.map((l) => {
-          const price = l.props[priceProp(band)];
-          const count = rentalCounts[l.key] ?? 0;
-          const noData = market === "presale" && price == null;
-          return (
-            <Marker key={l.key} longitude={l.lng} latitude={l.lat} anchor="center">
-              <button type="button"
-                className={`dlabel ${noData ? "nodata" : ""}`}
-                onClick={(e) => { e.stopPropagation(); drill(l.key); }}
-              >
-                <span className="dname">{l.name}</span>
-                <span className="dval num">
-                  {market === "rental" ? `${count} 棟` : noData ? "資料不足" : `$${(+price).toFixed(1)}`}
-                </span>
-              </button>
-            </Marker>
-          );
-        })}
-
-        {market === "presale" && zoneLevel && zoneLabels.map((l) => {
-          const price = l.props[priceProp(band)];
-          return (
-            <Marker key={l.key} longitude={l.lng} latitude={l.lat} anchor="center">
-              <button type="button" className="zlabel"
-                onClick={(e) => { e.stopPropagation(); zoomToZone(l.key); }}
-                title={`${l.name}:預售 ${l.props[`n_${band}`] ?? 0} 筆成交`}>
-                <span className="zname">{l.name}</span>
-                <span className="zval num">
-                  {price == null ? "—" : `$${(+price).toFixed(1)}`}
-                </span>
-              </button>
-            </Marker>
-          );
-        })}
-
         {/* 軌道路線:營運畫實線、施工中畫虛線,墊在車站圓點下方。
             只畫有站點的線(機捷/台鐵/綠線);規劃中路線未定案,刻意不畫。 */}
         {rails && detail && (
@@ -840,6 +716,53 @@ export default function PropertyMap() {
           </Source>
         )}
 
+        {!detail && CITIES.length > 1 && zoom < CITY_LABEL_ZOOM && CITIES.map((c) => (
+          <Marker key={c.name} longitude={c.center[0]} latitude={c.center[1]} anchor="center">
+            <button type="button" className="dlabel"
+              onClick={(e) => {
+                e.stopPropagation();
+                mapRef.current?.flyTo({ center: c.center, zoom: c.zoom, duration: 700 });
+              }}>
+              <span className="dname">{c.display}</span>
+            </button>
+          </Marker>
+        ))}
+
+        {!detail && (CITIES.length === 1 || zoom >= CITY_LABEL_ZOOM) && labels.map((l) => {
+          const price = l.props[priceProp(band)];
+          const count = rentalCounts[l.key] ?? 0;
+          const noData = market === "presale" && price == null;
+          return (
+            <Marker key={l.key} longitude={l.lng} latitude={l.lat} anchor="center">
+              <button type="button"
+                className={`dlabel ${noData ? "nodata" : ""}`}
+                onClick={(e) => { e.stopPropagation(); drill(l.key); }}
+              >
+                <span className="dname">{l.name}</span>
+                <span className="dval num">
+                  {market === "rental" ? `${count} 棟` : noData ? "資料不足" : `$${(+price).toFixed(1)}`}
+                </span>
+              </button>
+            </Marker>
+          );
+        })}
+
+        {market === "presale" && zoneLevel && zoneLabels.map((l) => {
+          const price = l.props[priceProp(band)];
+          return (
+            <Marker key={l.key} longitude={l.lng} latitude={l.lat} anchor="center">
+              <button type="button" className="zlabel"
+                onClick={(e) => { e.stopPropagation(); zoomToZone(l.key); }}
+                title={`${l.name}:預售 ${l.props[`n_${band}`] ?? 0} 筆成交`}>
+                <span className="zname">{l.name}</span>
+                <span className="zval num">
+                  {price == null ? "—" : `$${(+price).toFixed(1)}`}
+                </span>
+              </button>
+            </Marker>
+          );
+        })}
+
         {market === "presale" && presalePopup && (
           <Popup longitude={presalePopup.lng} latitude={presalePopup.lat} anchor="bottom"
             onClose={() => setPresalePopup(null)} closeButton maxWidth="280px" offset={14}>
@@ -861,12 +784,12 @@ export default function PropertyMap() {
                 <div><dt>坪數大約</dt><dd className="num">
                   {presalePopup.median_area == null ? "—" : (+presalePopup.median_area).toFixed(0) + " 坪"}</dd></div>
               </dl>
-              {((presalePopup.st_m != null && presalePopup.st_m <= 2400) ||
-                (presalePopup.ic_m != null && presalePopup.ic_m <= 3000)) && (
+              {((presalePopup.st_m != null && presalePopup.st_m <= SHOW_STATION_M) ||
+                (presalePopup.ic_m != null && presalePopup.ic_m <= SHOW_IC_M)) && (
                 <div className="note" style={{ borderTop: "none", marginTop: 5, paddingTop: 0 }}>
-                  {presalePopup.st_name && presalePopup.st_m != null && presalePopup.st_m <= 2400 &&
-                    <>🚉 {presalePopup.st_name}({presalePopup.st_line})步行約 {Math.max(1, Math.round(presalePopup.st_m * 1.3 / 80))} 分<br /></>}
-                  {presalePopup.ic_name && presalePopup.ic_m != null && presalePopup.ic_m <= 3000 &&
+                  {presalePopup.st_name && presalePopup.st_m != null && presalePopup.st_m <= SHOW_STATION_M &&
+                    <>🚉 {presalePopup.st_name}({presalePopup.st_line})步行約 {walkMinutes(presalePopup.st_m)} 分<br /></>}
+                  {presalePopup.ic_name && presalePopup.ic_m != null && presalePopup.ic_m <= SHOW_IC_M &&
                     <>🛣️ {presalePopup.ic_name}約 {(presalePopup.ic_m / 1000).toFixed(1)} 公里</>}
                 </div>
               )}
@@ -923,7 +846,7 @@ export default function PropertyMap() {
         onClose={closeProjDrawer}
         saved={saved.some((p) => p.key === `${drawerProj.city}|${drawerProj.district}|${drawerProj.name}`)}
         onToggleSaved={() => {
-          const found = (enrichPoints(catalog)?.features as any[] | undefined)?.find(
+          const found = enrichedCatalog?.features.find(
             (f) => `${f.properties.city}|${f.properties.district}|${f.properties.name}` ===
               `${drawerProj.city}|${drawerProj.district}|${drawerProj.name}`);
           if (found) toggleSaved(summaryFromFeature(found));

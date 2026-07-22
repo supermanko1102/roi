@@ -44,6 +44,9 @@ export function haversineM(lat1: number, lng1: number, lat2: number, lng2: numbe
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
+// 直線距離換步行分鐘(路網迂迴係數 1.3、80m/分),下限 1 分
+export const walkMinutes = (m: number) => Math.max(1, Math.round(m * 1.3 / 80));
+
 // 預先算 bbox 的 contains,批次判斷大量點時用
 export function makeContains(geom: any) {
   const polys: Ring[][] = geom.type === "Polygon" ? [geom.coordinates] : geom.coordinates;

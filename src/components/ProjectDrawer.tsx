@@ -27,7 +27,19 @@ type PDetail = {
   band: string;
   build_year: number | null;
   deals: PDeal[];
+  resales: Resale[];
   materials: { sections: { title: string; body: string }[]; pdf_url: string | null } | null;
+};
+
+type Resale = {
+  deal_date: string | null; floor_no: number | null; rooms: number | null; baths: number | null;
+  total_price: number | null; unit_price: number | null; area_ping: number | null;
+};
+
+const median = (xs: number[]) => {
+  if (!xs.length) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
 };
 
 const dealsTh = "border-b border-line px-1.5 py-[5px] text-left text-[9.5px] font-bold text-ink-soft";
@@ -114,6 +126,14 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
   const age = detail?.build_year ? new Date().getFullYear() - detail.build_year : null;
   const presale = detail?.band === "presale";
 
+  // 交屋後轉售 vs 預售的價差(單價中位對單價中位)
+  const resales = detail?.resales ?? [];
+  const resaleMedian = useMemo(
+    () => median(resales.map((r) => r.unit_price).filter((v): v is number => v != null).map(Number)),
+    [resales]);
+  const premium = resaleMedian != null && p?.unit_price != null && +p.unit_price > 0
+    ? ((resaleMedian - +p.unit_price) / +p.unit_price) * 100 : null;
+
   return (
     <aside className="absolute inset-y-0 right-0 z-55 w-[min(480px,100%)] animate-drawer-in overflow-y-auto bg-surface px-6 pb-8 pt-6 shadow-[-12px_0_50px_rgba(18,47,40,.18)] max-mob:top-auto max-mob:h-[min(84%,760px)] max-mob:w-full max-mob:animate-drawer-up max-mob:rounded-t-[20px] max-mob:px-[18px] max-mob:pb-[88px] max-mob:pt-[25px] max-mob:before:absolute max-mob:before:left-1/2 max-mob:before:top-2 max-mob:before:h-1 max-mob:before:w-[42px] max-mob:before:-translate-x-1/2 max-mob:before:rounded-full max-mob:before:bg-[#ced6d2] max-mob:before:content-[''] max-tiny:px-[15px]"
       aria-label={`${name}建案資料`}>
@@ -154,6 +174,18 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
               {recentDeals[0]?.deal_date ? `最新成交 ${recentDeals[0].deal_date}` : "暫無成交日期"}
               ・{active.length} 筆成交
             </div>
+            {resaleMedian != null && (
+              <div className="mt-2.5 flex flex-wrap items-baseline gap-x-1.5 rounded-[9px] border border-[#d8e4de] bg-white px-2.5 py-2 text-[10.5px] text-ink-soft">
+                交屋後轉售中位
+                <b className="num text-[15px] tracking-[-.02em] text-ink">{fmtP(resaleMedian)}</b>萬／坪
+                {premium != null && (
+                  <b className={cn("num text-[11px]", premium >= 0 ? "text-[#9c4038]" : "text-teal")}>
+                    （較預售 {premium >= 0 ? "+" : ""}{premium.toFixed(1)}%）
+                  </b>
+                )}
+                <span className="num text-[9.5px]">{resales.length} 筆</span>
+              </div>
+            )}
           </div>
 
           <section className="mt-[21px]" aria-label="建案基本資料">
@@ -185,7 +217,7 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
               )}
             </div>
             {view === "grid" ? (
-              <BuildingGrid deals={detail.deals} />
+              <BuildingGrid deals={detail.deals} resales={resales} />
             ) : (
               <>
                 <table className="num mt-2 w-full border-collapse text-[11px]">
