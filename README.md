@@ -31,7 +31,9 @@ pnpm etl:download            # 抓最新一期(或指定:tsx etl/download-lvr.ts
 pnpm etl:parse               # CSV → sale_deals / presale_deals / rent_deals
 pnpm etl:geocode             # 門牌 → 座標(NLSC,平行查詢,首次全量約 20~30 分,之後增量幾分鐘)
 pnpm etl:stats               # 重算 district_stats / projects / buildings,自動清除示範資料
+pnpm etl:use-permits         # 匯入雙北使照資料(供社區屋齡判定)
 pnpm etl:communities         # 地號交集 → 實體社區、建案與門牌歸戶
+pnpm etl:geocode-projects    # 預售成交地址定位,失敗時以同名備查工地地址 fallback
 pnpm etl:rent-benchmarks     # 匯入官方租金補貼有效租約分位數
 ```
 
