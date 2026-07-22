@@ -120,10 +120,13 @@ async function main() {
       const [h, ...rows] = readCsv(caseFile);
       const iDist = col(h, "鄉鎮市區"), iName = col(h, "建案名稱"), iStreet = col(h, "坐落街道");
       const iHh = col(h, "層棟戶數"), iPermit = col(h, "建造執照"), iReg = col(h, "第1次登記");
-      const iDecl = col(h, "申報備查"), iNo = col(h, "編號");
+      const iDecl = col(h, "申報備查"), iNo = col(h, "編號"), iBase = col(h, "坐落基地");
       for (const r of rows) {
-        const case_no = r[iNo]?.trim();
-        if (!case_no || !r[iName]) continue;
+        if (!r[iName]) continue;
+        // 近半數備查列的「編號」空白(如 遠雄夏沐、合雄大境),不能因此丟棄:
+        // 合成穩定 key 補進 cases,地號改用主檔「坐落基地」欄(單一代表地號)。
+        const rawNo = r[iNo]?.trim();
+        const case_no = rawNo || `${city.code.toUpperCase()}#${r[iDist]}#${r[iName].trim()}#${(r[iDecl] ?? "").trim()}`;
         const hhm = (r[iHh] ?? "").match(/(\d+)戶/) ?? (r[iHh] ?? "").match(/^(\d+)$/);
         const permitNo = r[iPermit] || null;
         const permitNorm = normPermitNo(permitNo);
@@ -134,6 +137,13 @@ async function main() {
           first_reg: rocDate(r[iReg]), declare_date: rocDate(r[iDecl]),
           use_issue_date: permitNorm ? permitIssue.get(`${city.name}|${permitNorm}`) ?? null : null,
         });
+        if (!rawNo) {
+          const p = parseParcelText(r[iBase] ?? "");
+          if (p) {
+            const key = `${city.name}|${r[iDist]}|${p.sec}|${p.no}`;
+            (parcelToCases.get(key) ?? parcelToCases.set(key, []).get(key)!).push(case_no);
+          }
+        }
       }
     }
     {
