@@ -31,6 +31,7 @@ const SLEEP_MS = 1800;
 const args = process.argv.slice(2);
 const argOf = (k: string) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : null; };
 const LIMIT = +(argOf("--limit") ?? 60);
+const WORKERS = +(argOf("--workers") ?? 4);
 const ONLY_CITY = argOf("--city");
 const ONLY_PROJECT = argOf("--project");
 const FORCE_RETRY = args.includes("--retry");
@@ -216,12 +217,22 @@ async function main() {
     const ctx = await browser.newContext({ userAgent: UA, viewport: { width: 1440, height: 900 } });
     await ctx.addInitScript(() =>
       Object.defineProperty(navigator, "webdriver", { get: () => undefined }));
-    const page = await ctx.newPage();
 
     let ok = 0, noCase = 0, noMat = 0, failed = 0;
-    for (const t of targets) {
+    // 多分頁平行搶隊列:瓶頸在每案的 UI 查詢往返(~10s),平行 N 個約快 N 倍。
+    // 上限保守(預設 4)+ 每案間隔加抖動,對政府網站維持一般使用者等級的請求量。
+    const queue = [...targets];
+    const worker = async (page: Page) => {
+      for (;;) {
+        const t = queue.shift();
+        if (!t) return;
+        await processTarget(page, t);
+        await sleep(SLEEP_MS + Math.random() * 900);
+      }
+    };
+    const processTarget = async (page: Page, t: Target) => {
       const cityCode = CITIES.find((c) => c.name === t.city)?.code.toUpperCase();
-      if (!cityCode) continue;
+      if (!cityCode) return;
       const label = `${t.city}${t.district}「${t.project_name}」`;
       const save = async (row: Partial<typeof contract_materials.$inferInsert>) => {
         await db.insert(contract_materials)
@@ -236,7 +247,7 @@ async function main() {
         await gotoSaleRemark(page);
         const links = await queryProject(page, cityCode, t);
         const ranked = rankContracts(links ?? []);
-        if (!ranked.length) { noCase++; console.log(`  − ${label} 查無備查列/契約`); await save({ status: "no_case" }); continue; }
+        if (!ranked.length) { noCase++; console.log(`  − ${label} 查無備查列/契約`); await save({ status: "no_case" }); return; }
         const cacheKey = `${cityCode}-${t.district}-${t.project_name}`.replace(/[\\/:*?"<>|\s]/g, "_");
         // 建材表可能在任一冊:逐冊(最多 5 份)下載試抽,命中即停
         let hit: { link: ContractLink; materials: string } | null = null;
@@ -250,7 +261,7 @@ async function main() {
           const first = ranked[0];
           noMat++; console.log(`  − ${label} ${ranked.length} 冊皆無建材設備表`);
           await save({ status: "no_materials", mlvr_case_no: first.caseNo, pdf_url: first.url, version_note: first.filename });
-          continue;
+          return;
         }
         await save({
           status: "ok", mlvr_case_no: hit.link.caseNo, pdf_url: hit.link.url,
@@ -262,8 +273,11 @@ async function main() {
         failed++; console.log(`  ✗ ${label} ${String(e).slice(0, 120)}`);
         await save({ status: "fetch_failed" });
       }
-      await sleep(SLEEP_MS);
-    }
+    };
+
+    const pages = await Promise.all(
+      Array.from({ length: Math.min(WORKERS, queue.length) }, () => ctx.newPage()));
+    await Promise.all(pages.map(worker));
     await browser.close();
     console.log(`[contracts] 完成:ok ${ok}、無備查 ${noCase}、無建材表 ${noMat}、失敗 ${failed}`);
   } finally {
