@@ -28,7 +28,7 @@ export const CITIES: City[] = [
     metroOperators: ["TYMC"],
     tdxBusCity: "Taoyuan",
     center: [121.25, 24.94],
-    zoom: 10.3,
+    zoom: 12,
   },
   {
     code: "a",
@@ -40,7 +40,7 @@ export const CITIES: City[] = [
     metroOperators: ["TRTC"],
     tdxBusCity: "Taipei",
     center: [121.545, 25.06],
-    zoom: 11.2,
+    zoom: 12,
   },
   {
     code: "f",
@@ -52,7 +52,7 @@ export const CITIES: City[] = [
     metroOperators: ["NTMC", "NTDLRT", "NTALRT"], // 環狀線/淡海輕軌/安坑輕軌是三個 operator
     tdxBusCity: "NewTaipei",
     center: [121.46, 25.01],
-    zoom: 10.6,
+    zoom: 12,
   },
 ];
 
@@ -91,5 +91,5 @@ export const DEFAULT_VIEW = CITIES.length === 1
   : {
       longitude: (ALL_BBOX.w + ALL_BBOX.e) / 2,
       latitude: (ALL_BBOX.s + ALL_BBOX.n) / 2,
-      zoom: 9.3,
+      zoom: 10, // 對齊地圖 minZoom,避免預設視角被夾擠出怪動畫
     };

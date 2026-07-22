@@ -67,11 +67,14 @@ const BASE_STYLE: any = {
 };
 
 // 樂居式層級切換:zoom 過門檻自動浮出點位,行政區色塊同步淡出
-const DETAIL_ZOOM = 12;
+const DETAIL_ZOOM = 14;
 // 重劃區/生活圈先獨立呈現；再放大一級才顯示建案點。
-const POINT_ZOOM = 14;
+const POINT_ZOOM = 16;
 // 多城市時全區遠景不塞 54 個區標,先顯示城市級標籤
-const CITY_LABEL_ZOOM = 9.8;
+const CITY_LABEL_ZOOM = 12;
+// 滾輪改階梯式縮放:每滾一格跳到下一個語意層級(全區→行政區→生活圈→建案→街廓),
+// 不會停在生活圈半透明、點又還沒出來的中間態;必須遞增排序
+const ZOOM_STEPS = [10, CITY_LABEL_ZOOM, DETAIL_ZOOM, POINT_ZOOM, 17.5];
 
 function readInitialView() {
   if (typeof window === "undefined") return DEFAULT_VIEW;
@@ -364,12 +367,12 @@ export default function PropertyMap() {
     if (!z) return;
     loadDetail([z.bounds[0][0], z.bounds[0][1], z.bounds[1][0], z.bounds[1][1]]); // 與飛行動畫並行抓資料
     // 點生活圈直接落在建案層級,不用再手動放大一次;
-    // 大圈保底跨過 POINT_ZOOM,小圈上限 15.5 避免過度放大
+    // 大圈保底跨過 POINT_ZOOM,小圈上限 +1.5 避免過度放大
     const map = mapRef.current?.getMap();
     const cam = map?.cameraForBounds(z.bounds, { padding: 54 });
     if (map && cam) map.easeTo({
       ...cam,
-      zoom: Math.min(Math.max(cam.zoom ?? POINT_ZOOM, POINT_ZOOM + 0.15), 15.5),
+      zoom: Math.min(Math.max(cam.zoom ?? POINT_ZOOM, POINT_ZOOM + 0.15), POINT_ZOOM + 1.5),
       duration: 600,
     });
   }
@@ -500,8 +503,9 @@ export default function PropertyMap() {
         ref={mapRef}
         mapStyle={BASE_STYLE}
         initialViewState={initialView}
-        minZoom={8}
+        minZoom={10}
         maxZoom={18}
+        scrollZoom={false}
         maxBounds={[[117.6, 21.3], [123.2, 26.6]]}
         onLoad={(e) => {
           const map = e.target;
@@ -514,6 +518,23 @@ export default function PropertyMap() {
           }, 300);
           setTimeout(() => clearInterval(watchdog), 5000);
           addMapIcons(map); // 房屋/膠囊/交流道圖示(canvas 現畫)
+          // 階梯式滾輪縮放(內建 scrollZoom 已停用):一次手勢走一階,以游標為中心;
+          // pinch/雙擊/點擊導航仍是連續縮放,之後滾動會被吸回最近的上下一階
+          map.getCanvas().addEventListener("wheel", (ev) => {
+            ev.preventDefault();
+            if (map.isEasing()) return;
+            const z = map.getZoom();
+            const next = ev.deltaY < 0
+              ? ZOOM_STEPS.find((s) => s > z + 0.01)
+              : [...ZOOM_STEPS].reverse().find((s) => s < z - 0.01);
+            if (next == null) return;
+            const rect = map.getCanvas().getBoundingClientRect();
+            map.easeTo({
+              zoom: next,
+              around: map.unproject([ev.clientX - rect.left, ev.clientY - rect.top]),
+              duration: 450,
+            });
+          }, { passive: false });
           setZoom(e.target.getZoom());
           if (e.target.getZoom() >= DETAIL_ZOOM) {
             const b = e.target.getBounds();
@@ -551,7 +572,7 @@ export default function PropertyMap() {
           const z = map.getZoom();
           const clickable = [
             ...(market === "presale"
-              ? z >= POINT_ZOOM ? ["pt-cluster", "pt-circle", "pt-pill"]
+              ? z >= POINT_ZOOM ? ["pt-cluster", "pt-pill"]
                 : z >= DETAIL_ZOOM ? ["zone-fill"] : ["district-fill"]
               : z < DETAIL_ZOOM ? ["district-fill"] : []),
             ...(market === "rental" ? ["rent-cluster", "rent-point", "rent-symbol", "rent-label"] : []),
@@ -569,7 +590,7 @@ export default function PropertyMap() {
             const src: any = mapRef.current?.getSource("points");
             src?.getClusterExpansionZoom(f.properties!.cluster_id).then((z: number) =>
               mapRef.current?.easeTo({ center: (f.geometry as any).coordinates, zoom: z + 0.5, duration: 500 }));
-          } else if (market === "presale" && (f.layer.id === "pt-circle" || f.layer.id === "pt-pill")) {
+          } else if (market === "presale" && f.layer.id === "pt-pill") {
             openPoint(f);
           } else if (market === "presale" && f.layer.id === "zone-fill") {
             const zp = f.properties as any;
@@ -581,7 +602,7 @@ export default function PropertyMap() {
         }}
         interactiveLayerIds={[
           ...(market === "presale"
-            ? pointsVisible ? ["pt-cluster", "pt-circle", "pt-pill"]
+            ? pointsVisible ? ["pt-cluster", "pt-pill"]
               : zoneLevel ? ["zone-fill"] : ["district-fill"]
             : !detail ? ["district-fill"] : []),
           ...(market === "rental" ? ["rent-cluster", "rent-point", "rent-symbol", "rent-label"] : []),
@@ -678,18 +699,10 @@ export default function PropertyMap() {
                 "text-font": ["Open Sans Semibold"], "text-size": 13,
               }}
               paint={{ "text-color": "#fff" }} />
-            {/* 建案=圓點(與車站同語言:預售中空心、已完工實心);15 級起讓位給價格膠囊。 */}
-            <Layer id="pt-circle" type="circle" filter={["!", ["has", "point_count"]]}
-              maxzoom={15}
-              paint={{
-                "circle-color": ["case", ["==", ["get", "band"], "presale"], "#ffffff", "#0d5b4f"] as any,
-                "circle-stroke-color": "#0d5b4f",
-                "circle-stroke-width": 2.2,
-                "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 4.2, 15, 6.5] as any,
-              }} />
-            {/* 價格膠囊:白底圓角；格局篩選時顯示總價，否則顯示單價。 */}
+            {/* 價格膠囊:白底圓角；格局篩選時顯示總價，否則顯示單價。
+                建案一出場(POINT_ZOOM)就是膠囊,不再有圓點過場。 */}
             <Layer id="pt-pill" type="symbol" filter={["!", ["has", "point_count"]]}
-              minzoom={15}
+              minzoom={POINT_ZOOM}
               layout={{
                 "icon-image": "pill",
                 "icon-text-fit": "both",
@@ -704,8 +717,7 @@ export default function PropertyMap() {
               layout={{
                 "text-field": ["get", "name"] as any,
                 "text-font": ["Open Sans Semibold"], "text-size": 11,
-                // 圓點層貼近一點,膠囊層讓出膠囊高度
-                "text-offset": ["step", ["zoom"], ["literal", [0, 0.9]], 15, ["literal", [0, 1.5]]] as any,
+                "text-offset": [0, 1.5] as any, // 讓出膠囊高度
                 "text-anchor": "top",
                 "text-optional": true,
               }}
@@ -918,7 +930,7 @@ export default function PropertyMap() {
         }} />}
 
       <MapLegend market={market} rooms={rooms} nearMetro={nearMetro} nearIC={nearIC}
-        detail={detail} showProjects={pointsVisible} showStations={stations != null} />
+        detail={detail} showStations={stations != null} />
 
       {detail && <button className="backbtn" onClick={back}>← 返回{CITIES.length > 1 ? "全區" : "全市"}</button>}
       <div className="map-status">
