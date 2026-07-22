@@ -52,7 +52,9 @@ function parseFloor(s?: string): number | null {
 function readCsv(file: string): string[][] {
   let text = fs.readFileSync(file, "utf-8");
   if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
-  const rows: string[][] = parse(text, { relax_column_count: true, skip_empty_lines: true });
+  // quote:false — 官方 CSV 從不用引號包欄位,但資料本身可能含 " 字元
+  // (如 110S4 新北某案棟及號=「"棟3號」),引號模式會吞掉整個檔案
+  const rows: string[][] = parse(text, { relax_column_count: true, quote: false, skip_empty_lines: true });
   return rows.filter((_, i) => i !== 1); // 第 2 列是英文表頭
 }
 

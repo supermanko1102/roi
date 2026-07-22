@@ -5,15 +5,15 @@ import type { FeatureCollection } from "geojson";
 import ProjectDrawer from "./ProjectDrawer";
 import MapLegend from "./MapLegend";
 import {
-  ComparePanel, FilterPanel, ProductHeader, RentalResultsPanel, ResultsPanel,
+  ComparePanel, FilterPanel, ProductHeader,
   rentalSummaryFromFeature, summaryFromFeature,
-  type MarketMode, type ProjectSummary, type RentalSummary, type ViewMode,
+  type MarketMode, type ProjectSummary, type RentalSummary, type SearchSuggestion,
 } from "./product-kit";
 import { type BandFilter } from "@/lib/age";
 import { type RoomFilter } from "@/lib/rooms";
 import { haversineM, geomBbox } from "@/lib/geo";
 import { LINE_COLOR, priceProp } from "@/lib/map-colors";
-import { CITIES, DEFAULT_VIEW } from "@/lib/cities";
+import { CITIES, DEFAULT_VIEW, cityDisplay } from "@/lib/cities";
 import { addMapIcons } from "@/lib/map-icons";
 import "maplibre-gl/dist/maplibre-gl.css";
 
@@ -107,7 +107,6 @@ export default function PropertyMap() {
   const [catalog, setCatalog] = useState<FeatureCollection | null>(null);
   const [drawerProj, setDrawerProj] = useState<{ city: string; district: string; name: string } | null>(null);
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<ViewMode>("map");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [saved, setSaved] = useState<ProjectSummary[]>([]);
   const [compareOpen, setCompareOpen] = useState(false);
@@ -125,9 +124,8 @@ export default function PropertyMap() {
     const qs = new URLSearchParams(location.search);
     const initialRooms = (["1", "2", "3", "4p"].includes(qs.get("rooms") ?? "") ? qs.get("rooms") : "all") as RoomFilter;
     const initialBudget = TOTAL_FILTERS.some((t) => t.key === qs.get("budget")) ? qs.get("budget")! : "all";
-    const initialViewMode = qs.get("view") === "list" ? "list" : "map";
     const initialMarket: MarketMode = qs.get("market") === "rent" || qs.get("rent") === "1" ? "rental" : "presale";
-    setRooms(initialRooms); setTotalBand(initialBudget); setMarket(initialMarket); setView(initialViewMode);
+    setRooms(initialRooms); setTotalBand(initialBudget); setMarket(initialMarket);
     setQuery(qs.get("q") ?? ""); setNearMetro(qs.get("metro") === "1"); setNearIC(qs.get("ic") === "1");
     setShowCancel(qs.get("cancel") === "1");
     loadCatalog(initialRooms);
@@ -154,13 +152,13 @@ export default function PropertyMap() {
   useEffect(() => {
     if (!urlReady) return;
     syncUrl({
-      q: query || null, view: view === "list" ? "list" : null,
+      q: query || null,
       budget: totalBand === "all" ? null : totalBand, rooms: rooms === "all" ? null : rooms,
       metro: nearMetro ? "1" : null, ic: nearIC ? "1" : null,
       cancel: showCancel ? "1" : null,
-      market: market === "rental" ? "rent" : null, rent: null, mode: null,
+      market: market === "rental" ? "rent" : null, rent: null, mode: null, view: null,
     });
-  }, [urlReady, query, view, totalBand, rooms, nearMetro, nearIC, showCancel, market]);
+  }, [urlReady, query, totalBand, rooms, nearMetro, nearIC, showCancel, market]);
 
   useEffect(() => {
     if (!urlReady) return;
@@ -312,6 +310,55 @@ export default function PropertyMap() {
     });
   }, [zones]);
 
+  // 搜尋下拉建議:比對建案/生活圈/行政區(租屋模式比對社區名與地址),取代原本的列表模式
+  const suggestions = useMemo<SearchSuggestion[]>(() => {
+    const needle = query.trim().toLocaleLowerCase("zh-Hant");
+    if (!needle) return [];
+    const hit = (s: string | null | undefined) => (s ?? "").toLocaleLowerCase("zh-Hant").includes(needle);
+    const cityTag = (city?: string) => (city && CITIES.length > 1 ? `${cityDisplay(city)}・` : "");
+    if (market === "rental") {
+      return ((rentals?.features ?? []) as any[])
+        .filter((f) => hit(f.properties.name) || hit(f.properties.address) || hit(f.properties.district))
+        .slice(0, 8)
+        .map((f) => ({
+          kind: "rental" as const, key: f.properties.key,
+          label: f.properties.name ?? f.properties.address,
+          sub: `${cityTag(f.properties.city)}${f.properties.district}`,
+        }));
+    }
+    const projs = ((catalog?.features ?? []) as any[])
+      .filter((f) => hit(f.properties.name)).slice(0, 6)
+      .map((f) => ({
+        kind: "project" as const,
+        key: `${f.properties.city}|${f.properties.district}|${f.properties.name}`,
+        label: f.properties.name as string,
+        sub: `${cityTag(f.properties.city)}${f.properties.district}${f.properties.price != null ? `・$${(+f.properties.price).toFixed(1)}` : ""}`,
+      }));
+    const zs = zoneLabels.filter((l) => hit(l.name)).slice(0, 3)
+      .map((l) => ({ kind: "zone" as const, key: l.key as string, label: l.name as string,
+        sub: cityTag(l.props.city).replace(/・$/, "") || undefined }));
+    const ds = labels.filter((l) => hit(l.name)).slice(0, 3)
+      .map((l) => ({ kind: "district" as const, key: l.key, label: l.name as string,
+        sub: cityTag(l.props.city).replace(/・$/, "") || undefined }));
+    return [...projs, ...zs, ...ds];
+  }, [query, market, catalog, rentals, zoneLabels, labels]);
+
+  function pickSuggestion(s: SearchSuggestion) {
+    setQuery(""); // 選中即導航:query 是導航輸入,不留著當篩選
+    if (s.kind === "project") {
+      const f = (catalog?.features as any[] | undefined)?.find(
+        (x) => `${x.properties.city}|${x.properties.district}|${x.properties.name}` === s.key);
+      if (f) openSummary(summaryFromFeature(f));
+    } else if (s.kind === "zone") {
+      zoomToZone(s.key);
+    } else if (s.kind === "district") {
+      drill(s.key);
+    } else {
+      const f = (rentals?.features as any[] | undefined)?.find((x) => x.properties.key === s.key);
+      if (f) openRentalSummary(rentalSummaryFromFeature(f));
+    }
+  }
+
   function zoomToZone(zoneKey: string) {
     const z = zoneLabels.find((l) => l.key === zoneKey);
     if (!z) return;
@@ -391,13 +438,12 @@ export default function PropertyMap() {
   }
 
   function openSummary(p: ProjectSummary) {
-    setCompareOpen(false); setView("map");
+    setCompareOpen(false);
     mapRef.current?.flyTo({ center: [p.lng, p.lat], zoom: 15.4, duration: 650 });
     openProjDrawer(p.city, p.district, p.name);
   }
 
   function openRentalSummary(r: RentalSummary) {
-    setView("map");
     mapRef.current?.flyTo({ center: [r.lng, r.lat], zoom: 15.4, duration: 650 });
     setRentalPopup({
       lng: r.lng, lat: r.lat, name: r.name, district: r.district, address: r.address,
@@ -847,8 +893,8 @@ export default function PropertyMap() {
       </Map>
 
       <ProductHeader market={market} setMarket={changeMarket}
-        query={query} setQuery={(v) => { setQuery(v); if (v) setView("list"); }}
-        view={view} setView={setView} filtersOpen={filtersOpen} setFiltersOpen={setFiltersOpen}
+        query={query} setQuery={setQuery} suggestions={suggestions} onPick={pickSuggestion}
+        filtersOpen={filtersOpen} setFiltersOpen={setFiltersOpen}
         activeFilters={activeFilters} savedCount={saved.length} openCompare={() => setCompareOpen(true)}
         share={shareCurrent} shared={shared} />
 
@@ -857,11 +903,6 @@ export default function PropertyMap() {
         rooms={rooms} setRooms={pickRooms} nearMetro={nearMetro} setNearMetro={setNearMetro}
         nearIC={nearIC} setNearIC={setNearIC} showCancel={showCancel} setShowCancel={setShowCancel}
         reset={resetFilters} />}
-
-      <ResultsPanel open={market === "presale" && view === "list"} projects={projectSummaries.slice(0, 100)}
-        totalCount={projectSummaries.length} saved={saved} onOpen={openSummary} onToggleSaved={toggleSaved} />
-      <RentalResultsPanel open={market === "rental" && view === "list"}
-        rentals={rentalSummaries.slice(0, 200)} totalCount={rentalSummaries.length} onOpen={openRentalSummary} />
 
       <ComparePanel open={market === "presale" && compareOpen} saved={saved} onClose={() => setCompareOpen(false)}
         onRemove={toggleSaved} onOpen={openSummary} />
