@@ -41,12 +41,15 @@ type Target = { city: string; district: string; project_name: string };
 type ContractLink = { url: string; caseNo: string; filename: string };
 
 /** 從彈窗連結挑最適合的房屋契約:優先含「房屋」,再取案號版次最大、日期字串最大 */
-function pickContract(links: ContractLink[]): ContractLink | null {
-  if (!links.length) return null;
-  const house = links.filter((l) => /房屋/.test(l.filename));
-  const pool = house.length ? house : links;
-  return pool.sort((a, b) =>
-    b.caseNo.localeCompare(a.caseNo) || b.filename.localeCompare(a.filename))[0];
+/**
+ * 建材表可能在任何一冊(建商常拆本文/附件、房屋/土地多份 PDF),
+ * 依「含房屋 → 非土地 → 土地」優先序排序,呼叫端逐冊試抽直到命中。
+ */
+function rankContracts(links: ContractLink[]): ContractLink[] {
+  const tier = (l: ContractLink) =>
+    /房屋|房地/.test(l.filename) ? 0 : /土地/.test(l.filename) ? 2 : 1;
+  return [...new Map(links.map((l) => [l.url, l])).values()].sort((a, b) =>
+    tier(a) - tier(b) || b.caseNo.localeCompare(a.caseNo) || b.filename.localeCompare(a.filename));
 }
 
 const firstLine = (p: string) => (p.split("\n").map((l) => l.trim()).find(Boolean) ?? "");
@@ -56,23 +59,31 @@ const headOf = (p: string) =>
 
 /**
  * pdftotext 頁文切出「建材設備表」附件。
- * 起點只認「附件…建材設備表」的頁首(真正的附件),排除「第X條 建材設備及其廠牌」條文頁;
- * 迄點=下一個「附件」開頭的頁首。取第一個命中的附件。
+ * 候選起點=頁首含「建材設備」且非「第X條 建材設備及其廠牌」條文頁
+ * (標題寫法各家不同:附件六建材設備表/附表四/建材設備表 單獨成行…),
+ * 迄點=下一個「附件/附表」開頭的頁首;逐候選試切,取內容最長者。
  */
 function extractMaterials(pdfPath: string): string | null {
   const text = execFileSync("pdftotext", ["-layout", pdfPath, "-"], {
     maxBuffer: 64 * 1024 * 1024,
   }).toString("utf-8");
   const pages = text.split("\f");
-  const start = pages.findIndex((p) => /附件[^]{0,14}建材設備表/.test(headOf(p)));
-  if (start < 0) return null;
-  const out = [pages[start]];
-  for (let j = start + 1; j < pages.length; j++) {
-    if (/^附件/.test(firstLine(pages[j]))) break;
-    out.push(pages[j]);
+  const isClause = (h: string) => /第\s*[一二三四五六七八九十\d]+\s*條/.test(h);
+  const candidates = pages
+    .map((p, i) => ({ i, head: headOf(p) }))
+    .filter((x) => /建材設備/.test(x.head) && !isClause(x.head));
+  let best = "";
+  for (const { i } of candidates) {
+    const out = [pages[i]];
+    for (let j = i + 1; j < pages.length; j++) {
+      const fl = firstLine(pages[j]);
+      if (/^附[件表]/.test(fl) && !/建材設備/.test(headOf(pages[j]))) break;
+      out.push(pages[j]);
+    }
+    const body = out.join("\n").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+    if (body.length > best.length) best = body;
   }
-  const body = out.join("\n").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-  return body.length > 300 ? body : null; // 過短多半是留白範本頁
+  return best.length > 300 ? best : null; // 過短多半是留白範本頁
 }
 
 /** 依「※分類標題」切節。※ 可能與附件標題同一行(附件六 建材設備表 ※結構),
@@ -224,22 +235,29 @@ async function main() {
         // 每案都重載表單:彈窗互動會破壞頁面狀態,靠重載保證下一輪 #p_city/#p_build 乾淨
         await gotoSaleRemark(page);
         const links = await queryProject(page, cityCode, t);
-        const picked = pickContract(links ?? []);
-        if (!picked) { noCase++; console.log(`  − ${label} 查無備查列/契約`); await save({ status: "no_case" }); continue; }
+        const ranked = rankContracts(links ?? []);
+        if (!ranked.length) { noCase++; console.log(`  − ${label} 查無備查列/契約`); await save({ status: "no_case" }); continue; }
         const cacheKey = `${cityCode}-${t.district}-${t.project_name}`.replace(/[\\/:*?"<>|\s]/g, "_");
-        const pdf = await downloadPdf(picked, cacheKey);
-        const materials = extractMaterials(pdf);
-        if (!materials) {
-          noMat++; console.log(`  − ${label} 契約無建材設備表`);
-          await save({ status: "no_materials", mlvr_case_no: picked.caseNo, pdf_url: picked.url, version_note: picked.filename });
+        // 建材表可能在任一冊:逐冊(最多 5 份)下載試抽,命中即停
+        let hit: { link: ContractLink; materials: string } | null = null;
+        for (const link of ranked.slice(0, 5)) {
+          const fileKey = link.filename.replace(/[\\/:*?"<>|\s]/g, "_").slice(0, 40);
+          const pdf = await downloadPdf(link, `${cacheKey}-${fileKey}`);
+          const materials = extractMaterials(pdf);
+          if (materials) { hit = { link, materials }; break; }
+        }
+        if (!hit) {
+          const first = ranked[0];
+          noMat++; console.log(`  − ${label} ${ranked.length} 冊皆無建材設備表`);
+          await save({ status: "no_materials", mlvr_case_no: first.caseNo, pdf_url: first.url, version_note: first.filename });
           continue;
         }
         await save({
-          status: "ok", mlvr_case_no: picked.caseNo, pdf_url: picked.url,
-          version_note: picked.filename, materials_text: materials,
-          sections: JSON.stringify(toSections(materials)),
+          status: "ok", mlvr_case_no: hit.link.caseNo, pdf_url: hit.link.url,
+          version_note: hit.link.filename, materials_text: hit.materials,
+          sections: JSON.stringify(toSections(hit.materials)),
         });
-        ok++; console.log(`  ✓ ${label} ${picked.caseNo}(${Math.round(materials.length / 100) / 10}k 字)`);
+        ok++; console.log(`  ✓ ${label} ${hit.link.caseNo}(${Math.round(hit.materials.length / 100) / 10}k 字)`);
       } catch (e) {
         failed++; console.log(`  ✗ ${label} ${String(e).slice(0, 120)}`);
         await save({ status: "fetch_failed" });
