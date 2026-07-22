@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
+import Image from "next/image";
 import type { RoomFilter } from "@/lib/rooms";
 import { walkMinutes } from "@/lib/geo";
 import { TOTAL_FILTERS } from "@/lib/map-const";
@@ -115,9 +116,17 @@ export function ProductHeader({ market, setMarket, query, setQuery, suggestions,
   return (
     <header className="absolute inset-x-4 top-3.5 z-25 grid min-h-[70px] grid-cols-[235px_auto_minmax(220px,1fr)_auto] items-center gap-[18px] rounded-[18px] border border-line/90 bg-surface/94 px-3 py-2.5 shadow-[0_8px_32px_rgba(18,47,40,.12)] backdrop-blur-[18px] max-nav:grid-cols-[188px_auto_minmax(170px,1fr)_auto] max-nav:gap-2.5 max-mob:inset-x-2 max-mob:top-2 max-mob:min-h-24 max-mob:grid-cols-[auto_1fr] max-mob:grid-rows-[34px_42px] max-mob:gap-x-2.5 max-mob:gap-y-[7px] max-mob:rounded-[15px] max-mob:bg-surface/98 max-mob:px-[9px] max-mob:py-[7px] max-mob:backdrop-blur-none">
       <div className="flex min-w-0 items-center gap-[11px]">
-        <div className="grid size-[42px] flex-none place-items-center rounded-[13px] bg-teal-dark font-display text-xl font-extrabold leading-none text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,.14)] max-mob:size-8 max-mob:rounded-[10px] max-mob:text-base" aria-hidden="true">探</div>
+        <Image
+          src="/brand/fangshi-tantan-logo-192.png"
+          width={42}
+          height={42}
+          alt=""
+          priority
+          aria-hidden="true"
+          className="size-[42px] flex-none object-contain max-mob:size-8"
+        />
         <div>
-          <div className="text-[15px] font-extrabold leading-tight tracking-[.04em] max-mob:whitespace-nowrap max-mob:text-[13px] max-tiny:text-xs">預售探探</div>
+          <div className="text-[15px] font-extrabold leading-tight tracking-[.04em] max-mob:whitespace-nowrap max-mob:text-[13px] max-tiny:text-xs">房市探探</div>
           <div className="mt-1 whitespace-nowrap text-[10.5px] text-ink-soft max-nav:hidden">北北桃預售與租賃實價登錄</div>
         </div>
       </div>
