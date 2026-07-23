@@ -5,6 +5,15 @@ on:
     # 內政部每月 1、11、21 日發布新批次;UTC 20:00 = 台灣時間隔天(2、12、22 日)凌晨 4 點
     - cron: "0 20 1,11,21 * *"
   workflow_dispatch: # 手動補跑用
+    inputs:
+      seasons:
+        description: "額外回填的歷史季別(空白分隔,如 110S3 110S4;留空=只跑最新一期)"
+        required: false
+        default: ""
+      contracts_limit:
+        description: "契約建材抓取單次上限"
+        required: false
+        default: "80"
 
 concurrency:
   group: etl
@@ -35,6 +44,10 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
+      - name: 下載歷史季別(手動回填用)
+        if: github.event.inputs.seasons != ''
+        run: npx tsx etl/download-lvr.ts ${{ github.event.inputs.seasons }}
+
       - name: 跑 ETL(下載 → 解析 → geocode → 統計)
         run: pnpm etl:all
         env:
@@ -50,6 +63,6 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: 抓契約建材設備表(增量)
-        run: pnpm etl:contracts -- --limit 80
+        run: pnpm etl:contracts -- --limit ${{ github.event.inputs.contracts_limit || '80' }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
