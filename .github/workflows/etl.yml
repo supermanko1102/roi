@@ -22,8 +22,9 @@ concurrency:
 jobs:
   etl:
     runs-on: ubuntu-latest
-    # 北北桃三市:每旬增量約 30–60 分,留餘裕;首次全量回填請在本機跑(見 plan Phase 4 runbook)
-    timeout-minutes: 180
+    # 北北桃三市:每旬增量約 30–60 分。歷史回填(seasons 輸入)首輪會對 NLSC
+    # geocode 大量新門牌,可能跑數小時;進度存 geocode_cache,超時重跑即續傳。
+    timeout-minutes: 340
     steps:
       - uses: actions/checkout@v4
 
