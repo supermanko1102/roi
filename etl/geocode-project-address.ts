@@ -11,6 +11,20 @@ export type ParsedSiteAddress =
   | { kind: "cross"; road: string; road2: string; q: string; q2: string }
   | { kind: "road"; road: string; q: string };
 
+export type AddressCandidate = { raw: string; source: "deal" | "community" };
+
+/** 成交地址永遠優先；備查地址去空白、去重後才依序作 fallback。 */
+export function siteAddressCandidates(address: string | null, communityStreets: string[]): AddressCandidate[] {
+  const candidates: AddressCandidate[] = [];
+  if (address?.trim()) candidates.push({ raw: address.trim(), source: "deal" });
+  for (const street of communityStreets) {
+    const raw = street.trim();
+    if (raw && !candidates.some((candidate) => candidate.raw === raw))
+      candidates.push({ raw, source: "community" });
+  }
+  return candidates;
+}
+
 /** 將預售工地描述拆成門牌、確切路口或僅路名；僅路名不得當成精確點位。 */
 export function parseSiteAddress(city: string, district: string, raw: string): ParsedSiteAddress | null {
   let a = toHalf(raw.trim())

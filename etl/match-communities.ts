@@ -21,12 +21,13 @@ import fs from "node:fs";
 import path from "node:path";
 import AdmZip from "adm-zip";
 import { parse } from "csv-parse/sync";
-import { sql } from "drizzle-orm";
+import { count, sql } from "drizzle-orm";
 import {
   createDb, communities, physical_communities, community_cases, building_community,
 } from "../db/client";
 import { CITIES } from "../src/lib/cities";
 import { normAddrKey, normPermitNo } from "./addr";
+import { assertReplacementSafe } from "./replacement-safety";
 
 const DL = path.join(import.meta.dirname, "downloads");
 const CASE_DIR = path.join(DL, "buildcase");
@@ -93,6 +94,7 @@ async function ensureCaseFiles(refresh: boolean) {
 
 async function main() {
   const refresh = process.argv.includes("--refresh");
+  const allowEmpty = process.argv.includes("--allow-empty");
   await ensureCaseFiles(refresh);
   const { db, pool } = createDb();
 
@@ -249,39 +251,43 @@ async function main() {
     if (b?.lat != null && b.lng != null) { e.lats.push(+b.lat); e.lngs.push(+b.lng); }
   }
 
-  await db.delete(building_community);
-  await db.delete(community_cases);
-  await db.delete(physical_communities);
-  await db.delete(communities);
   const caseRows = [...cases.values()];
-  for (let i = 0; i < caseRows.length; i += BATCH)
-    await db.insert(communities).values(caseRows.slice(i, i + BATCH));
-
+  const [{ n: previousCases }] = await db.select({ n: count() }).from(communities);
+  assertReplacementSafe("[communities] 備查案", previousCases, caseRows.length, allowEmpty);
   const entityId = new Map<string, number>();
-  for (const [key, e] of entityDefs) {
-    const [row] = await db.insert(physical_communities).values({
-      name: e.name, city: e.city, district: e.district, permit_no: e.permit_no,
-      build_year: e.permitYears.length ? Math.max(...e.permitYears)
-        : e.years.length ? Math.max(...e.years) : null,
-      lat: e.lats.length ? e.lats.reduce((a, b) => a + b, 0) / e.lats.length : null,
-      lng: e.lngs.length ? e.lngs.reduce((a, b) => a + b, 0) / e.lngs.length : null,
-    }).returning({ id: physical_communities.id });
-    entityId.set(key, row.id);
-  }
-  const caseLinks = [...cases.values()].map((c) => ({
-    case_no: c.case_no, community_id: entityId.get(entityKey(c))!,
-  }));
-  for (let i = 0; i < caseLinks.length; i += BATCH)
-    await db.insert(community_cases).values(caseLinks.slice(i, i + BATCH));
+  await db.transaction(async (tx) => {
+    await tx.delete(building_community);
+    await tx.delete(community_cases);
+    await tx.delete(physical_communities);
+    await tx.delete(communities);
+    for (let i = 0; i < caseRows.length; i += BATCH)
+      await tx.insert(communities).values(caseRows.slice(i, i + BATCH));
 
-  const linkedAssignments = assignments.map((a) => ({
-    ...a,
-    community_id: entityId.get(entityKey(cases.get(a.case_no)!)),
-    match_method: "parcel",
-    confidence: Math.min(100, 90 + Math.min(10, (a.matched_parcels ?? 0) * 2)),
-  }));
-  for (let i = 0; i < linkedAssignments.length; i += BATCH)
-    await db.insert(building_community).values(linkedAssignments.slice(i, i + BATCH));
+    for (const [key, e] of entityDefs) {
+      const [row] = await tx.insert(physical_communities).values({
+        name: e.name, city: e.city, district: e.district, permit_no: e.permit_no,
+        build_year: e.permitYears.length ? Math.max(...e.permitYears)
+          : e.years.length ? Math.max(...e.years) : null,
+        lat: e.lats.length ? e.lats.reduce((a, b) => a + b, 0) / e.lats.length : null,
+        lng: e.lngs.length ? e.lngs.reduce((a, b) => a + b, 0) / e.lngs.length : null,
+      }).returning({ id: physical_communities.id });
+      entityId.set(key, row.id);
+    }
+    const caseLinks = [...cases.values()].map((c) => ({
+      case_no: c.case_no, community_id: entityId.get(entityKey(c))!,
+    }));
+    for (let i = 0; i < caseLinks.length; i += BATCH)
+      await tx.insert(community_cases).values(caseLinks.slice(i, i + BATCH));
+
+    const linkedAssignments = assignments.map((a) => ({
+      ...a,
+      community_id: entityId.get(entityKey(cases.get(a.case_no)!)),
+      match_method: "parcel",
+      confidence: Math.min(100, 90 + Math.min(10, (a.matched_parcels ?? 0) * 2)),
+    }));
+    for (let i = 0; i < linkedAssignments.length; i += BATCH)
+      await tx.insert(building_community).values(linkedAssignments.slice(i, i + BATCH));
+  });
 
   const named = assignments.filter((a) => buildYear.has(a.addr_key)).length;
   console.log(`[communities] ${entityDefs.size} 個實體社區；歸戶完成:${assignments.length} 個門牌對到建案` +

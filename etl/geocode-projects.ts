@@ -6,13 +6,14 @@
  *   路段型:中豐北路一段上/興北一路附近等 → 不產生假座標,標記 none
  * 成交地址無法精確定位時,再用同市/區/名 communities.street 作保守 fallback。
  * 結果寫回 projects.lat/lng,並以 proj|城市|區|地址 為鍵快取到 geocode_cache;
- * compute-stats 重建 projects 會清掉座標,重跑本script走快取即時回填。
+ * compute-stats 會保留既有建案座標；新案或未定位案重跑本 script 時先走快取回填。
  * 用法:tsx etl/geocode-projects.ts [--limit 50] [--concurrency 4]
  *      tsx etl/geocode-projects.ts --project 建案名 --refresh
+ *      tsx etl/geocode-projects.ts --cache-only  # 僅以既有精確快取回填,不查外部 API
  */
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, like, sql } from "drizzle-orm";
 import { createDb, projects, geocode_cache } from "../db/client";
-import { parseSiteAddress, toHalf } from "./geocode-project-address";
+import { parseSiteAddress, siteAddressCandidates, toHalf } from "./geocode-project-address";
 
 const RATE_MS = 150;
 const DEFAULT_CONCURRENCY = 4;
@@ -39,7 +40,6 @@ async function query(text: string): Promise<Item[]> {
 
 type LocatedSite = { lat: number; lng: number; precision: "door" | "cross" };
 type CachedLocation = { loc: LocatedSite | null; fromCache: boolean };
-type AddressCandidate = { raw: string; source: "deal" | "community" };
 
 async function locate(city: string, district: string, raw: string): Promise<LocatedSite | null> {
   const p = parseSiteAddress(city, district, raw);
@@ -71,6 +71,7 @@ async function main() {
   const limit = args.includes("--limit") ? +args[args.indexOf("--limit") + 1] : null;
   const projectName = args.includes("--project") ? args[args.indexOf("--project") + 1] : null;
   const refresh = args.includes("--refresh");
+  const cacheOnly = args.includes("--cache-only");
   const concurrency = args.includes("--concurrency")
     ? Math.max(1, +args[args.indexOf("--concurrency") + 1]) : DEFAULT_CONCURRENCY;
 
@@ -93,11 +94,27 @@ async function main() {
   }).from(projects)
     .where(and(projectName ? eq(projects.name, projectName) : isNull(projects.lat), eq(projects.is_demo, false)));
   const rows = limit ? await base.limit(limit) : await base;
-  console.log(`[geocode-projects] 待定位 ${rows.length} 個建案,${concurrency} 路平行`);
+  const cachedRows = await db.select().from(geocode_cache)
+    .where(like(geocode_cache.addr_key, "proj|%"));
+  const cache = new Map(cachedRows.map((row) => [row.addr_key, row]));
+  const prepared = rows.map((row) => ({
+    ...row,
+    candidates: siteAddressCandidates(row.address, row.communityStreets),
+  }));
+  const cacheRank = (row: typeof prepared[number]) => {
+    const entries = row.candidates.map((candidate) =>
+      cache.get(`proj|${row.city}|${row.district}|${candidate.raw}`));
+    if (entries.some((entry) =>
+      (entry?.precision === "door" || entry?.precision === "cross") && entry.lat != null && entry.lng != null)) return 0;
+    if (entries.length > 0 && entries.every((entry) => entry?.precision === "none")) return 1;
+    return 2;
+  };
+  prepared.sort((a, b) => cacheRank(a) - cacheRank(b));
+  console.log(`[geocode-projects] 待定位 ${prepared.length} 個建案,${concurrency} 路平行,cache=${cache.size}${cacheOnly ? ",cache-only" : ""}`);
 
   async function locateCached(city: string, district: string, raw: string): Promise<CachedLocation> {
     const cacheKey = `proj|${city}|${district}|${raw}`;
-    const [c] = await db.select().from(geocode_cache).where(eq(geocode_cache.addr_key, cacheKey));
+    const c = cache.get(cacheKey);
     const cacheIsPrecise = c?.precision === "door" || c?.precision === "cross";
     if (!refresh && cacheIsPrecise && c.lat != null && c.lng != null) {
       return {
@@ -106,6 +123,7 @@ async function main() {
       };
     }
     if (!refresh && c?.precision === "none") return { loc: null, fromCache: true };
+    if (cacheOnly) return { loc: null, fromCache: false };
 
     const loc = await locate(city, district, raw);
     await db.insert(geocode_cache).values({
@@ -115,6 +133,10 @@ async function main() {
       target: geocode_cache.addr_key,
       set: { lat: loc?.lat ?? null, lng: loc?.lng ?? null, precision: loc?.precision ?? "none" },
     });
+    cache.set(cacheKey, {
+      addr_key: cacheKey, lat: loc?.lat ?? null, lng: loc?.lng ?? null,
+      precision: loc?.precision ?? "none", queried_at: new Date(),
+    });
     await sleep(RATE_MS);
     return { loc, fromCache: false };
   }
@@ -123,16 +145,9 @@ async function main() {
   async function worker() {
     while (true) {
       const i = next++;
-      if (i >= rows.length) return;
-      const { id, name, city, district, address, communityStreets } = rows[i];
+      if (i >= prepared.length) return;
+      const { id, name, city, district, candidates } = prepared[i];
       done++;
-      const candidates: AddressCandidate[] = [];
-      if (address?.trim()) candidates.push({ raw: address.trim(), source: "deal" });
-      for (const street of communityStreets) {
-        const raw = street.trim();
-        if (raw && !candidates.some((candidate) => candidate.raw === raw))
-          candidates.push({ raw, source: "community" });
-      }
       if (!candidates.length) { miss++; continue; }
       try {
         let loc: LocatedSite | null = null;

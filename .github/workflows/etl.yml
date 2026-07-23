@@ -39,6 +39,7 @@ jobs:
         run: pnpm etl:all
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ETL_WORKFLOW: github-actions-${{ github.event_name }}
 
       # 契約建材設備表:需 poppler(pdftotext)與 playwright chromium;
       # 走真實瀏覽器故較慢,每旬限量增量,失敗與逾 30 天者自動重試(見 etl/fetch-contract-materials.ts)

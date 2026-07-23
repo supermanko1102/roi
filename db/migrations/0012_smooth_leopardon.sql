@@ -1,0 +1,1 @@
+CREATE INDEX "idx_building_community_case" ON "building_community" USING btree ("case_no");

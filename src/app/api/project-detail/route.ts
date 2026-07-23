@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { and, asc, desc, eq, gt, inArray } from "drizzle-orm";
 import { db, building_community, communities, presale_deals, projects, sale_deals, contract_materials } from "@/lib/db";
 import { ageBand } from "@/lib/age";
+import { DETAIL_CACHE_HEADERS, parseCity, validText } from "@/lib/api-params";
 
 export const dynamic = "force-dynamic";
 
@@ -9,10 +10,15 @@ export const dynamic = "force-dynamic";
 // key 用 (city, district, name):projects 的自然鍵,與 room_stats/points 一致
 // city 缺省視為桃園市:多城市之前發出的分享網址沒有 city 段,要繼續能開
 export async function GET(req: NextRequest) {
-  const city = req.nextUrl.searchParams.get("city") || "桃園市";
+  const cityResult = parseCity(req.nextUrl.searchParams.get("city") || "桃園市");
+  if (cityResult.error || !cityResult.value)
+    return NextResponse.json({ error: "bad city" }, { status: 400 });
+  const city = cityResult.value;
   const district = req.nextUrl.searchParams.get("district");
   const name = req.nextUrl.searchParams.get("name");
   if (!district || !name) return NextResponse.json({ error: "district & name required" }, { status: 400 });
+  if (!validText(district, 30) || !validText(name, 160))
+    return NextResponse.json({ error: "bad district or name" }, { status: 400 });
 
   const [p] = await db.select().from(projects)
     .where(and(eq(projects.name, name), eq(projects.city, city), eq(projects.district, district)));
@@ -84,5 +90,5 @@ export async function GET(req: NextRequest) {
     deals,
     resales,
     materials,
-  });
+  }, { headers: DETAIL_CACHE_HEADERS });
 }

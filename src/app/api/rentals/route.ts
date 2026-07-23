@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { MIN_RENT_BUILDING_AGE, MAX_RENT_BUILDING_AGE } from "@/lib/rent";
 import { cityPrefixRe } from "@/lib/cities";
+import { MAP_CACHE_HEADERS, parseBbox } from "@/lib/api-params";
 
 export const dynamic = "force-dynamic";
 
@@ -11,14 +12,9 @@ const RESIDENTIAL = "^(住宅大樓|華廈|透天厝|公寓|套房)";
 // 屋齡 1–10 年市場租賃實登：同門牌彙總成一個棟級點位，排除社宅與非住宅用途。
 // 租賃 CSV 沒有完整建案名；只有能透過 building_community 配對者才顯示正式名稱。
 export async function GET(req: NextRequest) {
-  const bboxParam = req.nextUrl.searchParams.get("bbox");
-  let bbox: [number, number, number, number] | null = null;
-  if (bboxParam) {
-    const values = bboxParam.split(",").map(Number);
-    if (values.length !== 4 || !values.every(Number.isFinite))
-      return NextResponse.json({ error: "bad bbox" }, { status: 400 });
-    bbox = values as [number, number, number, number];
-  }
+  const bboxResult = parseBbox(req.nextUrl.searchParams.get("bbox"));
+  if (bboxResult.error) return NextResponse.json({ error: bboxResult.error }, { status: 400 });
+  const bbox = bboxResult.value;
   const within = bbox
     ? sql`AND g.lng BETWEEN ${bbox[0]} AND ${bbox[2]}
           AND g.lat BETWEEN ${bbox[1]} AND ${bbox[3]}`
@@ -90,5 +86,5 @@ export async function GET(req: NextRequest) {
         rent_label: `${Math.round(+row.monthly_rent / 1000) / 10}萬/月`,
       },
     })),
-  });
+  }, { headers: MAP_CACHE_HEADERS });
 }

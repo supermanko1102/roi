@@ -5,64 +5,24 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { parse } from "csv-parse/sync";
-import { and, eq, like, or } from "drizzle-orm";
+import { and, count, eq, like, or } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { createDb, sale_deals, presale_deals, rent_deals } from "../db/client";
 import { CITIES } from "../src/lib/cities";
 import { normAddrKey } from "./addr";
+import { col, intOrNull, num, parseFloor, readCsv, rocDate } from "./lvr-fields";
+import { assertReplacementSafe } from "./replacement-safety";
 
 const PING = 3.305785; // m² per 坪
 const DL = path.join(import.meta.dirname, "downloads");
 const BATCH = 500;
-
-const rocDate = (s?: string): string | null => {
-  if (!s || s.length < 6) return null;
-  const p = s.padStart(7, "0");
-  const y = +p.slice(0, 3) + 1911, m = p.slice(3, 5), d = p.slice(5, 7);
-  return m === "00" || d === "00" ? null : `${y}-${m}-${d}`;
-};
-const num = (s?: string) => {
-  const n = parseFloat((s ?? "").replace(/,/g, ""));
-  return Number.isFinite(n) ? n : null;
-};
-// 欄名在不同期別會微調,用關鍵字找
-const col = (headers: string[], ...keys: string[]) =>
-  headers.findIndex(h => keys.every(k => h.includes(k)));
-
-const intOrNull = (s?: string) => {
-  const n = parseInt((s ?? "").trim(), 10);
-  return Number.isFinite(n) ? n : null;
-};
-// 樓層:官方用中文數字(「十一層」「二十五層」),多樓層取首層;「全」「地下層」給 null
-const CN_DIGIT: Record<string, number> = { 零: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
-function parseFloor(s?: string): number | null {
-  if (!s) return null;
-  const first = s.split(/[,,、]/)[0].replace(/層.*$/, "").trim();
-  if (!first || first.includes("地下") || first === "全") return null;
-  if (/^\d+$/.test(first)) return +first;
-  const m = first.match(/^([一二三四五六七八九]?)(十?)([一二三四五六七八九]?)$/);
-  if (!m) return null;
-  const tens = m[2] ? (m[1] ? CN_DIGIT[m[1]] : 1) : 0;
-  const ones = m[2] ? (m[3] ? CN_DIGIT[m[3]] : 0) : (m[1] ? CN_DIGIT[m[1]] : NaN);
-  const v = tens * 10 + ones;
-  return Number.isFinite(v) && v > 0 ? v : null;
-}
-
-function readCsv(file: string): string[][] {
-  let text = fs.readFileSync(file, "utf-8");
-  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
-  // quote:false — 官方 CSV 從不用引號包欄位,但資料本身可能含 " 字元
-  // (如 110S4 新北某案棟及號=「"棟3號」),引號模式會吞掉整個檔案
-  const rows: string[][] = parse(text, { relax_column_count: true, quote: false, skip_empty_lines: true });
-  return rows.filter((_, i) => i !== 1); // 第 2 列是英文表頭
-}
 
 async function insertBatched<T>(insert: (chunk: T[]) => Promise<unknown>, rows: T[]) {
   for (let i = 0; i < rows.length; i += BATCH) await insert(rows.slice(i, i + BATCH));
 }
 
 async function main() {
+  const allowEmpty = process.argv.includes("--allow-empty");
   const { db, pool } = createDb();
 
   for (const season of fs.readdirSync(DL)) {
@@ -115,8 +75,13 @@ async function main() {
             raw_season: season,
           });
         }
-        await db.delete(sale_deals).where(scope(sale_deals.raw_season, sale_deals.city));
-        await insertBatched((c) => db.insert(sale_deals).values(c), out);
+        const [{ n: previous }] = await db.select({ n: count() }).from(sale_deals)
+          .where(and(eq(sale_deals.raw_season, season), eq(sale_deals.city, city.name)));
+        assertReplacementSafe(`[${season}] ${city.display} 買賣`, previous, out.length, allowEmpty);
+        await db.transaction(async (tx) => {
+          await tx.delete(sale_deals).where(scope(sale_deals.raw_season, sale_deals.city));
+          await insertBatched((c) => tx.insert(sale_deals).values(c), out);
+        });
         console.log(`[${season}] ${city.display} 買賣 ${out.length} 筆`);
       }
 
@@ -157,8 +122,13 @@ async function main() {
             raw_season: season,
           });
         }
-        await db.delete(presale_deals).where(scope(presale_deals.raw_season, presale_deals.city));
-        await insertBatched((c) => db.insert(presale_deals).values(c), out);
+        const [{ n: previous }] = await db.select({ n: count() }).from(presale_deals)
+          .where(and(eq(presale_deals.raw_season, season), eq(presale_deals.city, city.name)));
+        assertReplacementSafe(`[${season}] ${city.display} 預售`, previous, out.length, allowEmpty);
+        await db.transaction(async (tx) => {
+          await tx.delete(presale_deals).where(scope(presale_deals.raw_season, presale_deals.city));
+          await insertBatched((c) => tx.insert(presale_deals).values(c), out);
+        });
         console.log(`[${season}] ${city.display} 預售 ${out.length} 筆`);
       }
 
@@ -204,8 +174,13 @@ async function main() {
             raw_season: season,
           });
         }
-        await db.delete(rent_deals).where(scope(rent_deals.raw_season, rent_deals.city));
-        await insertBatched((c) => db.insert(rent_deals).values(c), out);
+        const [{ n: previous }] = await db.select({ n: count() }).from(rent_deals)
+          .where(and(eq(rent_deals.raw_season, season), eq(rent_deals.city, city.name)));
+        assertReplacementSafe(`[${season}] ${city.display} 租賃`, previous, out.length, allowEmpty);
+        await db.transaction(async (tx) => {
+          await tx.delete(rent_deals).where(scope(rent_deals.raw_season, rent_deals.city));
+          await insertBatched((c) => tx.insert(rent_deals).values(c), out);
+        });
         console.log(`[${season}] ${city.display} 租賃 ${out.length} 筆`);
       }
     }

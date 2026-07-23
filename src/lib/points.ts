@@ -27,31 +27,35 @@ type Bbox = [number, number, number, number];
 
 // rooms 給定時:用 room_stats 覆寫價格/總價/筆數,無該格局成交的點直接剔除
 // kind="presale" 時只回建案點(預售 only 的前台用;中古仍留在圈/區聚合當行情基準)
-export async function loadUnifiedPoints(opts: { bbox?: Bbox; district?: string; rooms?: RoomBand; kind?: "presale" } = {}): Promise<UnifiedPoint[]> {
-  const { bbox, district, rooms, kind } = opts;
+export async function loadUnifiedPoints(opts: { bbox?: Bbox; city?: string; district?: string; rooms?: RoomBand; kind?: "presale" } = {}): Promise<UnifiedPoint[]> {
+  const { bbox, city, district, rooms, kind } = opts;
   const box = (lat: any, lng: any): SQL | undefined =>
     bbox ? and(gte(lng, bbox[0]), lte(lng, bbox[2]), gte(lat, bbox[1]), lte(lat, bbox[3])) : undefined;
 
+  const buildingQuery = db.select({
+    addr_key: buildings.addr_key, city: buildings.city, district: buildings.district,
+    lat: buildings.lat, lng: buildings.lng, deal_count: buildings.deal_count,
+    median_unit_price: buildings.median_unit_price, median_total: buildings.median_total,
+    building_type: buildings.building_type, build_year: buildings.build_year,
+    community: communities.name,
+  }).from(buildings)
+    .leftJoin(building_community, eq(building_community.addr_key, buildings.addr_key))
+    .leftJoin(communities, eq(communities.case_no, building_community.case_no))
+    .where(and(isNotNull(buildings.lat),
+               city ? eq(buildings.city, city) : undefined,
+               district ? eq(buildings.district, district) : box(buildings.lat, buildings.lng)));
+  const scopedBuildings = bbox || district ? buildingQuery.limit(8000) : buildingQuery;
+
   const [bldgs, projs, comms, linked] = await Promise.all([
-    kind === "presale" ? Promise.resolve([]) : db.select({
-      addr_key: buildings.addr_key, city: buildings.city, district: buildings.district,
-      lat: buildings.lat, lng: buildings.lng, deal_count: buildings.deal_count,
-      median_unit_price: buildings.median_unit_price, median_total: buildings.median_total,
-      building_type: buildings.building_type, build_year: buildings.build_year,
-      community: communities.name,
-    }).from(buildings)
-      .leftJoin(building_community, eq(building_community.addr_key, buildings.addr_key))
-      .leftJoin(communities, eq(communities.case_no, building_community.case_no))
-      .where(and(isNotNull(buildings.lat),
-                 district ? eq(buildings.district, district) : box(buildings.lat, buildings.lng)))
-      .limit(bbox || district ? 8000 : 200000), // 視窗載入才需要護欄;全量給圈級聚合用不可截斷
+    kind === "presale" ? Promise.resolve([]) : scopedBuildings,
     db.select().from(projects)
       .where(and(isNotNull(projects.lat),
+                 city ? eq(projects.city, city) : undefined,
                  district ? eq(projects.district, district) : box(projects.lat, projects.lng))),
     db.select({ case_no: communities.case_no, name: communities.name,
                 city: communities.city, district: communities.district,
                 first_reg: communities.first_reg, use_issue_date: communities.use_issue_date })
-      .from(communities),
+      .from(communities).where(city ? eq(communities.city, city) : undefined),
     db.selectDistinct({ case_no: building_community.case_no }).from(building_community),
   ]);
 

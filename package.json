@@ -4,7 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "clean": "node -e \"require('node:fs').rmSync('.next',{recursive:true,force:true})\"",
+    "build": "pnpm clean && next build",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
     "start": "next start",
     "db:up": "docker compose up -d",
     "db:generate": "drizzle-kit generate",
@@ -22,8 +25,10 @@
     "etl:zones-ntpc": "tsx etl/build-ntpc-zones.ts",
     "etl:zones-leju": "tsx etl/leju-zones.ts",
     "etl:zone-rents": "tsx etl/compute-zone-rents.ts",
+    "etl:zone-bands": "tsx etl/compute-zone-bands.ts",
+    "etl:quality": "tsx etl/quality-check.ts",
     "etl:contracts": "tsx etl/fetch-contract-materials.ts",
-    "etl:all": "pnpm etl:download && pnpm etl:parse && pnpm etl:geocode && pnpm etl:stats && pnpm etl:use-permits && pnpm etl:communities && pnpm etl:geocode-projects && pnpm etl:rent-benchmarks && pnpm etl:zone-rents"
+    "etl:all": "tsx etl/run-all.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

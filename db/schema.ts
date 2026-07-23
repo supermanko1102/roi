@@ -3,7 +3,7 @@
  * 屬性名刻意用 snake_case,讓 select 回傳的 JSON 形狀與既有 API/前端一致。
  */
 import {
-  pgTable, serial, text, date, numeric, integer, boolean, timestamp, index, unique, primaryKey,
+  pgTable, serial, text, date, numeric, integer, boolean, timestamp, jsonb, index, unique, primaryKey,
 } from "drizzle-orm/pg-core";
 
 const money = (name: string) => numeric(name, { mode: "number" });
@@ -33,6 +33,8 @@ export const presale_deals = pgTable("presale_deals", {
 }, (t) => [
   index("idx_presale_district").on(t.city, t.district),
   index("idx_presale_project").on(t.project_name),
+  index("idx_presale_project_lookup").on(t.city, t.district, t.project_name),
+  index("idx_presale_season_city").on(t.raw_season, t.city),
 ]);
 
 // 中古/成屋買賣(a 檔;僅含建物之交易,純土地/車位已濾除)
@@ -61,6 +63,7 @@ export const sale_deals = pgTable("sale_deals", {
 }, (t) => [
   index("idx_sale_district").on(t.city, t.district),
   index("idx_sale_addr_key").on(t.addr_key),
+  index("idx_sale_season_city").on(t.raw_season, t.city),
 ]);
 
 // 門牌 → 座標快取(NLSC 定位,一次性回填後增量)
@@ -71,6 +74,28 @@ export const geocode_cache = pgTable("geocode_cache", {
   precision: text("precision"),                  // door=門牌 | cross=確切路口 | none=查無/僅路名
   queried_at: timestamp("queried_at", { withTimezone: true }).defaultNow(),
 });
+
+export type EtlRunMetrics = {
+  tables: Record<string, number>;
+  latest_deals: Record<string, string | null>;
+  geocode: { total: number; precise: number; project_precise: number; fallback_hits?: number };
+  integrity: { orphan_case_links: number; orphan_building_cases: number; orphan_entity_links: number };
+  warnings: string[];
+};
+
+// 每次正式 ETL 的可觀測性與資料品質快照；API 只讀最近成功紀錄。
+export const etl_runs = pgTable("etl_runs", {
+  id: serial("id").primaryKey(),
+  workflow: text("workflow").notNull(),
+  status: text("status").notNull(),             // running | success | failed
+  git_sha: text("git_sha"),
+  started_at: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+  completed_at: timestamp("completed_at", { withTimezone: true }),
+  metrics: jsonb("metrics").$type<EtlRunMetrics>(),
+  error: text("error"),
+}, (t) => [
+  index("idx_etl_runs_status_completed").on(t.status, t.completed_at),
+]);
 
 // 棟級彙總(compute-stats 由 sale_deals × geocode_cache 重建)
 export const buildings = pgTable("buildings", {
@@ -87,6 +112,7 @@ export const buildings = pgTable("buildings", {
   last_deal: date("last_deal"),
 }, (t) => [
   index("idx_buildings_district").on(t.city, t.district),
+  index("idx_buildings_lng_lat").on(t.lng, t.lat),
 ]);
 
 export const rent_deals = pgTable("rent_deals", {
@@ -116,6 +142,8 @@ export const rent_deals = pgTable("rent_deals", {
 }, (t) => [
   index("idx_rent_district").on(t.city, t.district),
   index("idx_rent_addr_key").on(t.addr_key),
+  index("idx_rent_season_city").on(t.raw_season, t.city),
+  index("idx_rent_build_year").on(t.build_year),
 ]);
 
 // 預售建案備查(plvr「預售備查建案下載」;實登 2.0 之後才有,match-communities 重建)
@@ -132,6 +160,7 @@ export const communities = pgTable("communities", {
   use_issue_date: date("use_issue_date"),     // 使照發照日(建照號碼 join use_permits;優先於 first_reg 判屋齡)
 }, (t) => [
   index("idx_communities_district").on(t.city, t.district),
+  index("idx_communities_lookup").on(t.city, t.district, t.name),
 ]);
 
 // 實體社區：一個社區可對應多個預售備查案(case_no)與多個門牌。
@@ -165,6 +194,7 @@ export const building_community = pgTable("building_community", {
   confidence: integer("confidence").default(100),
 }, (t) => [
   index("idx_building_community_entity").on(t.community_id),
+  index("idx_building_community_case").on(t.case_no),
 ]);
 
 // 租金補貼有效租約公布之區域基準；它是大樣本校驗值，不取代 1–10 年單筆比較租約。
@@ -197,6 +227,30 @@ export const zone_stats = pgTable("zone_stats", {
   updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 }, (t) => [
   primaryKey({ columns: [t.city, t.zone] }),
+]);
+
+// API 預算：行政區 × 屋齡帶的交易中位單價，避免請求時掃原始交易。
+export const district_band_stats = pgTable("district_band_stats", {
+  city: text("city").notNull(),
+  district: text("district").notNull(),
+  band: text("band").notNull(),                 // presale | 0_5 | 5_10 | 10_20 | 20p | all
+  median_unit_price: money("median_unit_price"),
+  samples: integer("samples").notNull(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.city, t.district, t.band] }),
+]);
+
+// API 預算：生活圈 × 屋齡帶的點位中位單價與成交筆數。
+export const zone_band_stats = pgTable("zone_band_stats", {
+  city: text("city").notNull(),
+  zone: text("zone").notNull(),
+  band: text("band").notNull(),
+  median_unit_price: money("median_unit_price"),
+  samples: integer("samples").notNull(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.city, t.zone, t.band] }),
 ]);
 
 // 彙總層(compute-stats 重算;seed 先塞示範值)
@@ -243,6 +297,7 @@ export const projects = pgTable("projects", {
   is_demo: boolean("is_demo").default(false),
 }, (t) => [
   unique("projects_name_district_key").on(t.city, t.name, t.district),
+  index("idx_projects_lng_lat").on(t.lng, t.lat),
 ]);
 
 // 使用執照(雙北開放資料;etl/import-use-permits.ts 逐市重建)

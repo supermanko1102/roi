@@ -10,10 +10,11 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { sql } from "drizzle-orm";
+import { count, sql } from "drizzle-orm";
 import { createDb, zone_stats } from "../db/client";
 import { MIN_RENT_BUILDING_AGE, MAX_RENT_BUILDING_AGE } from "../src/lib/rent";
 import { cityPrefixRe } from "../src/lib/cities";
+import { assertReplacementSafe } from "./replacement-safety";
 
 const ZONES = path.join(import.meta.dirname, "..", "data", "zones.geojson");
 const RESIDENTIAL = /^(住宅大樓|華廈|透天厝|公寓|套房)/;
@@ -59,6 +60,7 @@ const median = (xs: number[]) => {
 };
 
 async function main() {
+  const allowEmpty = process.argv.includes("--allow-empty");
   const { db, pool } = createDb();
   // 生活圈檔可帶 city property(Phase 3 合併多市檔);桃園舊檔沒有 → 預設桃園市
   const zones = JSON.parse(fs.readFileSync(ZONES, "utf-8")).features
@@ -114,7 +116,6 @@ async function main() {
     (byZone.get(z) ?? byZone.set(z, []).get(z)!).push(+r.rent_per_ping);
   }
 
-  await db.delete(zone_stats);
   const out = [...byZone.entries()].map(([zoneKey, xs]) => {
     const [city, ...rest] = zoneKey.split("|");
     return {
@@ -122,7 +123,12 @@ async function main() {
       median_rent_ping_market: Math.round(median(xs)), rent_samples_market: xs.length,
     };
   });
-  if (out.length) await db.insert(zone_stats).values(out);
+  const [{ n: previous }] = await db.select({ n: count() }).from(zone_stats);
+  assertReplacementSafe("[zone-rents] 彙總", previous, out.length, allowEmpty);
+  await db.transaction(async (tx) => {
+    await tx.delete(zone_stats);
+    if (out.length) await tx.insert(zone_stats).values(out);
+  });
 
   console.log(`[zone-rents] 歸圈:門牌直配 ${hitDoor}、街道多數決 ${hitStreet}、圈外/未知 ${missed}`);
   for (const o of out.sort((a, b) => b.rent_samples_market - a.rent_samples_market))

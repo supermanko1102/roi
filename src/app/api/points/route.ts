@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadUnifiedPoints, toFeatureCollection } from "@/lib/points";
 import { ROOM_BANDS, type RoomBand } from "@/lib/rooms";
+import { MAP_CACHE_HEADERS, parseBbox, parseCity, validText } from "@/lib/api-params";
 
 export const dynamic = "force-dynamic";
 
@@ -9,19 +10,18 @@ export const dynamic = "force-dynamic";
 // ?rooms=1|2|3|4p 時價格/總價/筆數改用該房數帶的彙總,無該格局的點不回傳
 export async function GET(req: NextRequest) {
   const district = req.nextUrl.searchParams.get("district") ?? undefined;
-  const bboxParam = req.nextUrl.searchParams.get("bbox");
+  if (district && !validText(district, 30))
+    return NextResponse.json({ error: "bad district" }, { status: 400 });
+  const cityResult = parseCity(req.nextUrl.searchParams.get("city"));
+  if (cityResult.error) return NextResponse.json({ error: cityResult.error }, { status: 400 });
   const roomsParam = req.nextUrl.searchParams.get("rooms");
   const rooms = ROOM_BANDS.includes(roomsParam as RoomBand) ? (roomsParam as RoomBand) : undefined;
   const kind = req.nextUrl.searchParams.get("kind") === "presale" ? ("presale" as const) : undefined;
 
-  let bbox: [number, number, number, number] | undefined;
-  if (!district && bboxParam) {
-    const v = bboxParam.split(",").map(Number);
-    if (v.length !== 4 || !v.every(Number.isFinite))
-      return NextResponse.json({ error: "bad bbox" }, { status: 400 });
-    bbox = v as [number, number, number, number];
-  }
+  const bboxResult = parseBbox(district ? null : req.nextUrl.searchParams.get("bbox"));
+  if (bboxResult.error) return NextResponse.json({ error: bboxResult.error }, { status: 400 });
+  const bbox = bboxResult.value ?? undefined;
 
-  const pts = await loadUnifiedPoints({ district, bbox, rooms, kind });
-  return NextResponse.json(toFeatureCollection(pts));
+  const pts = await loadUnifiedPoints({ city: cityResult.value ?? undefined, district, bbox, rooms, kind });
+  return NextResponse.json(toFeatureCollection(pts), { headers: MAP_CACHE_HEADERS });
 }

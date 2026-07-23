@@ -11,14 +11,18 @@
  * 彙總 SQL(percentile_cont/CTE)刻意保留原生寫法,經 drizzle sql template 參數化執行。
  */
 import { eq, sql } from "drizzle-orm";
-import { createDb, district_stats, projects, buildings, room_stats } from "../db/client";
+import {
+  createDb, district_stats, district_band_stats, projects, buildings, room_stats,
+} from "../db/client";
 import { MIN_RENT_BUILDING_AGE, MAX_RENT_BUILDING_AGE } from "../src/lib/rent";
+import { assertReplacementSafe } from "./replacement-safety";
 
 const MIN_SAMPLES = 5;
 const AREA_DISCOUNT = 0.85;
 const RESIDENTIAL = "^(住宅大樓|華廈|透天厝|公寓|套房)";
 
 async function main() {
+  const allowEmpty = process.argv.includes("--allow-empty");
   const { db, pool } = createDb();
 
   // 有真中古交易時先清掉 seed 的 demo 件,避免混入區級/棟級統計;
@@ -26,9 +30,38 @@ async function main() {
   const [{ n: realSales }] = (await db.execute(sql`
     SELECT count(*)::int AS n FROM sale_deals WHERE raw_season IS DISTINCT FROM 'demo'
   `)).rows as { n: number }[];
-  if (realSales > 0) await db.execute(sql`DELETE FROM sale_deals WHERE raw_season = 'demo'`);
+  const [{ n: realPresales }] = (await db.execute(sql`
+    SELECT count(*)::int AS n FROM presale_deals WHERE is_cancelled IS NOT TRUE
+  `)).rows as { n: number }[];
+  if (realSales === 0 && realPresales === 0) {
+    console.log("[stats] 無真實交易，保留既有 demo／彙總資料");
+    await pool.end();
+    return;
+  }
+  const [publishCounts] = (await db.execute(sql`
+    SELECT
+      (SELECT count(*)::int FROM projects WHERE is_demo IS NOT TRUE) AS previous_projects,
+      (SELECT count(*)::int FROM (
+        SELECT project_name, city, district FROM presale_deals
+        WHERE project_name IS NOT NULL AND project_name <> '' AND is_cancelled IS NOT TRUE
+        GROUP BY project_name, city, district HAVING count(*) >= 3
+      ) p) AS next_projects,
+      (SELECT count(*)::int FROM buildings) AS previous_buildings,
+      (SELECT count(DISTINCT s.addr_key)::int FROM sale_deals s
+       JOIN geocode_cache g ON g.addr_key = s.addr_key AND g.precision = 'door'
+       WHERE s.unit_price > 0) AS next_buildings
+  `)).rows as {
+    previous_projects: number; next_projects: number;
+    previous_buildings: number; next_buildings: number;
+  }[];
+  assertReplacementSafe("[stats] projects", publishCounts.previous_projects, publishCounts.next_projects, allowEmpty);
+  if (realSales > 0)
+    assertReplacementSafe("[stats] buildings", publishCounts.previous_buildings, publishCounts.next_buildings, allowEmpty);
 
-  await db.execute(sql`
+  await db.transaction(async (tx) => {
+  if (realSales > 0) await tx.execute(sql`DELETE FROM sale_deals WHERE raw_season = 'demo'`);
+
+  await tx.execute(sql`
     WITH p AS (
       SELECT city, district,
              percentile_cont(0.5) WITHIN GROUP (ORDER BY unit_price) AS mup,
@@ -97,9 +130,8 @@ async function main() {
       updated_at        = now();
   `);
 
-  await db.delete(projects).where(eq(projects.is_demo, false));
   // 解約件不計入價格/筆數統計,另計 cancel_count 供前端標記
-  await db.execute(sql`
+  await tx.execute(sql`
     WITH cx AS (
       SELECT project_name, city, district, count(*) AS n
       FROM presale_deals WHERE is_cancelled GROUP BY project_name, city, district
@@ -141,11 +173,25 @@ async function main() {
       cancel_count = EXCLUDED.cancel_count,
       is_demo      = false;
   `);
+  // 保留仍存在建案的定位結果；只移除已不符合彙總門檻的舊案。
+  // 新案維持 lat/lng=null，後續 geocode-projects 再以 cache 或精確地址定位。
+  await tx.execute(sql`
+    DELETE FROM projects p
+    WHERE p.is_demo = false
+      AND NOT EXISTS (
+        SELECT 1 FROM presale_deals d
+        WHERE d.project_name = p.name AND d.city = p.city AND d.district = p.district
+          AND d.project_name IS NOT NULL AND d.project_name <> ''
+          AND d.is_cancelled IS NOT TRUE
+        GROUP BY d.project_name, d.city, d.district
+        HAVING count(*) >= 3
+      );
+  `);
   // 棟級彙總:中古交易按門牌歸戶 + geocode 座標(只收已定位的)。
   // 僅在有真資料時重建,否則保留 seed 直插的 demo 棟級點位
   if (realSales > 0) {
-    await db.delete(buildings);
-    await db.execute(sql`
+    await tx.delete(buildings);
+    await tx.execute(sql`
       INSERT INTO buildings(addr_key, city, district, lat, lng, deal_count,
                             median_unit_price, median_total, building_type, build_year, last_deal)
       SELECT s.addr_key, min(s.city), min(s.district), g.lat, g.lng, count(*),
@@ -162,8 +208,8 @@ async function main() {
 
   // 房數帶彙總:格局篩選時前端用它覆寫點位的價格/總價/筆數
   // resale=棟級(僅已定位門牌,與 buildings 同口徑);presale=建案級(排除解約件)
-  await db.delete(room_stats);
-  await db.execute(sql`
+  await tx.delete(room_stats);
+  await tx.execute(sql`
     INSERT INTO room_stats(kind, key, room_band, deal_count, median_unit_price, median_total)
     SELECT 'resale', s.addr_key,
            CASE WHEN s.rooms <= 1 THEN '1' WHEN s.rooms = 2 THEN '2'
@@ -176,7 +222,7 @@ async function main() {
     WHERE s.unit_price > 0 AND s.rooms IS NOT NULL AND s.raw_season IS DISTINCT FROM 'demo'
     GROUP BY s.addr_key, band;
   `);
-  await db.execute(sql`
+  await tx.execute(sql`
     INSERT INTO room_stats(kind, key, room_band, deal_count, median_unit_price, median_total)
     SELECT 'presale', d.city || '|' || d.district || '|' || d.project_name,
            CASE WHEN d.rooms <= 1 THEN '1' WHEN d.rooms = 2 THEN '2'
@@ -190,12 +236,37 @@ async function main() {
     GROUP BY d.city || '|' || d.district || '|' || d.project_name, band;
   `);
 
+  // 行政區 × 屋齡帶預算，供 /api/districts 直接讀取。
+  await tx.delete(district_band_stats);
+  await tx.execute(sql`
+    WITH deals AS (
+      SELECT city, district, unit_price,
+             CASE WHEN build_year IS NULL THEN 'unknown'
+                  WHEN extract(year FROM now()) - build_year < 5  THEN '0_5'
+                  WHEN extract(year FROM now()) - build_year < 10 THEN '5_10'
+                  WHEN extract(year FROM now()) - build_year < 20 THEN '10_20'
+                  ELSE '20p' END AS band
+      FROM sale_deals
+      WHERE building_type ~ ${RESIDENTIAL} AND unit_price > 0
+        AND raw_season IS DISTINCT FROM 'demo'
+      UNION ALL
+      SELECT city, district, unit_price, 'presale' FROM presale_deals
+      WHERE unit_price > 0 AND is_cancelled IS NOT TRUE
+    )
+    INSERT INTO district_band_stats(city, district, band, median_unit_price, samples, updated_at)
+    SELECT city, district, coalesce(band, 'all'),
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY unit_price), count(*)::int, now()
+    FROM deals
+    GROUP BY GROUPING SETS ((city, district, band), (city, district));
+  `);
+
   // 有真資料後把 demo 清掉
-  const [{ n }] = (await db.execute(sql`SELECT count(*)::int AS n FROM district_stats WHERE is_demo = false`)).rows as { n: number }[];
+  const [{ n }] = (await tx.execute(sql`SELECT count(*)::int AS n FROM district_stats WHERE is_demo = false`)).rows as { n: number }[];
   if (n > 0) {
-    await db.delete(district_stats).where(eq(district_stats.is_demo, true));
-    await db.delete(projects).where(eq(projects.is_demo, true));
+    await tx.delete(district_stats).where(eq(district_stats.is_demo, true));
+    await tx.delete(projects).where(eq(projects.is_demo, true));
   }
+  });
   console.log("stats updated");
   await pool.end();
 }

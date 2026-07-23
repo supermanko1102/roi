@@ -35,9 +35,27 @@ pnpm etl:use-permits         # 匯入雙北使照資料(供社區屋齡判定)
 pnpm etl:communities         # 地號交集 → 實體社區、建案與門牌歸戶
 pnpm etl:geocode-projects    # 預售成交地址定位,失敗時以同名備查工地地址 fallback
 pnpm etl:rent-benchmarks     # 匯入官方租金補貼有效租約分位數
+pnpm etl:quality             # 唯讀資料品質檢查(筆數/日期/geocode/孤兒關聯)
 ```
 
-實價登錄每月 1、11、21 日更新,`etl:all` 排進 cron 或 GitHub Actions 即可。
+實價登錄每月 1、11、21 日更新。`etl:all` 會依序執行完整管線、寫入 `etl_runs`，
+並在 GitHub Actions 顯示資料品質摘要；整批替換採 transaction，0 筆或驟降超過 30% 會拒絕發布。
+只有確認要清空特定資料時才可對單支 ETL 使用 `--allow-empty`。
+
+公開資料健康狀態在 `GET /api/health/data`；最近成功 ETL 超過 15 天時回傳 `503 stale`。
+`districts`／`zones` 由 ETL 預算，API 不再逐次掃描原始交易或執行 point-in-polygon。
+
+## 驗證與連線
+
+```bash
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+GitHub Actions 的 `CI` workflow 會在 main push／PR 使用 PostgreSQL 16 跑 migration、測試與 build。
+production DB pool 可用 `PG_POOL_MAX`、`PG_CONNECT_TIMEOUT_MS`、`PG_IDLE_TIMEOUT_MS` 控制；
+serverless 環境應搭配供應商的 pooled connection URL 與邊緣 rate limit。
 
 ## 資料流
 
@@ -80,7 +98,7 @@ plvr.land.moi.gov.tw ──download──> etl/downloads/{season}/h_lvr_land_{a,
 - [x] 建案詳情精簡為基本資料與逐筆成交，不顯示自動分析或投報試算
 - [x] 實體社區歸戶:行政區＋標準化建案名合併分期，地號交集串接門牌與租約
 - [x] 官方區域基準:300 億租金補貼有效租約統計，與市場相似案例並列不混算
-- [ ] 預售建案座標:預售檔地址模糊(「○○路110號附近」),需另接內政部「預售屋建案標示/備查」資料的建案座落地址再 geocode
+- [x] 預售建案座標:成交地址失敗時，以同市區同名備查案工地地址作精確門牌／路口 fallback
 - [ ] 重劃區層:桃園地政局重劃範圍圖 → PostGIS `ST_Contains` 歸戶,支援「A7重劃區」粒度
 - [ ] 591 租金補充源(Playwright,低頻自用)
 - [ ] 多縣市:download-lvr.ts 的 WANTED 加城市代碼即可

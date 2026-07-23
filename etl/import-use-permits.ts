@@ -14,10 +14,11 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { createDb, use_permits } from "../db/client";
 import { CITIES } from "../src/lib/cities";
 import { normPermitNo } from "./addr";
+import { assertReplacementSafe } from "./replacement-safety";
 
 const CACHE_DIR = path.join(import.meta.dirname, "downloads", "use-permits");
 const BATCH = 500;
@@ -105,6 +106,7 @@ const ADAPTERS: Record<string, (refresh: boolean) => Promise<PermitRow[]>> = {
 async function main() {
   const args = process.argv.slice(2);
   const refresh = args.includes("--refresh");
+  const allowEmpty = args.includes("--allow-empty");
   const cityArg = args.includes("--city") ? args[args.indexOf("--city") + 1] : null;
   const targets = cityArg ? [cityArg] : CITIES.map((c) => c.name).filter((n) => ADAPTERS[n]);
   if (!targets.length) { console.log("[use-permits] 啟用城市皆無使照資料源,略過"); return; }
@@ -118,9 +120,14 @@ async function main() {
     // 同一使照號碼在來源重複時保留第一筆
     const seen = new Set<string>();
     const uniq = rows.filter((r) => !seen.has(r.license_no) && (seen.add(r.license_no), true));
-    await db.delete(use_permits).where(eq(use_permits.city, city));
-    for (let i = 0; i < uniq.length; i += BATCH)
-      await db.insert(use_permits).values(uniq.slice(i, i + BATCH));
+    const [{ n: previous }] = await db.select({ n: count() }).from(use_permits)
+      .where(eq(use_permits.city, city));
+    assertReplacementSafe(`[use-permits] ${city}`, previous, uniq.length, allowEmpty);
+    await db.transaction(async (tx) => {
+      await tx.delete(use_permits).where(eq(use_permits.city, city));
+      for (let i = 0; i < uniq.length; i += BATCH)
+        await tx.insert(use_permits).values(uniq.slice(i, i + BATCH));
+    });
     const withPermit = uniq.filter((r) => r.permit_no_norm).length;
     console.log(`[use-permits] ${city} ${uniq.length} 張使照(${withPermit} 張帶建照號碼,` +
       `${(withPermit / Math.max(1, uniq.length) * 100).toFixed(1)}%)`);
