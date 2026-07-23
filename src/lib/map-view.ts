@@ -32,13 +32,17 @@ export function enrichNearestTransport(base: PresaleFC | null, rail: TransportSt
 
 export type PointFilter = {
   totalBand: string;
+  householdMin: number | null;
+  householdMax: number | null;
   query: string;
   nearMetro: boolean;
   nearIC: boolean;
 };
 
-/** 套用總價帶/關鍵字/交通條件;query 同時當即時篩選(打字未選建議時地圖跟著縮小範圍)。 */
-export function filterPoints(base: PresaleFC | null, { totalBand, query, nearMetro, nearIC }: PointFilter): PresaleFC | null {
+/** 套用總價/總戶數/關鍵字/交通條件;query 同時當即時篩選。 */
+export function filterPoints(base: PresaleFC | null, {
+  totalBand, householdMin, householdMax, query, nearMetro, nearIC,
+}: PointFilter): PresaleFC | null {
   if (!base) return null;
   const tf = TOTAL_FILTERS.find((t) => t.key === totalBand)!;
   const needle = query.trim().toLocaleLowerCase("zh-Hant");
@@ -47,6 +51,9 @@ export function filterPoints(base: PresaleFC | null, { totalBand, query, nearMet
       const t = f.properties.median_total;
       if (tf.min != null && (t == null || t < tf.min)) return false;
       if (tf.max != null && (t == null || t >= tf.max)) return false;
+      const households = f.properties.households;
+      if (householdMin != null && (households == null || households < householdMin)) return false;
+      if (householdMax != null && (households == null || households > householdMax)) return false;
       if (needle && !`${f.properties.name ?? ""} ${f.properties.district ?? ""}`.toLocaleLowerCase("zh-Hant").includes(needle)) return false;
       return true;
     })

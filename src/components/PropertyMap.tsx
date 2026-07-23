@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Map, { Source, Layer, Marker, Popup, MapRef } from "react-map-gl/maplibre";
 import ProjectDrawer from "./ProjectDrawer";
 import MapLegend from "./MapLegend";
+import MobileExplorer from "./MobileExplorer";
 import {
   ComparePanel, FilterPanel, ProductHeader,
   rentalSummaryFromFeature, summaryFromFeature,
@@ -15,7 +16,8 @@ import { LINE_COLOR, priceProp } from "@/lib/map-colors";
 import { CITIES, DEFAULT_VIEW } from "@/lib/cities";
 import { addMapIcons } from "@/lib/map-icons";
 import {
-  CITY_LABEL_ZOOM, DETAIL_ZOOM, POINT_ZOOM, PROJECT_ZOOM, SHOW_IC_M, SHOW_STATION_M, TOTAL_FILTERS, ZOOM_STEPS,
+  CITY_LABEL_ZOOM, DETAIL_ZOOM, POINT_ZOOM, PROJECT_ZOOM, SHOW_IC_M,
+  SHOW_STATION_M, TOTAL_FILTERS, ZOOM_STEPS,
 } from "@/lib/map-const";
 import { buildSuggestions, enrichNearestTransport, filterPoints } from "@/lib/map-view";
 import type {
@@ -86,6 +88,8 @@ export default function PropertyMap() {
   const [market, setMarket] = useState<MarketMode>("presale");
   const [rooms, setRooms] = useState<RoomFilter>("all");
   const [totalBand, setTotalBand] = useState("all");
+  const [householdMin, setHouseholdMin] = useState<number | null>(null);
+  const [householdMax, setHouseholdMax] = useState<number | null>(null);
   const [nearMetro, setNearMetro] = useState(false);
   const [nearIC, setNearIC] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
@@ -101,6 +105,9 @@ export default function PropertyMap() {
   const [drawerProj, setDrawerProj] = useState<{ city: string; district: string; name: string } | null>(null);
   const [query, setQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [exploreOpen, setExploreOpen] = useState(false);
+  const [mobileDistrict, setMobileDistrict] = useState<string | null>(null);
+  const [mobileZone, setMobileZone] = useState<string | null>(null);
   const [saved, setSaved] = useState<ProjectSummary[]>([]);
   const [compareOpen, setCompareOpen] = useState(false);
   const [shared, setShared] = useState(false);
@@ -117,8 +124,19 @@ export default function PropertyMap() {
     const qs = new URLSearchParams(location.search);
     const initialRooms = (["1", "2", "3", "4p"].includes(qs.get("rooms") ?? "") ? qs.get("rooms") : "all") as RoomFilter;
     const initialBudget = TOTAL_FILTERS.some((t) => t.key === qs.get("budget")) ? qs.get("budget")! : "all";
+    const readHouseholdBound = (key: string) => {
+      const raw = qs.get(key);
+      const value = raw == null ? NaN : Number(raw);
+      return Number.isInteger(value) && value > 0 ? Math.min(value, 9_999) : null;
+    };
+    let initialHouseholdMin = readHouseholdBound("households_min");
+    let initialHouseholdMax = readHouseholdBound("households_max");
+    if (initialHouseholdMin != null && initialHouseholdMax != null
+      && initialHouseholdMin > initialHouseholdMax)
+      [initialHouseholdMin, initialHouseholdMax] = [initialHouseholdMax, initialHouseholdMin];
     const initialMarket: MarketMode = qs.get("market") === "rent" || qs.get("rent") === "1" ? "rental" : "presale";
-    setRooms(initialRooms); setTotalBand(initialBudget); setMarket(initialMarket);
+    setRooms(initialRooms); setTotalBand(initialBudget);
+    setHouseholdMin(initialHouseholdMin); setHouseholdMax(initialHouseholdMax); setMarket(initialMarket);
     setQuery(qs.get("q") ?? ""); setNearMetro(qs.get("metro") === "1"); setNearIC(qs.get("ic") === "1");
     setShowCancel(qs.get("cancel") === "1");
     loadCatalog(initialRooms);
@@ -147,11 +165,14 @@ export default function PropertyMap() {
     syncUrl({
       q: query || null,
       budget: totalBand === "all" ? null : totalBand, rooms: rooms === "all" ? null : rooms,
+      households: null,
+      households_min: householdMin == null ? null : String(householdMin),
+      households_max: householdMax == null ? null : String(householdMax),
       metro: nearMetro ? "1" : null, ic: nearIC ? "1" : null,
       cancel: showCancel ? "1" : null,
       market: market === "rental" ? "rent" : null, rent: null, mode: null, view: null,
     });
-  }, [urlReady, query, totalBand, rooms, nearMetro, nearIC, showCancel, market]);
+  }, [urlReady, query, totalBand, householdMin, householdMax, rooms, nearMetro, nearIC, showCancel, market]);
 
   useEffect(() => {
     if (!urlReady) return;
@@ -211,7 +232,10 @@ export default function PropertyMap() {
   // 同一套交通距離同時餵地圖點位與搜尋建議
   const enrichedPoints = useMemo(() => enrichNearestTransport(points, railIdx, icIdx), [points, railIdx, icIdx]);
   const enrichedCatalog = useMemo(() => enrichNearestTransport(catalog, railIdx, icIdx), [catalog, railIdx, icIdx]);
-  const pointFilter = useMemo(() => ({ totalBand, query, nearMetro, nearIC }), [totalBand, query, nearMetro, nearIC]);
+  const pointFilter = useMemo(
+    () => ({ totalBand, householdMin, householdMax, query, nearMetro, nearIC }),
+    [totalBand, householdMin, householdMax, query, nearMetro, nearIC],
+  );
   const visiblePoints = useMemo(() => filterPoints(enrichedPoints, pointFilter), [enrichedPoints, pointFilter]);
   const visibleCatalog = useMemo(() => filterPoints(enrichedCatalog, pointFilter), [enrichedCatalog, pointFilter]);
   const projectSummaries = useMemo(() => (visibleCatalog?.features ?? [])
@@ -230,7 +254,8 @@ export default function PropertyMap() {
     for (const r of rentalSummaries) counts[`${r.city}|${r.district}`] = (counts[`${r.city}|${r.district}`] ?? 0) + 1;
     return counts;
   }, [rentalSummaries]);
-  const activeFilters = +(totalBand !== "all") + +(rooms !== "all") + +nearMetro + +nearIC + +showCancel;
+  const activeFilters = +(totalBand !== "all") + +(householdMin != null || householdMax != null)
+    + +(rooms !== "all") + +nearMetro + +nearIC + +showCancel;
 
   // 解約標記:獨立於屋齡帶篩選,永遠拿全部點位過濾
   const cancelPoints = useMemo(() => {
@@ -271,6 +296,7 @@ export default function PropertyMap() {
 
   function pickSuggestion(s: SearchSuggestion) {
     setQuery(""); // 選中即導航:query 是導航輸入,不留著當篩選
+    setExploreOpen(false);
     if (s.kind === "project") {
       const f = catalog?.features.find(
         (x) => `${x.properties.city}|${x.properties.district}|${x.properties.name}` === s.key);
@@ -288,6 +314,11 @@ export default function PropertyMap() {
   function zoomToZone(zoneKey: string) {
     const z = zoneLabels.find((l) => l.key === zoneKey);
     if (!z?.bounds) return;
+    setMobileZone(zoneKey);
+    const names = String(z.props.district ?? "").split("/").map((name) => name.trim());
+    if (!mobileDistrict || !names.includes(mobileDistrict.split("|").at(-1) ?? ""))
+      setMobileDistrict(labels.find((label) =>
+        label.props.city === z.props.city && names.includes(label.name))?.key ?? null);
     loadDetail([z.bounds[0][0], z.bounds[0][1], z.bounds[1][0], z.bounds[1][1]]); // 與飛行動畫並行抓資料
     // 點生活圈直接落在建案層級,不用再手動放大一次;
     // 大圈保底跨過 POINT_ZOOM,小圈上限 +1.5 避免過度放大
@@ -320,6 +351,8 @@ export default function PropertyMap() {
     const feat = (districts?.features ?? [])
       .find((f) => `${f.properties.city}|${f.properties.name}` === key);
     if (!feat) return;
+    setMobileDistrict(key);
+    setMobileZone(null);
     const [w, s, e, n] = geomBbox(feat.geometry);
     if (market === "presale") loadDetail([w, s, e, n]);
     // 面積大的區 fitBounds 後可能還不到細節門檻,保底跨過去
@@ -328,6 +361,8 @@ export default function PropertyMap() {
     if (map && cam) map.easeTo({ ...cam, zoom: Math.max(cam.zoom ?? DETAIL_ZOOM, DETAIL_ZOOM + 0.1), duration: 700 });
   }
   function back() {
+    setMobileDistrict(null);
+    setMobileZone(null);
     mapRef.current?.flyTo({
       center: [DEFAULT_VIEW.longitude, DEFAULT_VIEW.latitude],
       zoom: DEFAULT_VIEW.zoom, duration: 700,
@@ -364,6 +399,7 @@ export default function PropertyMap() {
   }
 
   function openSummary(p: ProjectSummary) {
+    setExploreOpen(false);
     setCompareOpen(false);
     mapRef.current?.flyTo({ center: [p.lng, p.lat], zoom: PROJECT_ZOOM, duration: 650 });
     openProjDrawer(p.city, p.district, p.name);
@@ -383,6 +419,7 @@ export default function PropertyMap() {
     setMarket(next);
     setQuery("");
     setFiltersOpen(false);
+    setExploreOpen(false);
     setPresalePopup(null);
     setRentalPopup(null);
     if (next === "rental") closeProjDrawer();
@@ -404,7 +441,8 @@ export default function PropertyMap() {
   }
 
   function resetFilters() {
-    setTotalBand("all"); pickRooms("all"); setNearMetro(false); setNearIC(false);
+    setTotalBand("all"); setHouseholdMin(null); setHouseholdMax(null);
+    pickRooms("all"); setNearMetro(false); setNearIC(false);
     setShowCancel(false);
   }
 
@@ -829,12 +867,38 @@ export default function PropertyMap() {
 
       <ProductHeader market={market} setMarket={changeMarket}
         query={query} setQuery={setQuery} suggestions={suggestions} onPick={pickSuggestion}
-        filtersOpen={filtersOpen} setFiltersOpen={setFiltersOpen}
-        activeFilters={activeFilters} savedCount={saved.length} openCompare={() => setCompareOpen(true)}
+        exploreOpen={exploreOpen} toggleExplore={() => {
+          setExploreOpen((current) => !current);
+          setFiltersOpen(false);
+        }}
+        filtersOpen={filtersOpen} setFiltersOpen={(open) => {
+          setFiltersOpen(open);
+          if (open) setExploreOpen(false);
+        }}
+        activeFilters={activeFilters} savedCount={saved.length} openCompare={() => {
+          setExploreOpen(false);
+          setCompareOpen(true);
+        }}
         share={shareCurrent} shared={shared} />
+
+      {market === "presale" && <MobileExplorer open={exploreOpen} onClose={() => setExploreOpen(false)}
+        districts={labels} zoneLabels={zoneLabels} zones={zones} projects={projectSummaries}
+        selectedDistrictKey={mobileDistrict} selectedZoneKey={mobileZone} loading={catalog == null}
+        onChooseDistrict={drill}
+        onResetDistrict={() => { setMobileDistrict(null); setMobileZone(null); }}
+        onChooseZone={(key) => {
+          setMobileZone(key);
+          if (key) zoomToZone(key);
+          else if (mobileDistrict) drill(mobileDistrict);
+        }}
+        onChooseProject={openSummary} />}
 
       {market === "presale" && <FilterPanel open={filtersOpen}
         totalBand={totalBand} setTotalBand={(v) => { setTotalBand(v); setPresalePopup(null); }}
+        householdMin={householdMin} householdMax={householdMax}
+        setHouseholdRange={(min, max) => {
+          setHouseholdMin(min); setHouseholdMax(max); setPresalePopup(null);
+        }}
         rooms={rooms} setRooms={pickRooms} nearMetro={nearMetro} setNearMetro={setNearMetro}
         nearIC={nearIC} setNearIC={setNearIC} showCancel={showCancel} setShowCancel={setShowCancel}
         reset={resetFilters} />}
@@ -860,7 +924,7 @@ export default function PropertyMap() {
         <strong>{market === "rental" ? rentalSummaries.length : zoneLevel ? "生活圈" : (projectSummaries.length || "—")}</strong>
         <span>{market === "rental"
           ? "棟屋齡 1–10 年出租實登・已排除社宅"
-          : zoneLevel ? "層級・再放大顯示建案" : detail ? "個符合建案"
+          : zoneLevel ? "層級・點生活圈或用「找建案」" : detail ? "個符合建案"
           : `個${CITIES.length > 1 ? "全區" : "全市"}建案・點行政區開始探索`}</span>
       </div>
     </div>

@@ -96,10 +96,12 @@ const walk = (m: number | null) => m == null ? null : walkMinutes(m);
 const mobHeadBtn = "max-mob:h-10 max-mob:w-full max-mob:px-[7px] max-mob:text-[11px]";
 
 export function ProductHeader({ market, setMarket, query, setQuery, suggestions, onPick,
-  filtersOpen, setFiltersOpen, activeFilters, savedCount, openCompare, share, shared }: {
+  exploreOpen, toggleExplore, filtersOpen, setFiltersOpen,
+  activeFilters, savedCount, openCompare, share, shared }: {
   market: MarketMode; setMarket: (v: MarketMode) => void;
   query: string; setQuery: (v: string) => void;
   suggestions: SearchSuggestion[]; onPick: (s: SearchSuggestion) => void;
+  exploreOpen: boolean; toggleExplore: () => void;
   filtersOpen: boolean; setFiltersOpen: (v: boolean) => void;
   activeFilters: number; savedCount: number; openCompare: () => void;
   share: () => void; shared: boolean;
@@ -173,9 +175,12 @@ export function ProductHeader({ market, setMarket, query, setQuery, suggestions,
         )}
       </label>
       <div className={cn(
-        "flex min-w-0 items-center justify-end gap-[7px] max-mob:fixed max-mob:inset-x-2 max-mob:bottom-[max(8px,env(safe-area-inset-bottom))] max-mob:z-60 max-mob:grid max-mob:h-[54px] max-mob:grid-cols-2 max-mob:gap-1.5 max-mob:rounded-[15px] max-mob:border max-mob:border-line/95 max-mob:bg-surface/96 max-mob:p-1.5 max-mob:shadow-[0_8px_30px_rgba(18,47,40,.18)] max-mob:backdrop-blur-[14px]",
+        "flex min-w-0 items-center justify-end gap-[7px] max-mob:fixed max-mob:inset-x-2 max-mob:bottom-[max(8px,env(safe-area-inset-bottom))] max-mob:z-60 max-mob:grid max-mob:h-[54px] max-mob:grid-cols-3 max-mob:gap-1.5 max-mob:rounded-[15px] max-mob:border max-mob:border-line/95 max-mob:bg-surface/96 max-mob:p-1.5 max-mob:shadow-[0_8px_30px_rgba(18,47,40,.18)] max-mob:backdrop-blur-[14px]",
         market === "rental" && "max-mob:hidden", // 租屋模式底欄沒有按鈕(分享只在桌機),整條藏掉
       )}>
+        {market === "presale" && <Button variant="head" size="seg" aria-pressed={exploreOpen}
+          className={cn("hidden max-mob:inline-flex", mobHeadBtn)}
+          onClick={toggleExplore}>找建案</Button>}
         {market === "presale" && <Button variant="head" size="seg" aria-pressed={filtersOpen}
           className={cn("max-nav:px-[9px]", mobHeadBtn)}
           onClick={() => setFiltersOpen(!filtersOpen)}>篩選{activeFilters ? ` ${activeFilters}` : ""}</Button>}
@@ -187,10 +192,25 @@ export function ProductHeader({ market, setMarket, query, setQuery, suggestions,
   );
 }
 
-export function FilterPanel({ open, totalBand, setTotalBand, rooms, setRooms,
+const HOUSEHOLD_PRESETS = [
+  { label: "不限", min: null, max: null },
+  { label: "100戶內", min: null, max: 100 },
+  { label: "101–300戶", min: 101, max: 300 },
+  { label: "301戶以上", min: 301, max: null },
+];
+
+const householdValue = (raw: string) => {
+  if (!raw) return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? Math.min(9_999, Math.max(1, Math.round(parsed))) : null;
+};
+
+export function FilterPanel({ open, totalBand, setTotalBand, householdMin, householdMax, setHouseholdRange, rooms, setRooms,
   nearMetro, setNearMetro, nearIC, setNearIC, showCancel, setShowCancel, reset }: {
   open: boolean;
   totalBand: string; setTotalBand: (v: string) => void;
+  householdMin: number | null; householdMax: number | null;
+  setHouseholdRange: (min: number | null, max: number | null) => void;
   rooms: RoomFilter; setRooms: (v: RoomFilter) => void;
   nearMetro: boolean; setNearMetro: (v: boolean) => void;
   nearIC: boolean; setNearIC: (v: boolean) => void;
@@ -218,12 +238,57 @@ export function FilterPanel({ open, totalBand, setTotalBand, rooms, setRooms,
         {roomItems.map(([key, label]) => <FilterButton key={key} on={rooms === key}
           onClick={() => setRooms(key)}>{label}</FilterButton>)}
       </FilterGroup>
+      <FilterGroup label="總戶數">
+        <div className="w-full">
+          <div className="flex flex-wrap gap-[7px]">
+            {HOUSEHOLD_PRESETS.map((preset) => (
+              <FilterButton key={preset.label}
+                on={householdMin === preset.min && householdMax === preset.max}
+                onClick={() => setHouseholdRange(preset.min, preset.max)}>
+                {preset.label}
+              </FilterButton>
+            ))}
+          </div>
+          <div className="mt-2.5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            <HouseholdBoundInput label="最少" value={householdMin}
+              onChange={(min) => setHouseholdRange(
+                min,
+                min != null && householdMax != null && min > householdMax ? min : householdMax,
+              )} />
+            <span className="text-[12px] font-bold text-ink-soft">—</span>
+            <HouseholdBoundInput label="最多" value={householdMax}
+              onChange={(max) => setHouseholdRange(
+                max != null && householdMin != null && max < householdMin ? max : householdMin,
+                max,
+              )} />
+          </div>
+          <p className="mt-1.5 text-[10px] leading-4 text-ink-soft">可輸入任意戶數；留空代表不限制。</p>
+        </div>
+      </FilterGroup>
       <FilterGroup label="生活條件">
         <FilterButton on={nearMetro} onClick={() => setNearMetro(!nearMetro)}>捷運步行 10 分</FilterButton>
         <FilterButton on={nearIC} onClick={() => setNearIC(!nearIC)}>交流道 2 公里</FilterButton>
         <FilterButton on={showCancel} tone="risk" onClick={() => setShowCancel(!showCancel)}>顯示解約案</FilterButton>
       </FilterGroup>
     </section>
+  );
+}
+
+function HouseholdBoundInput({ label, value, onChange }: {
+  label: string;
+  value: number | null;
+  onChange: (value: number | null) => void;
+}) {
+  return (
+    <label className="flex h-10 min-w-0 items-center gap-1.5 rounded-[11px] border border-line bg-white px-2.5 focus-within:border-[#69a99c] focus-within:shadow-[0_0_0_3px_rgba(13,91,79,.08)]">
+      <span className="flex-none text-[10px] font-bold text-ink-soft">{label}</span>
+      <input type="number" min="1" max="9999" step="10" inputMode="numeric"
+        value={value ?? ""} onChange={(event) => onChange(householdValue(event.target.value))}
+        aria-label={`${label}總戶數`}
+        className="num min-w-0 flex-1 border-0 bg-transparent text-right text-base font-bold outline-none placeholder:text-[#a4adaa]"
+        placeholder="不限" />
+      <span className="flex-none text-[10px] text-ink-soft">戶</span>
+    </label>
   );
 }
 

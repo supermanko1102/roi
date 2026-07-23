@@ -20,6 +20,7 @@ export type UnifiedPoint = {
   build_year: number | null;      // 棟級=完工年;建案=first_reg 年(完工交屋)
   median_total: number | null;    // 中位總價(萬)
   median_area: number | null;     // 中位坪數(建案才有)
+  households: number | null;      // 預售備查層棟戶數
   cancel_count: number;           // 曾解約筆數(建案才有;不計入價格統計)
 };
 
@@ -37,7 +38,7 @@ export async function loadUnifiedPoints(opts: { bbox?: Bbox; city?: string; dist
     lat: buildings.lat, lng: buildings.lng, deal_count: buildings.deal_count,
     median_unit_price: buildings.median_unit_price, median_total: buildings.median_total,
     building_type: buildings.building_type, build_year: buildings.build_year,
-    community: communities.name,
+    community: communities.name, households: communities.households,
   }).from(buildings)
     .leftJoin(building_community, eq(building_community.addr_key, buildings.addr_key))
     .leftJoin(communities, eq(communities.case_no, building_community.case_no))
@@ -54,6 +55,7 @@ export async function loadUnifiedPoints(opts: { bbox?: Bbox; city?: string; dist
                  district ? eq(projects.district, district) : box(projects.lat, projects.lng))),
     db.select({ case_no: communities.case_no, name: communities.name,
                 city: communities.city, district: communities.district,
+                households: communities.households,
                 first_reg: communities.first_reg, use_issue_date: communities.use_issue_date })
       .from(communities).where(city ? eq(communities.city, city) : undefined),
     db.selectDistinct({ case_no: building_community.case_no }).from(building_community),
@@ -78,6 +80,7 @@ export async function loadUnifiedPoints(opts: { bbox?: Bbox; city?: string; dist
       name: b.community, addr_key: b.addr_key,
       building_type: b.building_type, build_year: b.build_year,
       median_total: rm ? rm.median_total : b.median_total, median_area: null,
+      households: b.households,
       cancel_count: 0,
     });
   }
@@ -96,6 +99,12 @@ export async function loadUnifiedPoints(opts: { bbox?: Bbox; city?: string; dist
     const matches = commByKey.get(`${p.city}|${p.district}|${p.name}`) ?? [];
     // 完工日:使照發照 > 備查首次登記(桃園無使照資料,自然走 first_reg)
     const m = matches.find((c) => (c.use_issue_date ?? c.first_reg) != null) ?? matches[0];
+    const knownHouseholds = matches
+      .map((match) => match.households)
+      .filter((value): value is number => value != null);
+    const households = knownHouseholds.length
+      ? knownHouseholds.reduce((sum, value) => sum + value, 0)
+      : null;
     const regDate = m?.use_issue_date ?? m?.first_reg;
     const regYear = regDate ? new Date(regDate).getFullYear() : null;
     const completed = regYear != null && regYear <= nowYear;
@@ -111,6 +120,7 @@ export async function loadUnifiedPoints(opts: { bbox?: Bbox; city?: string; dist
       name: p.name, addr_key: null,
       building_type: null, build_year: completed ? regYear : null,
       median_total: rm ? rm.median_total : p.median_total, median_area: p.median_area,
+      households,
       cancel_count: p.cancel_count ?? 0,
     });
   }
@@ -154,6 +164,7 @@ export function toFeatureCollection(pts: UnifiedPoint[]) {
         deal_count: p.deal_count,
         median_total: p.median_total != null ? +p.median_total.toFixed(0) : null,
         ...(p.median_area != null ? { median_area: +p.median_area.toFixed(1) } : {}),
+        ...(p.households != null ? { households: p.households } : {}),
         ...(p.name ? { name: p.name } : {}),
         ...(p.addr_key ? { addr_key: p.addr_key } : {}),
         ...(p.building_type ? { building_type: p.building_type } : {}),

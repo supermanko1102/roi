@@ -44,6 +44,28 @@ export function haversineM(lat1: number, lng1: number, lat2: number, lng2: numbe
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
+// 點到 Polygon/MultiPolygon 邊界的最短距離；圈內為 0。
+// 生活圈是小範圍平面，將經緯度投影成局部公尺座標後算線段距離即可。
+export function distanceToGeomM(lat: number, lng: number, geom: any): number {
+  if (inGeom(lng, lat, geom)) return 0;
+  const polys: Ring[][] = geom.type === "Polygon" ? [geom.coordinates] : geom.coordinates;
+  const metersPerLng = 111_320 * Math.cos(lat * Math.PI / 180);
+  let closest = Infinity;
+  for (const rings of polys) for (const ring of rings) {
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const ax = (ring[j][0] - lng) * metersPerLng;
+      const ay = (ring[j][1] - lat) * 111_320;
+      const bx = (ring[i][0] - lng) * metersPerLng;
+      const by = (ring[i][1] - lat) * 111_320;
+      const dx = bx - ax, dy = by - ay;
+      const length2 = dx * dx + dy * dy;
+      const t = length2 === 0 ? 0 : Math.max(0, Math.min(1, -(ax * dx + ay * dy) / length2));
+      closest = Math.min(closest, Math.hypot(ax + t * dx, ay + t * dy));
+    }
+  }
+  return closest;
+}
+
 // 直線距離換步行分鐘(路網迂迴係數 1.3、80m/分),下限 1 分
 export const walkMinutes = (m: number) => Math.max(1, Math.round(m * 1.3 / 80));
 

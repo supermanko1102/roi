@@ -58,6 +58,12 @@ export async function GET(req: NextRequest) {
   const regYear = regDate ? new Date(regDate).getFullYear() : null;
   const nowYear = new Date().getFullYear();
   const completed = regYear != null && regYear <= nowYear;
+  const knownHouseholds = comms
+    .map((item) => item.households)
+    .filter((value): value is number => value != null);
+  const totalHouseholds = knownHouseholds.length
+    ? knownHouseholds.reduce((sum, value) => sum + value, 0)
+    : null;
 
   // 交屋後轉售:地號歸戶(building_community)把 a 檔門牌接回本案。
   // 只取交屋(使照/首次登記)之後的成交——預售期交易可能同時揭露在 a/b 檔,以日期切開避免重複。
@@ -81,7 +87,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     project: p,
     community: comm && {
-      households: comm.households, street: comm.street, permit_no: comm.permit_no,
+      households: totalHouseholds, street: comm.street, permit_no: comm.permit_no,
       first_reg: comm.first_reg, declare_date: comm.declare_date,
       use_issue_date: comm.use_issue_date, phases: comms.length,
     },

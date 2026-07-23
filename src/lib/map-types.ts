@@ -16,6 +16,7 @@ export type PresaleProps = {
   deal_count: number;
   median_total: number | null;    // 中位總價(萬)
   median_area?: number;           // 中位坪數(建案才有)
+  households?: number;            // 預售備查層棟戶數
   name?: string;
   addr_key?: string;
   building_type?: string;
