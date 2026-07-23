@@ -6,7 +6,7 @@ import {
 } from "./quality-check";
 
 const STEPS = [
-  "etl:download", "etl:parse", "etl:geocode", "etl:stats", "etl:use-permits",
+  "etl:download", "etl:parse", "etl:fix-names", "etl:geocode", "etl:stats", "etl:use-permits",
   "etl:communities", "etl:geocode-projects", "etl:zone-bands",
   "etl:rent-benchmarks", "etl:zone-rents",
 ];

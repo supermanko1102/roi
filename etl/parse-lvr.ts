@@ -21,12 +21,63 @@ async function insertBatched<T>(insert: (chunk: T[]) => Promise<unknown>, rows: 
   for (let i = 0; i < rows.length; i += BATCH) await insert(rows.slice(i, i + BATCH));
 }
 
+/**
+ * MOI 滾動檔偶爾逾期未更新(如 7/21 批遲發時檔案仍是 7/11 那份),同一份內容
+ * 會被貼上新旬標籤重複入庫。以本批預售列指紋(城市/區/建案/日期/總價/棟號)
+ * 對同季「其他批次」做覆蓋檢查:全部已存在即為過期檔案,呼叫端應跳過整包目錄。
+ * 預售列是整包 zip 的金絲雀——真正的新批次必然含有新的預售登錄。
+ */
+export async function isStaleBatch(
+  pool: ReturnType<typeof createDb>["pool"], season: string, dir: string,
+): Promise<boolean> {
+  if (!season.includes("#")) return false;
+  const cityArr: string[] = [], distArr: string[] = [], projArr: string[] = [],
+    dateArr: (string | null)[] = [], totalArr: number[] = [], unitArr: string[] = [];
+  for (const city of CITIES) {
+    const bFile = path.join(dir, `${city.code}_lvr_land_b.csv`);
+    if (!fs.existsSync(bFile)) continue;
+    const [h, ...rows] = readCsv(bFile);
+    const iDist = col(h, "鄉鎮市區"), iDate = col(h, "交易年月日");
+    const iArea = col(h, "建物移轉總面積"), iTotal = col(h, "總價元");
+    const iProj = col(h, "建案名稱"), iUnit = col(h, "棟及號");
+    for (const r of rows) {
+      // 與正式入庫相同的過濾條件,否則被略過的列會永遠「未覆蓋」
+      const total = num(r[iTotal]), areaPing = num(r[iArea]) ? num(r[iArea])! / PING : null;
+      if (!total || !areaPing || areaPing <= 0) continue;
+      cityArr.push(city.name); distArr.push(r[iDist]);
+      projArr.push(iProj >= 0 ? r[iProj] ?? "" : "");
+      dateArr.push(rocDate(r[iDate]));
+      totalArr.push(total / 10000);
+      unitArr.push(iUnit >= 0 ? r[iUnit] ?? "" : "");
+    }
+  }
+  if (!cityArr.length) return false;
+  const { rows: [{ uncovered }] } = await pool.query(`
+    SELECT count(*)::int AS uncovered
+    FROM unnest($1::text[], $2::text[], $3::text[], $4::date[], $5::numeric[], $6::text[])
+      AS t(city, district, proj, dd, tp, uid)
+    WHERE NOT EXISTS (
+      SELECT 1 FROM presale_deals p
+      WHERE p.raw_season LIKE $7 AND p.raw_season <> $8
+        AND p.city = t.city AND p.district = t.district
+        AND coalesce(p.project_name, '') = t.proj
+        AND p.deal_date IS NOT DISTINCT FROM t.dd
+        AND p.total_price = t.tp AND coalesce(p.unit_id, '') = t.uid
+    )
+  `, [cityArr, distArr, projArr, dateArr, totalArr, unitArr, season.split("#")[0] + "%", season]);
+  return uncovered === 0;
+}
+
 async function main() {
   const allowEmpty = process.argv.includes("--allow-empty");
   const { db, pool } = createDb();
 
   for (const season of fs.readdirSync(DL)) {
     const dir = path.join(DL, season);
+    if (await isStaleBatch(pool, season, dir)) {
+      console.warn(`[${season}] 內容與同季既有批次完全重複(MOI 滾動檔尚未更新),跳過整包`);
+      continue;
+    }
     // 正式季度打包檔要一併取代該季累積的旬檔(raw_season 如 115S3#0701)
     const seasonScope = (col: AnyPgColumn) =>
       /^\d{3}S[1-4]$/.test(season) ? or(eq(col, season), like(col, `${season}#%`)) : eq(col, season);
@@ -187,4 +238,6 @@ async function main() {
   }
   await pool.end();
 }
-main().catch(e => { console.error(e); process.exit(1); });
+// isStaleBatch 供測試 import;僅直接執行時才跑完整解析
+if (process.argv[1] && import.meta.filename === path.resolve(process.argv[1]))
+  main().catch(e => { console.error(e); process.exit(1); });

@@ -15,6 +15,7 @@
     "db:seed": "tsx db/seed.ts",
     "etl:download": "tsx etl/download-lvr.ts",
     "etl:parse": "tsx etl/parse-lvr.ts",
+    "etl:fix-names": "tsx etl/fix-mangled-names.ts --apply",
     "etl:geocode": "tsx etl/geocode.ts",
     "etl:stats": "tsx etl/compute-stats.ts",
     "etl:geocode-projects": "tsx etl/geocode-projects.ts",
