@@ -16,6 +16,7 @@ import { parseSiteAddress } from "./geocode-project-address";
 /** city|district|亂碼名 → 正確名。查證來源:樂居、備查契約 PDF。 */
 const NAME_OVERRIDES: Record<string, string> = {
   "桃園市|桃園區|?讀伊頓": "悦讀伊頓",
+  "桃園市|桃園區|?東騰": "着東騰", // 東騰建設,「着」為 Big5 外字
 };
 
 type Group = { city: string; district: string; name: string; n: number; addr: string | null };

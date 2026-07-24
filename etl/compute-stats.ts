@@ -44,7 +44,7 @@ async function main() {
       (SELECT count(*)::int FROM (
         SELECT project_name, city, district FROM presale_deals
         WHERE project_name IS NOT NULL AND project_name <> '' AND is_cancelled IS NOT TRUE
-        GROUP BY project_name, city, district HAVING count(*) >= 3
+        GROUP BY project_name, city, district HAVING count(*) >= 1
       ) p) AS next_projects,
       (SELECT count(*)::int FROM buildings) AS previous_buildings,
       (SELECT count(DISTINCT s.addr_key)::int FROM sale_deals s
@@ -158,7 +158,7 @@ async function main() {
     WHERE d.project_name IS NOT NULL AND d.project_name <> '' AND d.is_cancelled IS NOT TRUE
     GROUP BY d.project_name, d.city, d.district, s.median_rent_ping, s.rent_samples,
              s.median_rent_ping_market, s.rent_samples_market
-    HAVING count(*) >= 3
+    HAVING count(*) >= 1
     ON CONFLICT (city, name, district) DO UPDATE SET
       median_total = EXCLUDED.median_total,
       median_area  = EXCLUDED.median_area,
@@ -184,7 +184,7 @@ async function main() {
           AND d.project_name IS NOT NULL AND d.project_name <> ''
           AND d.is_cancelled IS NOT TRUE
         GROUP BY d.project_name, d.city, d.district
-        HAVING count(*) >= 3
+        HAVING count(*) >= 1
       );
   `);
   // 棟級彙總:中古交易按門牌歸戶 + geocode 座標(只收已定位的)。

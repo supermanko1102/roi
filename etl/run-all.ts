@@ -7,7 +7,7 @@ import {
 
 const STEPS = [
   "etl:download", "etl:parse", "etl:fix-names", "etl:geocode", "etl:stats", "etl:use-permits",
-  "etl:communities", "etl:geocode-projects", "etl:geocode-lots", "etl:repair-projects", "etl:zone-bands",
+  "etl:communities", "etl:geocode-projects", "etl:geocode-lots", "etl:match-leju", "etl:repair-projects", "etl:zone-bands",
   "etl:rent-benchmarks", "etl:zone-rents",
 ];
 
