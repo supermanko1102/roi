@@ -120,15 +120,15 @@ Railway 執行入口：
 uv run project-address-agent cycle \
   --apply \
   --limit 100 \
-  --agent-limit 10 \
-  --max-llm-calls 6
+  --agent-limit 3 \
+  --max-llm-calls 3
 ```
 
 這個命令由 Railway Cron 自動執行，不需要人在終端機呼叫。每次循環會：
 
 1. 先跑確定性修復。
 2. 只把 `no_precise_candidate`、`no_validated_candidate` 交給 ADK Agent。
-3. 每批最多呼叫 10 個案件，每案最多 6 次 LLM 呼叫。
+3. 預設每批最多呼叫 3 個案件，每案最多 3 次 LLM 呼叫；可由 CLI 調整。
 4. 把每案與整批 Token 用量輸出到 Railway logs。
 5. Cron Agent 沒有搜尋或發布工具，只能讀取本機 MOI 證據、驗證與暫存候選。
 6. 重新由程式從本機 MOI 證據驗證候選，Agent 自己的結論不能直接發布。

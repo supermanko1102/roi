@@ -59,8 +59,8 @@ def build_parser() -> argparse.ArgumentParser:
     cycle_parser = sub.add_parser("cycle")
     cycle_parser.add_argument("--apply", action="store_true")
     cycle_parser.add_argument("--limit", type=int, default=100)
-    cycle_parser.add_argument("--agent-limit", type=int, default=10)
-    cycle_parser.add_argument("--max-llm-calls", type=int, default=6)
+    cycle_parser.add_argument("--agent-limit", type=int, default=3)
+    cycle_parser.add_argument("--max-llm-calls", type=int, default=3)
     cycle_parser.add_argument("--city", default="")
 
     cases_parser = sub.add_parser("cases")

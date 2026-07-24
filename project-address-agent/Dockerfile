@@ -13,4 +13,4 @@ COPY data/districts.geojson /app/data/districts.geojson
 
 RUN uv sync --project /app/project-address-agent --locked --no-dev
 
-CMD ["/app/project-address-agent/.venv/bin/project-address-agent", "cycle", "--apply", "--limit", "100", "--agent-limit", "10", "--max-llm-calls", "6"]
+CMD ["/app/project-address-agent/.venv/bin/project-address-agent", "cycle", "--apply", "--limit", "100", "--agent-limit", "3", "--max-llm-calls", "3"]

@@ -142,8 +142,8 @@ def run_autonomous_cycle(
     *,
     apply: bool = False,
     limit: int = 100,
-    agent_limit: int = 10,
-    max_llm_calls: int = 6,
+    agent_limit: int = 3,
+    max_llm_calls: int = 3,
     city: str | None = None,
 ) -> dict[str, Any]:
     active_run = _active_etl_run()
