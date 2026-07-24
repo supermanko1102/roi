@@ -2,6 +2,9 @@
 
 北北桃預售屋成交行情地圖：地圖、棟別圖與列表瀏覽預售實價登錄，以及屋齡 1–10 年的租賃行情。Next.js + MapLibre + PostgreSQL。
 
+完整資料流、資料表、地址 Agent、安全邊界、Railway 與維運交接請先讀
+[`docs/PROJECT_ARCHITECTURE.md`](docs/PROJECT_ARCHITECTURE.md)。
+
 ## 快速開始(附示範資料,不用先跑 ETL)
 
 ```bash
