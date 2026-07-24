@@ -19,6 +19,7 @@
     "etl:geocode": "tsx etl/geocode.ts",
     "etl:stats": "tsx etl/compute-stats.ts",
     "etl:geocode-projects": "tsx etl/geocode-projects.ts",
+    "etl:geocode-lots": "tsx etl/geocode-landlots.ts",
     "etl:use-permits": "tsx etl/import-use-permits.ts",
     "etl:communities": "tsx etl/match-communities.ts",
     "etl:rent-benchmarks": "tsx etl/import-rent-benchmarks.ts",

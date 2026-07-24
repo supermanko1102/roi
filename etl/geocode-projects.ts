@@ -11,6 +11,7 @@
  *      tsx etl/geocode-projects.ts --project 建案名 --refresh
  *      tsx etl/geocode-projects.ts --cache-only  # 僅以既有精確快取回填,不查外部 API
  */
+import path from "node:path";
 import { and, eq, isNull, like, sql } from "drizzle-orm";
 import { createDb, projects, geocode_cache } from "../db/client";
 import { normalizeCnNums, parseSiteAddress, siteAddressCandidates, toHalf } from "./geocode-project-address";
@@ -52,10 +53,10 @@ async function query(text: string): Promise<Item[]> {
   return items;
 }
 
-type LocatedSite = { lat: number; lng: number; precision: "door" | "cross" };
+export type LocatedSite = { lat: number; lng: number; precision: "door" | "cross" };
 type CachedLocation = { loc: LocatedSite | null; fromCache: boolean };
 
-async function locate(city: string, district: string, raw: string): Promise<LocatedSite | null> {
+export async function locate(city: string, district: string, raw: string): Promise<LocatedSite | null> {
   const p = parseSiteAddress(city, district, raw);
   if (!p) return null;
   // 只有路名不足以代表建案位置；寧可不顯示，也不再偽裝成精確座標。
@@ -201,4 +202,6 @@ async function main() {
   console.log(`[geocode-projects] 完成:hit=${hit} cache=${cached} fallback=${fallback} miss=${miss} fail=${fail}(定位率 ${((hit + cached) / Math.max(1, done) * 100).toFixed(1)}%)`);
   await pool.end();
 }
-main().catch((e) => { console.error(e); process.exit(1); });
+// locate 供 geocode-landlots 重用;僅直接執行時才跑主流程
+if (process.argv[1] && import.meta.filename === path.resolve(process.argv[1]))
+  main().catch((e) => { console.error(e); process.exit(1); });
