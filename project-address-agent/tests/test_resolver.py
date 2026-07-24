@@ -3,6 +3,7 @@ from project_address_agent.resolver import (
     EvidenceCandidate,
     ValidatedCandidate,
     candidates_from_evidence,
+    candidates_from_staged_evidence,
     coordinate_clusters,
     extract_text_candidates,
 )
@@ -83,6 +84,48 @@ def test_same_candidate_prefers_transaction_evidence() -> None:
     )
     assert len(candidates) == 1
     assert candidates[0].source_type == "moi_transaction"
+
+
+def test_agent_proposal_is_attested_only_from_matching_local_evidence() -> None:
+    candidates = candidates_from_staged_evidence(
+        city="桃園市",
+        district="桃園區",
+        evidence={
+            "transaction_addresses": [{"address": "桃園市桃園區縣府路1號12樓"}],
+            "moi_communities": [],
+            "moi_buildcase_rows": [],
+        },
+        proposals=[
+            {
+                "candidate_kind": "door",
+                "candidate_value": "縣府路1號",
+            }
+        ],
+    )
+
+    assert len(candidates) == 1
+    assert candidates[0].source_type == "moi_transaction"
+    assert candidates[0].source_reference == "presale_deals:桃園市桃園區縣府路1號12樓"
+
+
+def test_agent_proposal_without_matching_local_evidence_is_rejected() -> None:
+    candidates = candidates_from_staged_evidence(
+        city="桃園市",
+        district="桃園區",
+        evidence={
+            "transaction_addresses": [{"address": "桃園市桃園區中正路100號"}],
+            "moi_communities": [],
+            "moi_buildcase_rows": [],
+        },
+        proposals=[
+            {
+                "candidate_kind": "door",
+                "candidate_value": "縣府路1號",
+            }
+        ],
+    )
+
+    assert candidates == []
 
 
 def test_nearby_validations_form_one_cluster() -> None:

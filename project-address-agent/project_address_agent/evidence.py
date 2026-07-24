@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import csv
+import tempfile
+import zipfile
 from datetime import date, datetime
 from decimal import Decimal
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
+import httpx
 from psycopg import Connection
 
 from .config import get_settings
@@ -15,6 +19,41 @@ CITY_BUILDCASE_FILES = {
     "新北市": "f_lvr_buildcase.csv",
     "桃園市": "h_lvr_buildcase.csv",
 }
+BUILDCASE_URL = (
+    "https://plvr.land.moi.gov.tw/Download"
+    "?type=zip&PayType=saleremark&fileName=lvr_buildcasecsv.zip"
+)
+BUILDCASE_CACHE = Path(tempfile.gettempdir()) / "project-address-agent" / "buildcase"
+
+
+def _buildcase_path(*, filename: str, repo_root: Path) -> Path | None:
+    local_path = repo_root / "etl" / "downloads" / "buildcase" / filename
+    if local_path.exists():
+        return local_path
+    cached_path = BUILDCASE_CACHE / filename
+    if cached_path.exists():
+        return cached_path
+    try:
+        response = httpx.get(
+            BUILDCASE_URL,
+            headers={
+                "User-Agent": "Mozilla/5.0",
+                "Referer": "https://plvr.land.moi.gov.tw/DownloadOpenData",
+            },
+            timeout=30,
+            follow_redirects=True,
+        )
+        response.raise_for_status()
+        with zipfile.ZipFile(BytesIO(response.content)) as archive:
+            names = {Path(name).name.lower(): name for name in archive.namelist()}
+            BUILDCASE_CACHE.mkdir(parents=True, exist_ok=True)
+            for wanted in CITY_BUILDCASE_FILES.values():
+                entry = names.get(wanted.lower())
+                if entry is not None:
+                    (BUILDCASE_CACHE / wanted).write_bytes(archive.read(entry))
+            return cached_path if cached_path.exists() else None
+    except (httpx.HTTPError, OSError, zipfile.BadZipFile):
+        return None
 
 
 def _jsonable(value: Any) -> Any:
@@ -50,8 +89,8 @@ def _read_buildcase_rows(
     filename = CITY_BUILDCASE_FILES.get(city)
     if filename is None:
         return []
-    path = repo_root / "etl" / "downloads" / "buildcase" / filename
-    if not path.exists():
+    path = _buildcase_path(filename=filename, repo_root=repo_root)
+    if path is None:
         return []
     with path.open(encoding="utf-8-sig", newline="") as handle:
         rows = list(csv.reader(handle))

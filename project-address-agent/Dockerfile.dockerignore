@@ -1,0 +1,13 @@
+*
+!project-address-agent/
+!project-address-agent/**
+!data/
+!data/districts.geojson
+
+project-address-agent/.env
+project-address-agent/.venv/
+project-address-agent/.adk/
+project-address-agent/**/.adk/
+project-address-agent/.pytest_cache/
+project-address-agent/.ruff_cache/
+project-address-agent/**/__pycache__/

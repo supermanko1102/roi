@@ -75,12 +75,16 @@ def validate_location_candidate(
             "status": "error",
             "error": "kind must be door, cross, or lot.",
         }
-    result = NlscClient().validate(
-        city=city.strip(),
-        district=district.strip(),
-        kind=normalized_kind,  # type: ignore[arg-type]
-        candidate=candidate.strip(),
-    )
+    client = NlscClient()
+    try:
+        result = client.validate(
+            city=city.strip(),
+            district=district.strip(),
+            kind=normalized_kind,  # type: ignore[arg-type]
+            candidate=candidate.strip(),
+        )
+    finally:
+        client.close()
     return {
         "status": "success" if result.ok else "rejected",
         "validation": result.as_dict(),
@@ -121,12 +125,17 @@ def stage_location_candidate(
             district=case["district"],
             project_name=project_name.strip(),
         )
-        validation = NlscClient().validate(
+    client = NlscClient()
+    try:
+        validation = client.validate(
             city=city.strip(),
             district=district.strip(),
             kind=normalized_kind,  # type: ignore[arg-type]
             candidate=candidate.strip(),
         )
+    finally:
+        client.close()
+    with connect() as conn:
         row = stage_candidate(
             conn,
             case=case,

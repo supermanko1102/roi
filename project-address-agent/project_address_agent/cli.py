@@ -9,6 +9,7 @@ from typing import Any
 
 from .audit import run_audit
 from .automatic import run_auto_repair
+from .autonomous import run_autonomous_cycle
 from .db import (
     apply_published,
     connect,
@@ -55,6 +56,13 @@ def build_parser() -> argparse.ArgumentParser:
     auto_parser.add_argument("--limit", type=int, default=50)
     auto_parser.add_argument("--city", default="")
 
+    cycle_parser = sub.add_parser("cycle")
+    cycle_parser.add_argument("--apply", action="store_true")
+    cycle_parser.add_argument("--limit", type=int, default=100)
+    cycle_parser.add_argument("--agent-limit", type=int, default=10)
+    cycle_parser.add_argument("--max-llm-calls", type=int, default=6)
+    cycle_parser.add_argument("--city", default="")
+
     cases_parser = sub.add_parser("cases")
     cases_parser.add_argument("--limit", type=int, default=50)
     cases_parser.add_argument("--city", default="")
@@ -95,6 +103,16 @@ def main(argv: list[str] | None = None) -> None:
                 run_auto_repair(
                     apply=args.apply,
                     limit=args.limit,
+                    city=args.city or None,
+                )
+            )
+        elif args.command == "cycle":
+            _print(
+                run_autonomous_cycle(
+                    apply=args.apply,
+                    limit=args.limit,
+                    agent_limit=args.agent_limit,
+                    max_llm_calls=args.max_llm_calls,
                     city=args.city or None,
                 )
             )

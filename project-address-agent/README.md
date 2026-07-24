@@ -2,7 +2,8 @@
 
 這是一個與主 Next.js 應用隔離的 Python / Google ADK 子專案。它找出已進入
 `presale_deals`、但尚未生成可顯示座標的預售建案，整理官方證據，使用 NLSC
-驗證候選地址。正常 ETL 會在既有兩層 geocoder 都失敗後，自動執行本系統。
+驗證候選地址。正常 ETL 先執行確定性修復；獨立 Railway Cron 再自動喚醒
+Gemini Agent 處理規則無法解析的疑難案。
 
 LLM Agent 不具有 approve 或 publish 工具。無人值守 runner 只會發布由程式從
 本地內政部證據抽出、通過 NLSC 與行政區驗證，而且所有有效候選只形成一個
@@ -43,7 +44,8 @@ ROI_REPO_ROOT=..
 ADDRESS_AGENT_ALLOW_PUBLISH=0
 ```
 
-自動修復不需要 Gemini key；`GOOGLE_API_KEY` 只供互動式 ADK Agent 搜尋使用。
+確定性 `auto` 修復不需要 Gemini key；無人值守 `cycle` 與互動式 ADK Agent
+才會使用 Gemini。已暴露的金鑰不可使用，必須先輪替。
 
 主資料庫須先套用新增的 Drizzle migration：
 
@@ -109,6 +111,46 @@ pnpm etl:repair-projects
 
 任何一項不成立就只記錄狀態，等待下次 ETL，不需要人工介入。
 每批嘗試過的案件會移到佇列尾端，因此固定批次上限不會讓後面的案件餓死。
+
+## Railway Cron 自動 Agent
+
+Railway 執行入口：
+
+```bash
+uv run project-address-agent cycle \
+  --apply \
+  --limit 100 \
+  --agent-limit 10 \
+  --max-llm-calls 6
+```
+
+這個命令由 Railway Cron 自動執行，不需要人在終端機呼叫。每次循環會：
+
+1. 先跑確定性修復。
+2. 只把 `no_precise_candidate`、`no_validated_candidate` 交給 ADK Agent。
+3. 每批最多呼叫 10 個案件，每案最多 6 次 LLM 呼叫。
+4. 把每案與整批 Token 用量輸出到 Railway logs。
+5. Cron Agent 沒有搜尋或發布工具，只能讀取本機 MOI 證據、驗證與暫存候選。
+6. 重新由程式從本機 MOI 證據驗證候選，Agent 自己的結論不能直接發布。
+7. 若主 ETL 正在執行，安全跳過本輪。
+8. 關閉所有資源並結束 process，等待下一次 Cron。
+
+部署使用 [Dockerfile](Dockerfile)，build context 必須是 repository root，因為映像會
+一併帶入 `data/districts.geojson`。若 buildcase CSV 不在映像內，worker 會從內政部
+下載最新備查壓縮檔到暫存目錄。
+
+Railway service 不需要 public domain。必要 variables：
+
+```dotenv
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+GOOGLE_API_KEY=輪替後的新金鑰
+GOOGLE_GENAI_USE_VERTEXAI=FALSE
+ADDRESS_AGENT_MODEL=gemini-3-flash-preview
+ROI_REPO_ROOT=/app
+```
+
+建議 Cron：`0 22 * * *`，即每天台灣時間 06:00。Railway 使用 UTC；沒有待處理案件
+時不會呼叫 Gemini。
 
 ## 啟動 Agent
 

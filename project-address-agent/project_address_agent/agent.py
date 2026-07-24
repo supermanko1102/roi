@@ -63,3 +63,35 @@ source. Use Traditional Chinese for user-facing responses.
         search_tool,
     ],
 )
+
+cron_agent = Agent(
+    name="project_address_cron_agent",
+    model=settings.model,
+    description=(
+        "Interprets local MOI evidence for one unresolved presale project and "
+        "stages at most one deterministically validated textual candidate."
+    ),
+    instruction="""
+You handle exactly one presale project case supplied by an unattended Railway
+Cron worker.
+
+1. Call inspect_project_evidence for the supplied city, district, and project.
+2. Use only local transaction, MOI community, or MOI buildcase evidence.
+3. Do not audit or inspect other projects.
+4. Do not use or request web search.
+5. A candidate must be an exact door number, two-road intersection, or section
+   plus land-lot number that is literally present in the local evidence.
+6. Call validate_location_candidate before staging.
+7. Stage at most one strongest candidate with its exact local source reference.
+8. Never supply coordinates and never approve or publish.
+9. If evidence is incomplete, approximate, or conflicting, finish without
+   staging and explain why.
+
+Use Traditional Chinese for the final response.
+""".strip(),
+    tools=[
+        inspect_project_evidence,
+        validate_location_candidate,
+        stage_location_candidate,
+    ],
+)

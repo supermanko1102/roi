@@ -11,6 +11,8 @@ from .db import (
     auto_publish_candidate,
     connect,
     list_auto_cases,
+    list_auto_cases_by_ids,
+    list_case_candidate_proposals,
     mark_auto_cases_attempted,
     stage_candidate,
     sync_audit_cases,
@@ -53,6 +55,7 @@ def _resolve_case(
             district=case["district"],
             project_name=case["project_name"],
         )
+        proposals = list_case_candidate_proposals(conn, case_id=int(case["id"]))
 
     district = _validation_district(client=client, case=case, evidence=evidence)
     if district is None:
@@ -65,6 +68,7 @@ def _resolve_case(
         city=case["city"],
         district=district,
         evidence=evidence,
+        proposals=proposals,
     )
     if not candidates:
         return {
@@ -161,6 +165,7 @@ def run_auto_repair(
     apply: bool = False,
     limit: int = 50,
     city: str | None = None,
+    case_ids: list[int] | None = None,
 ) -> dict[str, Any]:
     reapplied = 0
     with connect() as conn:
@@ -168,23 +173,28 @@ def run_auto_repair(
             reapplied = apply_published_automatic(conn)
         projects = audit_projects(conn)
         cases_written = sync_audit_cases(conn, projects)
-        cases = list_auto_cases(conn, limit=limit, city=city)
+        cases = (
+            list_auto_cases_by_ids(conn, case_ids=case_ids)
+            if case_ids is not None
+            else list_auto_cases(conn, limit=limit, city=city)
+        )
 
     client = NlscClient()
     results: list[dict[str, Any]] = []
     try:
         for case in cases:
             try:
-                results.append(_resolve_case(case=case, client=client, apply=apply))
+                result = _resolve_case(case=case, client=client, apply=apply)
             except (RuntimeError, ValueError) as error:
-                results.append(
-                    {
-                        "case_id": case["id"],
-                        "project_name": case["project_name"],
-                        "status": "error",
-                        "error": str(error),
-                    }
-                )
+                result = {
+                    "case_id": case["id"],
+                    "project_name": case["project_name"],
+                    "status": "error",
+                    "error": str(error),
+                }
+            result["city"] = case["city"]
+            result["district"] = case["district"]
+            results.append(result)
     finally:
         client.close()
     with connect() as conn:

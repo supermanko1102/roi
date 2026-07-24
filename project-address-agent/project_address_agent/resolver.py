@@ -134,11 +134,103 @@ def extract_text_candidates(
     return candidates
 
 
+def _attestation_text(value: str, *, kind: CandidateKind) -> str:
+    normalized = re.sub(r"[\s,，、;；()（）]", "", _normalize_raw(value))
+    if kind == "cross":
+        normalized = re.sub(r"(?:和|及|、|/|／)", "與", normalized)
+        normalized = re.sub(r"(?:交叉口|路口|口)$", "", normalized)
+    if kind == "lot":
+        normalized = re.sub(r"地?號$", "", normalized)
+    return normalized
+
+
+def _is_exact_candidate_shape(
+    *,
+    city: str,
+    district: str,
+    kind: CandidateKind,
+    value: str,
+) -> bool:
+    parsed = extract_text_candidates(
+        city=city,
+        district=district,
+        raw=value,
+        source_type="moi_transaction",
+        source_reference="shape-check",
+    )
+    expected = _attestation_text(value, kind=kind)
+    return any(
+        item.kind == kind and _attestation_text(item.value, kind=kind) == expected
+        for item in parsed
+    )
+
+
+def candidates_from_staged_evidence(
+    *,
+    city: str,
+    district: str,
+    evidence: dict[str, Any],
+    proposals: list[dict[str, Any]],
+) -> list[EvidenceCandidate]:
+    sources: list[tuple[str, str, str]] = []
+    for row in evidence.get("transaction_addresses", []):
+        raw = str(row.get("address") or "").strip()
+        sources.append(("moi_transaction", f"presale_deals:{raw}", raw))
+    for row in evidence.get("moi_communities", []):
+        sources.append(
+            (
+                "moi_community",
+                f"communities:{row.get('case_no', '')}",
+                str(row.get("street") or "").strip(),
+            )
+        )
+    for row in evidence.get("moi_buildcase_rows", []):
+        reference = f"moi_buildcase:{row.get('case_no', '')}:{row.get('source_file', '')}"
+        sources.extend(
+            (
+                "moi_buildcase",
+                reference,
+                str(raw or "").strip(),
+            )
+            for raw in (row.get("street"), row.get("land_lot"))
+        )
+
+    attested: list[EvidenceCandidate] = []
+    for proposal in proposals:
+        kind = str(proposal.get("candidate_kind") or "").strip()
+        value = str(proposal.get("candidate_value") or "").strip()
+        if kind not in {"door", "cross", "lot"} or not value:
+            continue
+        typed_kind: CandidateKind = kind  # type: ignore[assignment]
+        if not _is_exact_candidate_shape(
+            city=city,
+            district=district,
+            kind=typed_kind,
+            value=value,
+        ):
+            continue
+        needle = _attestation_text(value, kind=typed_kind)
+        for source_type, source_reference, raw in sources:
+            if needle and needle in _attestation_text(raw, kind=typed_kind):
+                attested.append(
+                    EvidenceCandidate(
+                        kind=typed_kind,
+                        value=value,
+                        source_type=source_type,
+                        source_reference=source_reference,
+                        raw_value=raw,
+                    )
+                )
+                break
+    return attested
+
+
 def candidates_from_evidence(
     *,
     city: str,
     district: str,
     evidence: dict[str, Any],
+    proposals: list[dict[str, Any]] | None = None,
 ) -> list[EvidenceCandidate]:
     candidates: list[EvidenceCandidate] = []
     for row in evidence.get("transaction_addresses", []):
@@ -176,6 +268,14 @@ def candidates_from_evidence(
                 )
             )
 
+    candidates.extend(
+        candidates_from_staged_evidence(
+            city=city,
+            district=district,
+            evidence=evidence,
+            proposals=proposals or [],
+        )
+    )
     best_by_value: dict[tuple[CandidateKind, str], EvidenceCandidate] = {}
     for candidate in candidates:
         key = (candidate.kind, candidate.value)

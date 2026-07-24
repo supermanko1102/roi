@@ -34,6 +34,19 @@ def connect() -> Iterator[Connection[dict[str, Any]]]:
         yield conn
 
 
+def active_etl_run(conn: Connection[dict[str, Any]]) -> dict[str, Any] | None:
+    return conn.execute(
+        """
+        SELECT id, workflow, started_at
+        FROM etl_runs
+        WHERE status = 'running'
+          AND started_at > now() - interval '8 hours'
+        ORDER BY started_at DESC
+        LIMIT 1
+        """
+    ).fetchone()
+
+
 def audit_projects(conn: Connection[dict[str, Any]]) -> list[AuditProject]:
     rows = conn.execute(
         """
@@ -183,6 +196,28 @@ def list_auto_cases(
         LIMIT %s
         """,
         (city, city, max(1, min(limit, 500))),
+    ).fetchall()
+
+
+def list_auto_cases_by_ids(
+    conn: Connection[dict[str, Any]],
+    *,
+    case_ids: list[int],
+) -> list[dict[str, Any]]:
+    if not case_ids:
+        return []
+    return conn.execute(
+        """
+        SELECT id, city, district, project_name, failure_reason, status,
+               active_deals, cancelled_deals, raw_addresses,
+               last_audited_at, updated_at
+        FROM project_location_cases
+        WHERE id = ANY(%s)
+          AND status IN ('open', 'researching', 'staged')
+          AND failure_reason IN ('project_no_coord', 'name_mangled')
+        ORDER BY array_position(%s::int[], id)
+        """,
+        (case_ids, case_ids),
     ).fetchall()
 
 
@@ -367,6 +402,23 @@ def list_candidates(
         LIMIT %s
         """,
         (list(statuses), max(1, min(limit, 200))),
+    ).fetchall()
+
+
+def list_case_candidate_proposals(
+    conn: Connection[dict[str, Any]],
+    *,
+    case_id: int,
+) -> list[dict[str, Any]]:
+    return conn.execute(
+        """
+        SELECT candidate_kind, candidate_value, status
+        FROM project_location_candidates
+        WHERE case_id = %s
+          AND status IN ('validated', 'needs_review', 'approved')
+        ORDER BY updated_at DESC, id DESC
+        """,
+        (case_id,),
     ).fetchall()
 
 
