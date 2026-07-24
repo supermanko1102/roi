@@ -17,6 +17,8 @@ export const presale_deals = pgTable("presale_deals", {
   address: text("address"),                      // 區段化門牌
   deal_date: date("deal_date"),
   total_price: money("total_price"),             // 總價(萬)
+  parking_count: integer("parking_count"),       // 交易筆棟數中的車位數(null=舊資料未存)
+  parking_type: text("parking_type"),             // 坡道平面/坡道機械/升降平面…
   parking_price: money("parking_price").default(0), // 車位總價(萬)
   area_ping: money("area_ping"),                 // 建物移轉總面積(坪)
   parking_area_ping: money("parking_area_ping").default(0), // 車位移轉總面積(坪)
@@ -45,6 +47,8 @@ export const sale_deals = pgTable("sale_deals", {
   address: text("address"),
   deal_date: date("deal_date"),
   total_price: money("total_price"),             // 總價(萬)
+  parking_count: integer("parking_count"),       // 交易筆棟數中的車位數(null=舊資料未存)
+  parking_type: text("parking_type"),
   parking_price: money("parking_price").default(0), // 車位總價(萬)
   area_ping: money("area_ping"),                 // 權狀總坪
   parking_area_ping: money("parking_area_ping").default(0), // 車位坪(買賣檔此欄品質可用)

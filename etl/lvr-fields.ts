@@ -21,6 +21,12 @@ export const intOrNull = (s?: string) => {
   return Number.isFinite(n) ? n : null;
 };
 
+/** 從「土地6建物1車位2」取出本筆交易的車位數；欄位缺漏時保留 null，不能當成 0。 */
+export function parseParkingCount(s?: string): number | null {
+  const match = (s ?? "").match(/車位\s*(\d+)/);
+  return match ? Number(match[1]) : null;
+}
+
 const CN_DIGIT: Record<string, number> = {
   零: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9,
 };

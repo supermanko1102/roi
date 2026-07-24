@@ -129,28 +129,19 @@ table.bgrid thead th.bgrid-floor { background: var(--color-surface); }
 .bgrid-cell.cancelled { border: 1.5px dashed #b4544a; }
 .bgrid-cell.cancelled b { color: #9c4038; text-decoration: line-through; }
 .bgrid-extra { position: absolute; top: 3px; right: 3px; width: 5px; height: 5px; border-radius: 50%; background: #a87520; }
+.bgrid-park { position: absolute; right: 3px; bottom: 2px; color: rgba(74,61,30,.72); font-size: 6.5px; font-style: normal; font-weight: 900; line-height: 1; }
+.bgrid-cell.deep .bgrid-park { color: rgba(255,255,255,.8); }
 .bgrid-empty { min-width: 52px; background: #f5f7f4; border-radius: 5px; }
 .grid-note { margin-top: 8px; color: var(--color-ink-soft); font-size: 9px; line-height: 1.6; }
 
-/* 棟別圖：格子點選與詳情卡 */
+/* 棟別圖：格子點選 */
 .bgrid-cell { cursor: pointer; }
 .bgrid-cell:hover { box-shadow: inset 0 0 0 1.5px var(--color-teal); }
 .bgrid-cell.sel { box-shadow: inset 0 0 0 2px var(--color-teal); }
 .bgrid-cell:focus-visible { outline: 2px solid var(--color-teal); outline-offset: -2px; }
-.bgrid-detail { margin-top: 7px; padding: 9px 11px; border: 1px solid var(--color-line); border-radius: 10px; background: #fff; }
-.bgrid-detail-head { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; font-size: 11px; font-weight: 800; color: var(--color-ink); }
-.bgrid-detail-head span { color: var(--color-ink-soft); font-size: 9.5px; font-weight: 700; }
-.bgrid-detail-head button { margin-left: auto; width: 20px; height: 20px; border: 0; border-radius: 50%; background: #edf1ef; color: var(--color-ink-soft); cursor: pointer; font-size: 10px; line-height: 1; }
-.bgrid-detail-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 4px 0; border-top: 1px dashed var(--color-line); color: var(--color-ink-soft); font-size: 10px; }
-.bgrid-detail-row:first-of-type { border-top: 0; }
-.bgrid-detail-row b { color: var(--color-ink); font-size: 11.5px; }
-.bgrid-detail-row .bd-date { color: var(--color-ink); font-weight: 700; }
-.bgrid-detail-row.cancelled .bd-date, .bgrid-detail-row.cancelled b { color: #9c4038; text-decoration: line-through; }
-.bgrid-detail-row .bd-cancel { color: #9c4038; font-style: normal; font-weight: 800; }
 
 /* 棟別圖:交屋後轉售標記與清單 */
 .bgrid-rs { position: absolute; top: 0; left: 0; width: 0; height: 0; border-top: 8px solid var(--color-amber); border-right: 8px solid transparent; border-top-left-radius: 5px; }
-.bgrid-detail-row .bd-tag { padding: 0 4px; border: 1px solid #e3cd9d; border-radius: 4px; background: #fff8ec; color: var(--color-amber); font-size: 8.5px; font-style: normal; font-weight: 800; }
 .bgrid-loose { margin-top: 8px; }
 .bgrid-loose summary { color: var(--color-ink-soft); cursor: pointer; font-size: 10px; font-weight: 700; }
 .bgrid-loose-table { width: 100%; margin-top: 6px; border-collapse: collapse; font-size: 10.5px; }

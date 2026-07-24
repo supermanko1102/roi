@@ -6,10 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { CITIES, cityDisplay } from "@/lib/cities";
+import { getParkingInfo } from "@/lib/deal-parking";
 
 type PDeal = {
   deal_date: string | null; total_price: number | null; area_ping: number | null;
   unit_price: number | null; rooms: number | null; baths: number | null;
+  parking_count: number | null; parking_type: string | null;
+  parking_price: number | null; parking_area_ping: number | null;
   floor_no: number | null; total_floors: number | null; unit_id: string | null;
   is_cancelled: boolean | null; cancel_date: string | null;
 };
@@ -34,6 +37,8 @@ type PDetail = {
 type Resale = {
   deal_date: string | null; floor_no: number | null; rooms: number | null; baths: number | null;
   total_price: number | null; unit_price: number | null; area_ping: number | null;
+  parking_count: number | null; parking_type: string | null;
+  parking_price: number | null; parking_area_ping: number | null;
 };
 
 const median = (xs: number[]) => {
@@ -43,6 +48,48 @@ const median = (xs: number[]) => {
 };
 
 const dealsTh = "border-b border-line px-1.5 py-[5px] text-left text-[9.5px] font-bold text-ink-soft";
+
+function unitLabel(unitId: string | null): string {
+  const parsed = parseStack(unitId);
+  if (!parsed) return unitId || "戶別未登錄";
+  return [parsed.building || null, parsed.stack ? `${parsed.stack}戶` : null]
+    .filter(Boolean).join("・") || unitId || "戶別未登錄";
+}
+
+function shortRocDate(iso: string | null): string {
+  if (!iso) return "—";
+  const [year, month, day] = iso.split("-");
+  return `${Number(year) - 1911}/${month}/${day}`;
+}
+
+function ListParking({ deal }: { deal: PDeal }) {
+  const parking = getParkingInfo(deal);
+  if (parking.included) {
+    return (
+      <span className="block">
+        <b className="inline-block rounded-full bg-[#f4e4c5] px-1.5 py-0.5 text-[8.5px] text-[#785415]">
+          {parking.count != null ? `${parking.count} 車位` : "含車位"}
+        </b>
+        <small className="mt-1 block whitespace-nowrap text-[8.5px] leading-tight text-ink-soft max-mob:whitespace-normal">
+          {[parking.type, parking.price > 0 ? `${fmtP(parking.price)} 萬` : "價格未拆"]
+            .filter(Boolean).join("・")}
+        </small>
+      </span>
+    );
+  }
+  if (parking.known) {
+    return (
+      <span className="inline-block rounded-full bg-[#e9edeb] px-1.5 py-0.5 text-[8.5px] font-bold text-ink-soft">
+        無車位
+      </span>
+    );
+  }
+  return (
+    <span className="inline-block rounded-full border border-dashed border-[#b8c2bd] px-1.5 py-0.5 text-[8.5px] font-bold text-ink-soft">
+      未登錄
+    </span>
+  );
+}
 
 function Fact({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
@@ -220,22 +267,50 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
               <BuildingGrid deals={detail.deals} resales={resales} />
             ) : (
               <>
-                <table className="num mt-2 w-full border-collapse text-[11px]">
-                  <thead><tr><th className={dealsTh}>日期</th><th className={dealsTh}>樓層・格局</th><th className={dealsTh}>總價</th><th className={dealsTh}>單價</th></tr></thead>
-                  <tbody>
-                    {recentDeals.slice(0, 40).map((d, i) => (
-                      <tr key={i} className="even:bg-[#f5f7f4]">
-                        <td className="p-1.5">{d.deal_date ?? "—"}</td>
-                        <td className="p-1.5" title={d.unit_id ?? ""}>
-                          {[d.floor_no != null ? `${d.floor_no}樓` : null, d.rooms != null ? `${d.rooms}房` : null]
-                            .filter(Boolean).join("・") || (d.unit_id ?? "—")}
-                        </td>
-                        <td className="p-1.5">{d.total_price == null ? "—" : `${Math.round(d.total_price).toLocaleString()} 萬`}</td>
-                        <td className="p-1.5">{d.unit_price == null ? "—" : `${fmtP(d.unit_price)} 萬`}</td>
+                <div className="mt-2 overflow-x-auto rounded-[10px] border border-line">
+                  <table className="num w-full table-fixed border-collapse text-[10.5px]">
+                    <colgroup>
+                      <col className="w-[82px] max-mob:w-[72px]" />
+                      <col className="w-[104px] max-mob:w-[82px]" />
+                      <col className="w-[88px] max-mob:w-[82px]" />
+                      <col />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th className={dealsTh}>日期</th>
+                        <th className={dealsTh}>棟戶・格局</th>
+                        <th className={dealsTh}>成交價格</th>
+                        <th className={dealsTh}>車位</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {recentDeals.slice(0, 40).map((d, i) => (
+                        <tr key={i} className="align-top even:bg-[#f5f7f4]">
+                          <td className="whitespace-nowrap p-1.5">
+                            <span className="max-mob:hidden">{d.deal_date ?? "—"}</span>
+                            <span className="hidden max-mob:inline">{shortRocDate(d.deal_date)}</span>
+                          </td>
+                          <td className="p-1.5" title={d.unit_id ?? ""}>
+                            <b className="block font-extrabold text-ink">{unitLabel(d.unit_id)}</b>
+                            <small className="mt-0.5 block whitespace-nowrap text-[8.5px] text-ink-soft">
+                              {[d.floor_no != null ? `${d.floor_no}樓` : null, d.rooms != null ? `${d.rooms}房` : null]
+                                .filter(Boolean).join("・") || "規格未登錄"}
+                            </small>
+                          </td>
+                          <td className="whitespace-nowrap p-1.5">
+                            <b className="block font-bold text-ink">
+                              {d.total_price == null ? "—" : `${Math.round(d.total_price).toLocaleString()} 萬`}
+                            </b>
+                            <small className="mt-0.5 block text-[8.5px] text-ink-soft">
+                              {d.unit_price == null ? "單價 —" : `單價 ${fmtP(d.unit_price)} 萬`}
+                            </small>
+                          </td>
+                          <td className="p-1.5"><ListParking deal={d} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
                 {recentDeals.length > 40 && <div className="mt-[7px] text-right text-[9px] text-ink-soft">顯示最近 40 筆</div>}
               </>
             )}
@@ -245,13 +320,13 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
             <details className="mt-[18px] border-t border-line">
               <summary className="py-3 text-[11px] font-extrabold text-teal">解約紀錄（{cancelled.length} 筆）</summary>
               <table className="num w-full border-collapse text-[11px]">
-                <thead><tr><th className={dealsTh}>解約日</th><th className={dealsTh}>原成交日</th><th className={dealsTh}>樓層</th><th className={dealsTh}>總價</th></tr></thead>
+                <thead><tr><th className={dealsTh}>解約日</th><th className={dealsTh}>原成交日</th><th className={dealsTh}>棟戶・樓層</th><th className={dealsTh}>總價</th></tr></thead>
                 <tbody>
                   {cancelled.map((d, i) => (
                     <tr key={i} className="even:bg-[#f5f7f4]">
                       <td className="p-1.5">{d.cancel_date ?? "—"}</td>
                       <td className="p-1.5">{d.deal_date ?? "—"}</td>
-                      <td className="p-1.5">{d.floor_no != null ? `${d.floor_no}樓` : "—"}</td>
+                      <td className="p-1.5">{unitLabel(d.unit_id)}{d.floor_no != null ? `・${d.floor_no}樓` : ""}</td>
                       <td className="p-1.5">{d.total_price == null ? "—" : `${Math.round(d.total_price).toLocaleString()} 萬`}</td>
                     </tr>
                   ))}
@@ -264,7 +339,9 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
             <MaterialsSection sections={detail.materials.sections} pdfUrl={detail.materials.pdf_url} />
           )}
 
-          <div className="mt-[18px] border-t border-line pt-[11px] text-[9px] leading-normal text-ink-soft">價格已扣除車位。資料來源：內政部實價登錄。</div>
+          <div className="mt-[18px] border-t border-line pt-[11px] text-[9px] leading-normal text-ink-soft">
+            格內單價已扣除車位價與車位坪數；成交總價仍包含車位。資料來源：內政部實價登錄。
+          </div>
         </>
       )}
     </aside>

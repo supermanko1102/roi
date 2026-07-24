@@ -32,6 +32,8 @@ export async function GET(req: NextRequest) {
   const deals = await db.select({
     deal_date: presale_deals.deal_date, total_price: presale_deals.total_price,
     area_ping: presale_deals.area_ping, unit_price: presale_deals.unit_price,
+    parking_count: presale_deals.parking_count, parking_type: presale_deals.parking_type,
+    parking_price: presale_deals.parking_price, parking_area_ping: presale_deals.parking_area_ping,
     rooms: presale_deals.rooms, baths: presale_deals.baths,
     floor_no: presale_deals.floor_no, total_floors: presale_deals.total_floors,
     unit_id: presale_deals.unit_id,
@@ -70,6 +72,8 @@ export async function GET(req: NextRequest) {
   let resales: {
     deal_date: string | null; floor_no: number | null; rooms: number | null; baths: number | null;
     total_price: number | null; unit_price: number | null; area_ping: number | null;
+    parking_count: number | null; parking_type: string | null;
+    parking_price: number | null; parking_area_ping: number | null;
   }[] = [];
   const caseNos = comms.map((c) => c.case_no);
   if (completed && regDate && caseNos.length) {
@@ -78,6 +82,8 @@ export async function GET(req: NextRequest) {
       rooms: sale_deals.rooms, baths: sale_deals.baths,
       total_price: sale_deals.total_price, unit_price: sale_deals.unit_price,
       area_ping: sale_deals.area_ping,
+      parking_count: sale_deals.parking_count, parking_type: sale_deals.parking_type,
+      parking_price: sale_deals.parking_price, parking_area_ping: sale_deals.parking_area_ping,
     }).from(sale_deals)
       .innerJoin(building_community, eq(building_community.addr_key, sale_deals.addr_key))
       .where(and(inArray(building_community.case_no, caseNos), gt(sale_deals.deal_date, regDate)))

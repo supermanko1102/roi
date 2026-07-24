@@ -10,7 +10,7 @@ import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { createDb, sale_deals, presale_deals, rent_deals } from "../db/client";
 import { CITIES } from "../src/lib/cities";
 import { normAddrKey } from "./addr";
-import { col, intOrNull, num, parseFloor, readCsv, rocDate } from "./lvr-fields";
+import { col, intOrNull, num, parseFloor, parseParkingCount, readCsv, rocDate } from "./lvr-fields";
 import { assertReplacementSafe } from "./replacement-safety";
 
 const PING = 3.305785; // m² per 坪
@@ -93,6 +93,7 @@ async function main() {
         const [h, ...rows] = readCsv(aFile);
         const iDist = col(h, "鄉鎮市區"), iAddr = col(h, "土地位置");
         const iTarget = col(h, "交易標的"), iDate = col(h, "交易年月日");
+        const iCount = col(h, "交易筆棟數"), iParkType = col(h, "車位類別");
         const iArea = col(h, "建物移轉總面積"), iMain = col(h, "主建物面積");
         const iTotal = col(h, "總價元"), iPark = col(h, "車位總價");
         const iParkArea = col(h, "車位移轉總面積");
@@ -116,7 +117,10 @@ async function main() {
           out.push({
             city: city.name,
             district: r[iDist], address: addr, deal_date: rocDate(r[iDate]),
-            total_price: total / 10000, parking_price: park / 10000,
+            total_price: total / 10000,
+            parking_count: iCount >= 0 ? parseParkingCount(r[iCount]) : null,
+            parking_type: iParkType >= 0 ? r[iParkType] || null : null,
+            parking_price: park / 10000,
             area_ping: areaPing, parking_area_ping: parkAreaPing, main_area_ping: mainAreaPing,
             unit_price: unit, unit_price_main: unitMain,
             building_type: iType >= 0 ? r[iType] || null : null,
@@ -142,6 +146,7 @@ async function main() {
         const [h, ...rows] = readCsv(bFile);
         const iDist = col(h, "鄉鎮市區"), iAddr = col(h, "土地位置");
         const iDate = col(h, "交易年月日"), iArea = col(h, "建物移轉總面積");
+        const iCount = col(h, "交易筆棟數"), iParkType = col(h, "車位類別");
         const iTotal = col(h, "總價元"), iPark = col(h, "車位總價");
         const iParkArea = col(h, "車位移轉總面積");
         const iProj = col(h, "建案名稱");
@@ -162,7 +167,10 @@ async function main() {
             city: city.name,
             district: r[iDist], project_name: iProj >= 0 ? r[iProj] : null,
             address: r[iAddr], deal_date: rocDate(r[iDate]),
-            total_price: total / 10000, parking_price: park / 10000,
+            total_price: total / 10000,
+            parking_count: iCount >= 0 ? parseParkingCount(r[iCount]) : null,
+            parking_type: iParkType >= 0 ? r[iParkType] || null : null,
+            parking_price: park / 10000,
             area_ping: areaPing, parking_area_ping: parkAreaPing,
             unit_price: unit,
             rooms: intOrNull(r[iRooms]), halls: intOrNull(r[iHalls]), baths: intOrNull(r[iBaths]),

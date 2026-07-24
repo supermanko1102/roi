@@ -1,10 +1,17 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { CircleParking, X } from "lucide-react";
 import { fmtP } from "./drawer-kit";
+import {
+  Dialog, DialogClose, DialogContent, DialogTitle,
+} from "@/components/ui/dialog";
+import { getParkingInfo, type DealParkingFields } from "@/lib/deal-parking";
 
 type GDeal = {
   deal_date: string | null; total_price: number | null; area_ping: number | null;
   unit_price: number | null; rooms: number | null; baths: number | null;
+  parking_count: number | null; parking_type: string | null;
+  parking_price: number | null; parking_area_ping: number | null;
   floor_no: number | null; unit_id: string | null;
   is_cancelled: boolean | null; cancel_date: string | null;
 };
@@ -46,9 +53,72 @@ function cellColor(t: number): { bg: string; dark: boolean } {
 export type GResale = {
   deal_date: string | null; floor_no: number | null; rooms: number | null; baths: number | null;
   total_price: number | null; unit_price: number | null; area_ping: number | null;
+  parking_count: number | null; parking_type: string | null;
+  parking_price: number | null; parking_area_ping: number | null;
 };
 
 type Cell = { deal: GDeal; deals: GDeal[]; extra: number; onlyCancelled: boolean; resales: GResale[] };
+
+function hasParking(deal: DealParkingFields) {
+  return getParkingInfo(deal).included;
+}
+
+function ParkingSummary({ deal }: { deal: DealParkingFields }) {
+  const parking = getParkingInfo(deal);
+  const label = parking.included
+    ? parking.count != null ? `含 ${parking.count} 個車位` : "含車位"
+    : parking.known ? "本筆無車位" : "車位資料未登錄";
+  const detail = parking.included
+    ? [parking.type, parking.area > 0 ? `${fmtP(parking.area)} 坪` : null].filter(Boolean).join("・")
+      || "有登錄車位，未提供類型與坪數"
+    : parking.known ? "交易筆棟數明確登錄為 0" : "舊資料尚未保存車位數，不能判定為無車位";
+
+  return (
+    <div className={`mt-3 grid grid-cols-[30px_1fr_auto] items-center gap-2.5 rounded-[11px] border px-3 py-2.5 ${
+      parking.included ? "border-[#e5cf9f] bg-[#fff8eb]" : "border-line bg-[#f5f7f5]"
+    }`}>
+      <span className={`grid size-[30px] place-items-center rounded-full ${
+        parking.included ? "bg-[#f1dfb8] text-[#7d581a]" : "bg-[#e4e9e6] text-ink-soft"
+      }`} aria-hidden="true">
+        <CircleParking className="size-4" strokeWidth={1.8} />
+      </span>
+      <span className="min-w-0">
+        <b className="block text-[11px] text-ink">{label}</b>
+        <small className="mt-0.5 block text-[9px] leading-[1.35] text-ink-soft">
+          {detail}
+        </small>
+      </span>
+      <span className="text-right">
+        <small className="block text-[8.5px] text-ink-soft">車位總價</small>
+        <b className="num mt-0.5 block text-[12px] text-ink">
+          {parking.included ? parking.price > 0 ? `${fmtP(parking.price)} 萬` : "未拆分" : "—"}
+        </b>
+      </span>
+    </div>
+  );
+}
+
+function PriceFacts({ deal }: {
+  deal: Pick<GDeal, "total_price" | "unit_price" | "parking_count" | "parking_type" | "parking_price" | "parking_area_ping">;
+}) {
+  const included = hasParking(deal);
+  return (
+    <div className="mt-3 grid grid-cols-2 gap-2">
+      <div className="rounded-[10px] border border-line bg-white px-3 py-2.5">
+        <span className="block text-[8.5px] text-ink-soft">成交總價{included ? "（含車位）" : ""}</span>
+        <b className="num mt-1 block text-[16px] tracking-[-.03em] text-ink">
+          {deal.total_price == null ? "—" : `${Math.round(Number(deal.total_price)).toLocaleString()} 萬`}
+        </b>
+      </div>
+      <div className="rounded-[10px] border border-line bg-white px-3 py-2.5">
+        <span className="block text-[8.5px] text-ink-soft">房屋單價{included ? "（已扣車位）" : ""}</span>
+        <b className="num mt-1 block text-[16px] tracking-[-.03em] text-ink">
+          {deal.unit_price == null ? "—" : `${fmtP(Number(deal.unit_price))} 萬/坪`}
+        </b>
+      </div>
+    </div>
+  );
+}
 
 export default function BuildingGrid({ deals, resales = [] }: { deals: GDeal[]; resales?: GResale[] }) {
   const [sel, setSel] = useState<{ grid: string; stack: string; floor: number } | null>(null);
@@ -140,6 +210,14 @@ export default function BuildingGrid({ deals, resales = [] }: { deals: GDeal[]; 
 
   const { lo, hi, flat } = model;
   const t = (p: number) => hi > lo ? Math.min(1, Math.max(0, (p - lo) / (hi - lo))) : 0.5;
+  const selected = sel == null ? null : (() => {
+    const grid = model.buildings.find((building) => building.name === sel.grid);
+    const cell = grid?.cells.get(`${sel.stack}|${sel.floor}`);
+    if (!grid || !cell) return null;
+    const unitLabel = grid.colsAreBuildings ? `${sel.stack}棟`
+      : `${grid.name ? `${grid.name}　` : ""}${sel.stack !== "—" ? `${sel.stack}戶` : ""}`;
+    return { cell, unitLabel };
+  })();
 
   return (
     <div className="bgrid-wrap">
@@ -180,9 +258,13 @@ export default function BuildingGrid({ deals, resales = [] }: { deals: GDeal[]; 
                       const selected = sel != null && sel.grid === b.name && sel.stack === s && sel.floor === f;
                       const unitLabel = b.colsAreBuildings ? `${s}棟` : s !== "—" ? `${s}戶` : "";
                       const rs = cell.resales;
+                      const parking = getParkingInfo(deal);
+                      const parkingLabel = parking.included
+                        ? parking.count != null ? `含 ${parking.count} 個車位` : "含車位"
+                        : parking.known ? "無車位" : "車位資料未登錄";
                       return (
                         <td key={s} role="button" tabIndex={0} aria-pressed={selected}
-                          aria-label={`${unitLabel} ${f}樓，${price == null ? "無單價" : `單價 ${fmtP(price)} 萬`}${onlyCancelled ? "，已解約" : ""}${rs.length ? `，交屋後轉售 ${rs.length} 筆` : ""}`}
+                          aria-label={`${unitLabel} ${f}樓，${price == null ? "無單價" : `單價 ${fmtP(price)} 萬`}，${parkingLabel}${onlyCancelled ? "，已解約" : ""}${rs.length ? `，交屋後轉售 ${rs.length} 筆` : ""}`}
                           className={`bgrid-cell${onlyCancelled ? " cancelled" : ""}${c?.dark ? " deep" : ""}${selected ? " sel" : ""}`}
                           style={c ? { background: c.bg } : undefined}
                           onClick={() => setSel(selected ? null : { grid: b.name, stack: s, floor: f })}
@@ -196,6 +278,7 @@ export default function BuildingGrid({ deals, resales = [] }: { deals: GDeal[]; 
                           <b>{price == null ? "—" : fmtP(price)}</b>
                           {extra > 0 && <i className="bgrid-extra" aria-label={`${extra} 筆其他紀錄`} />}
                           {rs.length > 0 && <i className="bgrid-rs" aria-hidden />}
+                          {parking.included && <i className="bgrid-park" aria-hidden>車</i>}
                         </td>
                       );
                     })}
@@ -204,51 +287,10 @@ export default function BuildingGrid({ deals, resales = [] }: { deals: GDeal[]; 
               </tbody>
             </table>
           </div>
-          {sel != null && sel.grid === b.name && (() => {
-            const cell = b.cells.get(`${sel.stack}|${sel.floor}`);
-            if (!cell) return null;
-            const unitLabel = b.colsAreBuildings ? `${sel.stack}棟`
-              : `${b.name ? `${b.name}　` : ""}${sel.stack !== "—" ? `${sel.stack}戶` : ""}`;
-            return (
-              <div className="bgrid-detail" role="region" aria-label="戶別成交詳情">
-                <div className="bgrid-detail-head">
-                  <b>{unitLabel}　{sel.floor} 樓</b>
-                  {cell.deals.length > 1 && <span className="num">{cell.deals.length} 筆紀錄</span>}
-                  <button onClick={() => setSel(null)} aria-label="關閉詳情">✕</button>
-                </div>
-                {cell.deals.map((d, i) => (
-                  <div key={i} className={`bgrid-detail-row num${d.is_cancelled ? " cancelled" : ""}`}>
-                    <span className="bd-date">{d.deal_date ?? "—"}</span>
-                    <span className="bd-spec">
-                      {[d.rooms != null ? `${d.rooms}房${d.baths != null ? `${d.baths}衛` : ""}` : null,
-                        d.area_ping != null ? `${fmtP(Number(d.area_ping))} 坪` : null]
-                        .filter(Boolean).join("・") || "—"}
-                    </span>
-                    <span>總價 <b>{d.total_price == null ? "—" : Math.round(Number(d.total_price)).toLocaleString()}</b> 萬</span>
-                    <span>單價 <b>{d.unit_price == null ? "—" : fmtP(Number(d.unit_price))}</b> 萬/坪</span>
-                    {d.is_cancelled && <em className="bd-cancel">已解約{d.cancel_date ? `・${d.cancel_date}` : ""}</em>}
-                  </div>
-                ))}
-                {cell.resales.map((r, i) => (
-                  <div key={`rs-${i}`} className="bgrid-detail-row num resale">
-                    <span className="bd-date">{r.deal_date ?? "—"}</span>
-                    <em className="bd-tag">轉售</em>
-                    <span className="bd-spec">
-                      {[r.rooms != null ? `${r.rooms}房${r.baths != null ? `${r.baths}衛` : ""}` : null,
-                        r.area_ping != null ? `${fmtP(Number(r.area_ping))} 坪` : null]
-                        .filter(Boolean).join("・") || "—"}
-                    </span>
-                    <span>總價 <b>{r.total_price == null ? "—" : Math.round(Number(r.total_price)).toLocaleString()}</b> 萬</span>
-                    <span>單價 <b>{r.unit_price == null ? "—" : fmtP(Number(r.unit_price))}</b> 萬/坪</span>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
         </div>
       ))}
       <div className="grid-note">
-        {flat ? "" : "深色＝單價較高。"}空格＝尚無揭露。虛線框＝已解約。橘角＝交屋後轉售。點格子可看該戶詳情。
+        {flat ? "" : "深色＝單價較高。"}空格＝尚無揭露。車＝含車位。虛線框＝已解約。橘角＝交屋後轉售。點格子可看該戶詳情。
         {model.unplaced > 0 && `另有 ${model.unplaced} 筆缺樓層或戶別資訊，僅列於「列表」。`}
       </div>
       {model.loose.length > 0 && (
@@ -268,6 +310,80 @@ export default function BuildingGrid({ deals, resales = [] }: { deals: GDeal[]; 
           </table>
         </details>
       )}
+      <Dialog open={selected != null} onOpenChange={(open) => { if (!open) setSel(null); }}>
+        {selected && sel && (
+          <DialogContent showCloseButton={false}
+            overlayClassName="z-70 bg-[#081c18]/42 supports-backdrop-filter:backdrop-blur-[2px]"
+            className="z-70 block max-h-[min(680px,calc(100dvh-32px))] w-[min(410px,calc(100vw-28px))] max-w-none gap-0 overflow-y-auto rounded-[18px] bg-surface p-0 shadow-[0_26px_80px_rgba(7,38,32,.3)] ring-0 sm:max-w-none"
+            onKeyDown={(event) => event.stopPropagation()}>
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-line bg-surface px-5 py-4">
+              <div className="min-w-0">
+                <span className="text-[9px] font-extrabold tracking-[.16em] text-teal">成交明細</span>
+                <DialogTitle className="mt-1 font-display text-[21px] font-bold leading-tight text-ink">
+                  {selected.unitLabel}　{sel.floor} 樓
+                </DialogTitle>
+                <span className="num mt-1 block text-[9.5px] text-ink-soft">
+                  {selected.cell.deals.length} 筆預售紀錄
+                  {selected.cell.resales.length > 0 && `・${selected.cell.resales.length} 筆交屋後轉售`}
+                </span>
+              </div>
+              <DialogClose aria-label="關閉成交明細"
+                className="grid size-8 flex-none place-items-center rounded-full border-0 bg-muted text-ink-soft">
+                <X className="size-3.5" />
+              </DialogClose>
+            </div>
+
+            <div className="space-y-3 p-4">
+              {selected.cell.deals.map((deal, index) => (
+                <article key={index} className={`rounded-[14px] border bg-[#fbfcfa] p-3 ${
+                  deal.is_cancelled ? "border-dashed border-[#d89082]" : "border-line"
+                }`}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <b className="num text-[11px] text-ink">{deal.deal_date ?? "日期未登錄"}</b>
+                    {index === 0 && !deal.is_cancelled && (
+                      <span className="rounded-full bg-mint px-2 py-0.5 text-[8.5px] font-extrabold text-teal">最新揭露</span>
+                    )}
+                    {deal.is_cancelled && (
+                      <span className="rounded-full bg-[#fae9e5] px-2 py-0.5 text-[8.5px] font-extrabold text-coral">
+                        已解約{deal.cancel_date ? `・${deal.cancel_date}` : ""}
+                      </span>
+                    )}
+                    <span className="ml-auto text-[9px] text-ink-soft">
+                      {[deal.rooms != null ? `${deal.rooms}房${deal.baths != null ? `${deal.baths}衛` : ""}` : null,
+                        deal.area_ping != null ? `權狀 ${fmtP(Number(deal.area_ping))} 坪` : null]
+                        .filter(Boolean).join("・") || "規格未登錄"}
+                    </span>
+                  </div>
+                  <PriceFacts deal={deal} />
+                  <ParkingSummary deal={deal} />
+                </article>
+              ))}
+
+              {selected.cell.resales.map((deal, index) => (
+                <article key={`resale-${index}`} className="rounded-[14px] border border-[#e5cf9f] bg-[#fffdf8] p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-[#f4e4c5] px-2 py-0.5 text-[8.5px] font-extrabold text-[#815a1a]">交屋後轉售</span>
+                    <b className="num text-[11px] text-ink">{deal.deal_date ?? "日期未登錄"}</b>
+                    <span className="ml-auto text-[9px] text-ink-soft">
+                      {[deal.rooms != null ? `${deal.rooms}房${deal.baths != null ? `${deal.baths}衛` : ""}` : null,
+                        deal.area_ping != null ? `權狀 ${fmtP(Number(deal.area_ping))} 坪` : null]
+                        .filter(Boolean).join("・") || "規格未登錄"}
+                    </span>
+                  </div>
+                  <PriceFacts deal={deal} />
+                  <ParkingSummary deal={deal} />
+                </article>
+              ))}
+            </div>
+            {[...selected.cell.deals, ...selected.cell.resales].some((deal) =>
+              hasParking(deal) && Number(deal.parking_price ?? 0) <= 0) && (
+              <p className="border-t border-line px-5 py-3 text-[8.5px] leading-[1.5] text-ink-soft">
+                「未拆分」代表成交含車位，但申報資料未單獨列出車位價格，並非車位免費。
+              </p>
+            )}
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { col, num, parseFloor, readCsv, rocDate } from "../etl/lvr-fields";
+import { col, num, parseFloor, parseParkingCount, readCsv, rocDate } from "../etl/lvr-fields";
 
 test("LVR scalar fields parse official formats", () => {
   assert.equal(rocDate("1150701"), "2026-07-01");
@@ -12,6 +12,9 @@ test("LVR scalar fields parse official formats", () => {
   assert.equal(parseFloor("二十五層"), 25);
   assert.equal(parseFloor("地下二層"), null);
   assert.equal(parseFloor("十一層、十二層"), 11);
+  assert.equal(parseParkingCount("土地6建物1車位2"), 2);
+  assert.equal(parseParkingCount("土地1建物1車位0"), 0);
+  assert.equal(parseParkingCount(""), null);
   assert.equal(col(["交易年月日", "建物格局房"], "格局", "房"), 1);
 });
 

@@ -203,7 +203,10 @@ function generateResale() {
         if (ds > last) last = ds;
         dealRows.push({
           city: "桃園市", district: g.district, address: addr_key, addr_key,
-          deal_date: ds, total_price: total, parking_price,
+          deal_date: ds, total_price: total,
+          parking_count: hasParking ? 1 : 0,
+          parking_type: hasParking ? "坡道平面" : null,
+          parking_price,
           area_ping: +(area + parking_area).toFixed(1), parking_area_ping: parking_area,
           main_area_ping: main_area, unit_price: unit,
           unit_price_main: +((total - parking_price) / main_area).toFixed(1),
