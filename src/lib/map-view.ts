@@ -2,7 +2,7 @@ import { haversineM } from "@/lib/geo";
 import { CITIES, cityDisplay } from "@/lib/cities";
 import { NEAR_IC_M, NEAR_METRO_M, TOTAL_FILTERS } from "@/lib/map-const";
 import type {
-  MapLabel, PresaleFC, RentalFC, SearchSuggestion, TransportStop,
+  MapLabel, PresaleFC, ProjectIndexEntry, RentalFC, SearchSuggestion, TransportStop,
 } from "@/lib/map-types";
 
 // 地圖點位的純運算(不碰 React/DOM),PropertyMap 只負責 memo 化與餵資料。
@@ -67,11 +67,12 @@ export function buildSuggestions(opts: {
   query: string;
   market: "presale" | "rental";
   catalog: PresaleFC | null;
+  projectIndex: ProjectIndexEntry[] | null;
   rentals: RentalFC | null;
   zoneLabels: MapLabel[];
   districtLabels: MapLabel[];
 }): SearchSuggestion[] {
-  const { query, market, catalog, rentals, zoneLabels, districtLabels } = opts;
+  const { query, market, catalog, projectIndex, rentals, zoneLabels, districtLabels } = opts;
   const needle = query.trim().toLocaleLowerCase("zh-Hant");
   if (!needle) return [];
   const hit = (s: string | null | undefined) => (s ?? "").toLocaleLowerCase("zh-Hant").includes(needle);
@@ -88,14 +89,25 @@ export function buildSuggestions(opts: {
         sub: `${cityTag(f.properties.city)}${f.properties.district}`,
       }));
   }
-  const projs = (catalog?.features ?? [])
-    .filter((f) => hit(f.properties.name)).slice(0, 6)
-    .map((f) => ({
-      kind: "project" as const,
-      key: `${f.properties.city}|${f.properties.district}|${f.properties.name}`,
-      label: f.properties.name!,
-      sub: `${cityTag(f.properties.city)}${f.properties.district}${f.properties.price != null ? `・$${(+f.properties.price).toFixed(1)}` : ""}`,
-    }));
+  // 全量索引(含無座標案)優先;索引還沒載好時退回地圖 catalog
+  const projs = projectIndex
+    ? projectIndex.filter((e) => hit(e.name)).slice(0, 6)
+        .map((e) => ({
+          kind: "project" as const,
+          key: `${e.city}|${e.district}|${e.name}`,
+          label: e.name,
+          sub: `${cityTag(e.city)}${e.district}`
+            + (e.unit_price != null ? `・$${(+e.unit_price).toFixed(1)}` : "")
+            + (e.geo ? "" : "・未定位"),
+        }))
+    : (catalog?.features ?? [])
+        .filter((f) => hit(f.properties.name)).slice(0, 6)
+        .map((f) => ({
+          kind: "project" as const,
+          key: `${f.properties.city}|${f.properties.district}|${f.properties.name}`,
+          label: f.properties.name!,
+          sub: `${cityTag(f.properties.city)}${f.properties.district}${f.properties.price != null ? `・$${(+f.properties.price).toFixed(1)}` : ""}`,
+        }));
   const zs = zoneLabels.filter((l) => hit(l.name)).slice(0, 3)
     .map((l) => ({ kind: "zone" as const, key: l.key, label: l.name, sub: cityName(l.props.city) }));
   const ds = districtLabels.filter((l) => hit(l.name)).slice(0, 3)

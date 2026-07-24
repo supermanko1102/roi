@@ -22,7 +22,7 @@ import {
 import { buildSuggestions, enrichNearestTransport, filterPoints } from "@/lib/map-view";
 import type {
   DistrictFC, MapLabel, PresaleFC, PresaleProps, RentalFC, RentalProps,
-  SearchSuggestion, StationFC, TransportStop, ZoneFC,
+  ProjectIndexEntry, SearchSuggestion, StationFC, TransportStop, ZoneFC,
 } from "@/lib/map-types";
 import type { FeatureCollection } from "geojson";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -102,6 +102,7 @@ export default function PropertyMap() {
   const [rentals, setRentals] = useState<RentalFC | null>(null);
   const [rentalPopup, setRentalPopup] = useState<RentalPopupData | null>(null);
   const [catalog, setCatalog] = useState<PresaleFC | null>(null);
+  const [projectIndex, setProjectIndex] = useState<ProjectIndexEntry[] | null>(null);
   const [drawerProj, setDrawerProj] = useState<{ city: string; district: string; name: string } | null>(null);
   const [query, setQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -140,6 +141,7 @@ export default function PropertyMap() {
     setQuery(qs.get("q") ?? ""); setNearMetro(qs.get("metro") === "1"); setNearIC(qs.get("ic") === "1");
     setShowCancel(qs.get("cancel") === "1");
     loadCatalog(initialRooms);
+    loadProjectIndex();
     try {
       const local = JSON.parse(localStorage.getItem("roi-shortlist") ?? "[]");
       // 多城市之前存的比較清單沒有 city → 一律視為桃園市並重算 key
@@ -197,6 +199,11 @@ export default function PropertyMap() {
   async function loadCatalog(room: RoomFilter) {
     const res = await fetch(`/api/points?kind=presale${room !== "all" ? `&rooms=${room}` : ""}`);
     if (res.ok) setCatalog(await res.json());
+  }
+
+  async function loadProjectIndex() {
+    const res = await fetch("/api/project-index");
+    if (res.ok) setProjectIndex(await res.json());
   }
 
   useEffect(() => {
@@ -291,8 +298,8 @@ export default function PropertyMap() {
   }, [zones]);
 
   const suggestions = useMemo(() => buildSuggestions({
-    query, market, catalog, rentals, zoneLabels, districtLabels: labels,
-  }), [query, market, catalog, rentals, zoneLabels, labels]);
+    query, market, catalog, projectIndex, rentals, zoneLabels, districtLabels: labels,
+  }), [query, market, catalog, projectIndex, rentals, zoneLabels, labels]);
 
   function pickSuggestion(s: SearchSuggestion) {
     setQuery(""); // 選中即導航:query 是導航輸入,不留著當篩選
@@ -300,7 +307,10 @@ export default function PropertyMap() {
     if (s.kind === "project") {
       const f = catalog?.features.find(
         (x) => `${x.properties.city}|${x.properties.district}|${x.properties.name}` === s.key);
-      if (f) openSummary(summaryFromFeature(f));
+      if (f) { openSummary(summaryFromFeature(f)); return; }
+      // 無座標案(工地位置為路段/地號):不飛地圖,直接開抽屜看行情
+      const [city, district, ...rest] = s.key.split("|");
+      if (city && district && rest.length) openProjDrawer(city, district, rest.join("|"));
     } else if (s.kind === "zone") {
       zoomToZone(s.key);
     } else if (s.kind === "district") {

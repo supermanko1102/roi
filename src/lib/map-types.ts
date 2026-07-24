@@ -83,3 +83,9 @@ export type SearchSuggestion = {
   label: string;
   sub?: string;
 };
+
+/** 全量建案搜尋索引(/api/project-index):含尚無座標的案,geo=false 時只開抽屜不飛圖 */
+export type ProjectIndexEntry = {
+  name: string; city: string; district: string;
+  deal_count: number | null; unit_price: number | null; geo: boolean;
+};
