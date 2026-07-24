@@ -37,6 +37,12 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      - name: 安裝 uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: project-address-agent/uv.lock
+
       - name: 安裝依賴
         run: pnpm install --frozen-lockfile
 

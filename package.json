@@ -20,6 +20,7 @@
     "etl:stats": "tsx etl/compute-stats.ts",
     "etl:geocode-projects": "tsx etl/geocode-projects.ts",
     "etl:geocode-lots": "tsx etl/geocode-landlots.ts",
+    "etl:repair-projects": "uv run --project project-address-agent --no-dev --locked project-address-agent auto --apply --limit 100",
     "etl:use-permits": "tsx etl/import-use-permits.ts",
     "etl:communities": "tsx etl/match-communities.ts",
     "etl:rent-benchmarks": "tsx etl/import-rent-benchmarks.ts",

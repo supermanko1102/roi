@@ -34,8 +34,14 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - name: 安裝 uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: project-address-agent/uv.lock
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:migrate
       - run: pnpm typecheck
       - run: pnpm test
+      - run: uv run --project project-address-agent --locked pytest
       - run: pnpm build

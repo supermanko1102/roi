@@ -1,0 +1,2406 @@
+{
+  "id": "70a51f0a-913a-4163-b854-cdb0f7c599ef",
+  "prevId": "09d5ae30-69c1-4dda-9804-5b21ee98d65b",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.building_community": {
+      "name": "building_community",
+      "schema": "",
+      "columns": {
+        "addr_key": {
+          "name": "addr_key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "case_no": {
+          "name": "case_no",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "community_id": {
+          "name": "community_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "matched_parcels": {
+          "name": "matched_parcels",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "match_method": {
+          "name": "match_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'parcel'"
+        },
+        "confidence": {
+          "name": "confidence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 100
+        }
+      },
+      "indexes": {
+        "idx_building_community_entity": {
+          "name": "idx_building_community_entity",
+          "columns": [
+            {
+              "expression": "community_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_building_community_case": {
+          "name": "idx_building_community_case",
+          "columns": [
+            {
+              "expression": "case_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.buildings": {
+      "name": "buildings",
+      "schema": "",
+      "columns": {
+        "addr_key": {
+          "name": "addr_key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "district": {
+          "name": "district",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lat": {
+          "name": "lat",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lng": {
+          "name": "lng",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deal_count": {
+          "name": "deal_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "median_unit_price": {
+          "name": "median_unit_price",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "median_total": {
+          "name": "median_total",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "building_type": {
+          "name": "building_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "build_year": {
+          "name": "build_year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_deal": {
+          "name": "last_deal",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "idx_buildings_district": {
+          "name": "idx_buildings_district",
+          "columns": [
+            {
+              "expression": "city",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "district",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_buildings_lng_lat": {
+          "name": "idx_buildings_lng_lat",
+          "columns": [
+            {
+              "expression": "lng",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lat",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.communities": {
+      "name": "communities",
+      "schema": "",
+      "columns": {
+        "case_no": {
+          "name": "case_no",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "district": {
+          "name": "district",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "households": {
+          "name": "households",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "street": {
+          "name": "street",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "permit_no": {
+          "name": "permit_no",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "first_reg": {
+          "name": "first_reg",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "declare_date": {
+          "name": "declare_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "use_issue_date": {
+          "name": "use_issue_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "idx_communities_district": {
+          "name": "idx_communities_district",
+          "columns": [
+            {
+              "expression": "city",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "district",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_communities_lookup": {
+          "name": "idx_communities_lookup",
+          "columns": [
+            {
+              "expression": "city",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "district",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.community_cases": {
+      "name": "community_cases",
+      "schema": "",
+      "columns": {
+        "case_no": {
+          "name": "case_no",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "community_id": {
+          "name": "community_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "idx_community_cases_community": {
+          "name": "idx_community_cases_community",
+          "columns": [
+            {
+              "expression": "community_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.contract_materials": {
+      "name": "contract_materials",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "district": {
+          "name": "district",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_name": {
+          "name": "project_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mlvr_case_no": {
+          "name": "mlvr_case_no",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pdf_url": {
+          "name": "pdf_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version_note": {
+          "name": "version_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "declare_date": {
+          "name": "declare_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "materials_text": {
+          "name": "materials_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sections": {
+          "name": "sections",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fetched_at": {
+          "name": "fetched_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "contract_materials_project_key": {
+          "name": "contract_materials_project_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "city",
+            "district",
+            "project_name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.district_band_stats": {
+      "name": "district_band_stats",
+      "schema": "",
+      "columns": {
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "district": {
+          "name": "district",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "band": {
+          "name": "band",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "median_unit_price": {
+          "name": "median_unit_price",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "samples": {
+          "name": "samples",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "district_band_stats_city_district_band_pk": {
+          "name": "district_band_stats_city_district_band_pk",
+          "columns": [
+            "city",
+            "district",
+            "band"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.district_stats": {
+      "name": "district_stats",
+      "schema": "",
+      "columns": {
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "district": {
+          "name": "district",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "median_unit_price": {
+          "name": "median_unit_price",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "median_rent_ping": {
+          "name": "median_rent_ping",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "est_roi": {
+          "name": "est_roi",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "median_rent_ping_market": {
+          "name": "median_rent_ping_market",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "est_roi_market": {
+          "name": "est_roi_market",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "median_unit_price_resale": {
+          "name": "median_unit_price_resale",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "est_roi_resale": {
+          "name": "est_roi_resale",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "est_roi_resale_market": {
+          "name": "est_roi_resale_market",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resale_count": {
+          "name": "resale_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "presale_premium": {
+          "name": "presale_premium",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "presale_count": {
+          "name": "presale_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "rent_samples": {
+          "name": "rent_samples",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "rent_samples_market": {
+          "name": "rent_samples_market",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "is_demo": {
+          "name": "is_demo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "district_stats_city_district_pk": {
+          "name": "district_stats_city_district_pk",
+          "columns": [
+            "city",
+            "district"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.etl_runs": {
+      "name": "etl_runs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "workflow": {
+          "name": "workflow",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "git_sha": {
+          "name": "git_sha",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metrics": {
+          "name": "metrics",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "idx_etl_runs_status_completed": {
+          "name": "idx_etl_runs_status_completed",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "completed_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.geocode_cache": {
+      "name": "geocode_cache",
+      "schema": "",
+      "columns": {
+        "addr_key": {
+          "name": "addr_key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "lat": {
+          "name": "lat",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lng": {
+          "name": "lng",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "precision": {
+          "name": "precision",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "queried_at": {
+          "name": "queried_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.physical_communities": {
+      "name": "physical_communities",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "district": {
+          "name": "district",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "permit_no": {
+          "name": "permit_no",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "build_year": {
+          "name": "build_year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lat": {
+          "name": "lat",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lng": {
+          "name": "lng",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "idx_physical_communities_district": {
+          "name": "idx_physical_communities_district",
+          "columns": [
+            {
+              "expression": "city",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "district",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.presale_deals": {
+      "name": "presale_deals",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "district": {
+          "name": "district",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_name": {
+          "name": "project_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deal_date": {
+          "name": "deal_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_price": {
+          "name": "total_price",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parking_count": {
+          "name": "parking_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parking_type": {
+          "name": "parking_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parking_price": {
+          "name": "parking_price",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "area_ping": {
+          "name": "area_ping",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parking_area_ping": {
+          "name": "parking_area_ping",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "unit_price": {
+          "name": "unit_price",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rooms": {
+          "name": "rooms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "halls": {
+          "name": "halls",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "baths": {
+          "name": "baths",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "floor_no": {
+          "name": "floor_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_floors": {
+          "name": "total_floors",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_cancelled": {
+          "name": "is_cancelled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "cancel_date": {
+          "name": "cancel_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "unit_id": {
+          "name": "unit_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "raw_season": {
+          "name": "raw_season",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "idx_presale_district": {
+          "name": "idx_presale_district",
+          "columns": [
+            {
+              "expression": "city",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "district",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_presale_project": {
+          "name": "idx_presale_project",
+          "columns": [
+            {
+              "expression": "project_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_presale_project_lookup": {
+          "name": "idx_presale_project_lookup",
+          "columns": [
+            {
+              "expression": "city",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "district",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_presale_season_city": {
+          "name": "idx_presale_season_city",
+          "columns": [
+            {
+              "expression": "raw_season",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "city",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.project_location_candidates": {
+      "name": "project_location_candidates",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "case_id": {
+          "name": "case_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "candidate_kind": {
+          "name": "candidate_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "candidate_value": {
+          "name": "candidate_value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_type": {
+          "name": "source_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_reference": {
+          "name": "source_reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rationale": {
+          "name": "rationale",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "evidence": {
+          "name": "evidence",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "validation": {
+          "name": "validation",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "lat": {
+          "name": "lat",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lng": {
+          "name": "lng",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "precision": {
+          "name": "precision",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reviewed_by": {
+          "name": "reviewed_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "review_note": {
+          "name": "review_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewed_at": {
+          "name": "reviewed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_project_location_candidates_status": {
+          "name": "idx_project_location_candidates_status",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_location_candidates_case_id_project_location_cases_id_fk": {
+          "name": "project_location_candidates_case_id_project_location_cases_id_fk",
+          "tableFrom": "project_location_candidates",
+          "tableTo": "project_location_cases",
+          "columnsFrom": [
+            "case_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "project_location_candidates_value_key": {
+          "name": "project_location_candidates_value_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "case_id",
+            "candidate_kind",
+            "candidate_value"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.project_location_cases": {
+      "name": "project_location_cases",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "district": {
+          "name": "district",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_name": {
+          "name": "project_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "failure_reason": {
+          "name": "failure_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "active_deals": {
+          "name": "active_deals",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "cancelled_deals": {
+          "name": "cancelled_deals",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "raw_addresses": {
+          "name": "raw_addresses",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "last_audited_at": {
+          "name": "last_audited_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_project_location_cases_status": {
+          "name": "idx_project_location_cases_status",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "failure_reason",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "project_location_cases_project_key": {
+          "name": "project_location_cases_project_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "city",
+            "district",
+            "project_name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.projects": {
+      "name": "projects",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "district": {
+          "name": "district",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lat": {
+          "name": "lat",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lng": {
+          "name": "lng",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "median_total": {
+          "name": "median_total",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "median_area": {
+          "name": "median_area",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "unit_price": {
+          "name": "unit_price",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "est_rent": {
+          "name": "est_rent",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "est_roi": {
+          "name": "est_roi",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "est_rent_market": {
+          "name": "est_rent_market",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "est_roi_market": {
+          "name": "est_roi_market",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rent_samples": {
+          "name": "rent_samples",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "rent_samples_market": {
+          "name": "rent_samples_market",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "deal_count": {
+          "name": "deal_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "cancel_count": {
+          "name": "cancel_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "is_demo": {
+          "name": "is_demo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        }
+      },
+      "indexes": {
+        "idx_projects_lng_lat": {
+          "name": "idx_projects_lng_lat",
+          "columns": [
+            {
+              "expression": "lng",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lat",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "projects_name_district_key": {
+          "name": "projects_name_district_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "city",
+            "name",
+            "district"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.rent_benchmarks": {
+      "name": "rent_benchmarks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "period": {
+          "name": "period",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "district": {
+          "name": "district",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rental_type": {
+          "name": "rental_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "age_group": {
+          "name": "age_group",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "samples": {
+          "name": "samples",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "q25": {
+          "name": "q25",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "median": {
+          "name": "median",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "q75": {
+          "name": "q75",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_url": {
+          "name": "source_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_rent_benchmarks_district": {
+          "name": "idx_rent_benchmarks_district",
+          "columns": [
+            {
+              "expression": "city",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "district",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "rent_benchmarks_grain_key": {
+          "name": "rent_benchmarks_grain_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "period",
+            "city",
+            "district",
+            "rental_type",
+            "age_group"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.rent_deals": {
+      "name": "rent_deals",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "district": {
+          "name": "district",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deal_date": {
+          "name": "deal_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "monthly_rent": {
+          "name": "monthly_rent",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "housing_rent": {
+          "name": "housing_rent",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parking_rent": {
+          "name": "parking_rent",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "area_ping": {
+          "name": "area_ping",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parking_area_ping": {
+          "name": "parking_area_ping",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "rent_per_ping": {
+          "name": "rent_per_ping",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "build_year": {
+          "name": "build_year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "building_type": {
+          "name": "building_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rental_type": {
+          "name": "rental_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rooms": {
+          "name": "rooms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "halls": {
+          "name": "halls",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "baths": {
+          "name": "baths",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "floor_no": {
+          "name": "floor_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_floors": {
+          "name": "total_floors",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "service_type": {
+          "name": "service_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_social": {
+          "name": "is_social",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "addr_key": {
+          "name": "addr_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "raw_season": {
+          "name": "raw_season",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "idx_rent_district": {
+          "name": "idx_rent_district",
+          "columns": [
+            {
+              "expression": "city",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "district",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_rent_addr_key": {
+          "name": "idx_rent_addr_key",
+          "columns": [
+            {
+              "expression": "addr_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_rent_season_city": {
+          "name": "idx_rent_season_city",
+          "columns": [
+            {
+              "expression": "raw_season",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "city",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_rent_build_year": {
+          "name": "idx_rent_build_year",
+          "columns": [
+            {
+              "expression": "build_year",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.room_stats": {
+      "name": "room_stats",
+      "schema": "",
+      "columns": {
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "room_band": {
+          "name": "room_band",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "deal_count": {
+          "name": "deal_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "median_unit_price": {
+          "name": "median_unit_price",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "median_total": {
+          "name": "median_total",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "idx_room_stats_band": {
+          "name": "idx_room_stats_band",
+          "columns": [
+            {
+              "expression": "room_band",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "room_stats_pk": {
+          "name": "room_stats_pk",
+          "nullsNotDistinct": false,
+          "columns": [
+            "kind",
+            "key",
+            "room_band"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.sale_deals": {
+      "name": "sale_deals",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "district": {
+          "name": "district",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deal_date": {
+          "name": "deal_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_price": {
+          "name": "total_price",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parking_count": {
+          "name": "parking_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parking_type": {
+          "name": "parking_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parking_price": {
+          "name": "parking_price",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "area_ping": {
+          "name": "area_ping",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parking_area_ping": {
+          "name": "parking_area_ping",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "main_area_ping": {
+          "name": "main_area_ping",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "unit_price": {
+          "name": "unit_price",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "unit_price_main": {
+          "name": "unit_price_main",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "building_type": {
+          "name": "building_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "build_year": {
+          "name": "build_year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "addr_key": {
+          "name": "addr_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rooms": {
+          "name": "rooms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "halls": {
+          "name": "halls",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "baths": {
+          "name": "baths",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "floor_no": {
+          "name": "floor_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_floors": {
+          "name": "total_floors",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "raw_season": {
+          "name": "raw_season",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "idx_sale_district": {
+          "name": "idx_sale_district",
+          "columns": [
+            {
+              "expression": "city",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "district",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_sale_addr_key": {
+          "name": "idx_sale_addr_key",
+          "columns": [
+            {
+              "expression": "addr_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_sale_season_city": {
+          "name": "idx_sale_season_city",
+          "columns": [
+            {
+              "expression": "raw_season",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "city",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.use_permits": {
+      "name": "use_permits",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "license_no": {
+          "name": "license_no",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "permit_no_norm": {
+          "name": "permit_no_norm",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "issue_date": {
+          "name": "issue_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "complete_date": {
+          "name": "complete_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "idx_use_permits_permit": {
+          "name": "idx_use_permits_permit",
+          "columns": [
+            {
+              "expression": "city",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "permit_no_norm",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "use_permits_city_license_key": {
+          "name": "use_permits_city_license_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "city",
+            "license_no"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.zone_band_stats": {
+      "name": "zone_band_stats",
+      "schema": "",
+      "columns": {
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "zone": {
+          "name": "zone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "band": {
+          "name": "band",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "median_unit_price": {
+          "name": "median_unit_price",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "samples": {
+          "name": "samples",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "zone_band_stats_city_zone_band_pk": {
+          "name": "zone_band_stats_city_zone_band_pk",
+          "columns": [
+            "city",
+            "zone",
+            "band"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.zone_stats": {
+      "name": "zone_stats",
+      "schema": "",
+      "columns": {
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "zone": {
+          "name": "zone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "median_rent_ping_market": {
+          "name": "median_rent_ping_market",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rent_samples_market": {
+          "name": "rent_samples_market",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "zone_stats_city_zone_pk": {
+          "name": "zone_stats_city_zone_pk",
+          "columns": [
+            "city",
+            "zone"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

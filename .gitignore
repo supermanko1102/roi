@@ -5,5 +5,13 @@ etl/downloads/
 tsconfig.tsbuildinfo
 .vercel
 .env*
+!project-address-agent/.env.example
+project-address-agent/.venv/
+project-address-agent/.adk/
+project-address-agent/**/.adk/
+project-address-agent/.pytest_cache/
+project-address-agent/.ruff_cache/
+project-address-agent/__pycache__/
+project-address-agent/**/__pycache__/
 tmp/
 tmp-*.log

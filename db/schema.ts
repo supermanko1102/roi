@@ -304,6 +304,54 @@ export const projects = pgTable("projects", {
   index("idx_projects_lng_lat").on(t.lng, t.lat),
 ]);
 
+// 預售建案地址修復 Agent 的案件佇列；只收 audit 與 staging 狀態，不直接作為地圖來源。
+export const project_location_cases = pgTable("project_location_cases", {
+  id: serial("id").primaryKey(),
+  city: text("city").notNull(),
+  district: text("district").notNull(),
+  project_name: text("project_name").notNull(),
+  failure_reason: text("failure_reason").notNull(),
+  status: text("status").notNull().default("open"), // open | researching | staged | published | closed
+  active_deals: integer("active_deals").notNull().default(0),
+  cancelled_deals: integer("cancelled_deals").notNull().default(0),
+  raw_addresses: jsonb("raw_addresses").$type<string[]>().notNull().default([]),
+  last_audited_at: timestamp("last_audited_at", { withTimezone: true }).defaultNow().notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  unique("project_location_cases_project_key").on(t.city, t.district, t.project_name),
+  index("idx_project_location_cases_status").on(t.status, t.failure_reason),
+]);
+
+// Agent 只能寫候選層；獨立 runner 通過官方證據、NLSC、行政區與唯一座標群閘門後才可自動發布。
+export const project_location_candidates = pgTable("project_location_candidates", {
+  id: serial("id").primaryKey(),
+  case_id: integer("case_id").notNull()
+    .references(() => project_location_cases.id, { onDelete: "cascade" }),
+  candidate_kind: text("candidate_kind").notNull(), // door | cross | lot
+  candidate_value: text("candidate_value").notNull(),
+  source_type: text("source_type").notNull(),
+  source_reference: text("source_reference").notNull(),
+  rationale: text("rationale"),
+  evidence: jsonb("evidence").$type<Record<string, unknown>>().notNull().default({}),
+  validation: jsonb("validation").$type<Record<string, unknown>>().notNull().default({}),
+  lat: money("lat"),
+  lng: money("lng"),
+  precision: text("precision"),
+  status: text("status").notNull(), // validated | needs_review | rejected | approved | published
+  reviewed_by: text("reviewed_by"),
+  review_note: text("review_note"),
+  reviewed_at: timestamp("reviewed_at", { withTimezone: true }),
+  published_at: timestamp("published_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  unique("project_location_candidates_value_key").on(
+    t.case_id, t.candidate_kind, t.candidate_value,
+  ),
+  index("idx_project_location_candidates_status").on(t.status),
+]);
+
 // 使用執照(雙北開放資料;etl/import-use-permits.ts 逐市重建)
 // 屋齡判定順序:使照發照日 > 備查第1次登記(桃園無使照資料,維持備查推算)
 export const use_permits = pgTable("use_permits", {
