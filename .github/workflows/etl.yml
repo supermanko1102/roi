@@ -2,8 +2,9 @@ name: ETL 實價登錄
 
 on:
   schedule:
-    # 內政部每月 1、11、21 日發布新批次;UTC 20:00 = 台灣時間隔天(2、12、22 日)凌晨 4 點
-    - cron: "0 20 1,11,21 * *"
+    # 每天台灣時間凌晨 4 點跑:MOI 每旬(1/11/21)才發布,但常遲發;
+    # parse 的 isStaleBatch 防重 + run-all 短路讓空跑只花幾分鐘,遲發批次當天即補
+    - cron: "0 20 * * *"
   workflow_dispatch: # 手動補跑用
     inputs:
       seasons:

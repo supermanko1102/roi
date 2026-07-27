@@ -22,24 +22,29 @@ async function insertBatched<T>(insert: (chunk: T[]) => Promise<unknown>, rows: 
 }
 
 /**
- * MOI 滾動檔偶爾逾期未更新(如 7/21 批遲發時檔案仍是 7/11 那份),同一份內容
- * 會被貼上新旬標籤重複入庫。以本批預售列指紋(城市/區/建案/日期/總價/棟號)
- * 對同季「其他批次」做覆蓋檢查:全部已存在即為過期檔案,呼叫端應跳過整包目錄。
+ * 批次防重:內容已完整存在於 DB 時跳過整包目錄,讓每日 cron 的空跑提前收工。
+ *  - 旬檔:MOI 滾動檔偶爾逾期未更新(如 7/21 批遲發時檔案仍是 7/11 那份),
+ *    同一份內容會被貼上新旬標籤重複入庫
+ *  - 季度打包檔:每次 cron 都會重抓上一季,內容沒變就不必整季重灌
+ * 以本批預售列指紋(城市/區/建案/日期/總價/棟號/解約旗標)對「同季所有既有列
+ * (含自己)」做覆蓋檢查;解約旗標入指紋,確保解約狀態更新會觸發重灌。
  * 預售列是整包 zip 的金絲雀——真正的新批次必然含有新的預售登錄。
+ * 注意:fix-names 改過名的建案,其 CSV 原始名與 DB 不同會判為未覆蓋 → 重灌,
+ * 屬預期行為(管線後續的 fix-names 會再歸併),只是那天的 cron 不會短路。
  */
 export async function isStaleBatch(
   pool: ReturnType<typeof createDb>["pool"], season: string, dir: string,
 ): Promise<boolean> {
-  if (!season.includes("#")) return false;
   const cityArr: string[] = [], distArr: string[] = [], projArr: string[] = [],
-    dateArr: (string | null)[] = [], totalArr: number[] = [], unitArr: string[] = [];
+    dateArr: (string | null)[] = [], totalArr: number[] = [], unitArr: string[] = [],
+    cancelArr: boolean[] = [];
   for (const city of CITIES) {
     const bFile = path.join(dir, `${city.code}_lvr_land_b.csv`);
     if (!fs.existsSync(bFile)) continue;
     const [h, ...rows] = readCsv(bFile);
     const iDist = col(h, "鄉鎮市區"), iDate = col(h, "交易年月日");
     const iArea = col(h, "建物移轉總面積"), iTotal = col(h, "總價元");
-    const iProj = col(h, "建案名稱"), iUnit = col(h, "棟及號");
+    const iProj = col(h, "建案名稱"), iUnit = col(h, "棟及號"), iCancel = col(h, "解約情形");
     for (const r of rows) {
       // 與正式入庫相同的過濾條件,否則被略過的列會永遠「未覆蓋」
       const total = num(r[iTotal]), areaPing = num(r[iArea]) ? num(r[iArea])! / PING : null;
@@ -49,22 +54,28 @@ export async function isStaleBatch(
       dateArr.push(rocDate(r[iDate]));
       totalArr.push(total / 10000);
       unitArr.push(iUnit >= 0 ? r[iUnit] ?? "" : "");
+      cancelArr.push(iCancel >= 0 ? (r[iCancel] ?? "").includes("解約") : false);
     }
   }
   if (!cityArr.length) return false;
   const { rows: [{ uncovered }] } = await pool.query(`
     SELECT count(*)::int AS uncovered
-    FROM unnest($1::text[], $2::text[], $3::text[], $4::date[], $5::numeric[], $6::text[])
-      AS t(city, district, proj, dd, tp, uid)
+    FROM unnest($1::text[], $2::text[], $3::text[], $4::date[], $5::numeric[], $6::text[], $7::boolean[])
+      AS t(city, district, proj, dd, tp, uid, cx)
     WHERE NOT EXISTS (
       SELECT 1 FROM presale_deals p
-      WHERE p.raw_season LIKE $7 AND p.raw_season <> $8
+      WHERE p.raw_season LIKE $8
         AND p.city = t.city AND p.district = t.district
-        AND coalesce(p.project_name, '') = t.proj
+        -- CSV 的 ? 亂碼名可能已被 fix-names 歸併成乾淨名:比對時把 ? 當單字元萬用,
+        -- 否則改過名的季別永遠判為未覆蓋、每日 cron 白灌整季
+        AND (coalesce(p.project_name, '') = t.proj
+             OR (t.proj LIKE '%?%' AND coalesce(p.project_name, '') LIKE
+                 replace(replace(replace(t.proj, '\\', '\\\\'), '_', '\\_'), '?', '_') ESCAPE '\\'))
         AND p.deal_date IS NOT DISTINCT FROM t.dd
         AND p.total_price = t.tp AND coalesce(p.unit_id, '') = t.uid
+        AND coalesce(p.is_cancelled, false) = t.cx
     )
-  `, [cityArr, distArr, projArr, dateArr, totalArr, unitArr, season.split("#")[0] + "%", season]);
+  `, [cityArr, distArr, projArr, dateArr, totalArr, unitArr, cancelArr, season.split("#")[0] + "%"]);
   return uncovered === 0;
 }
 

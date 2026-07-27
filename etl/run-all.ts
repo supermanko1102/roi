@@ -43,6 +43,14 @@ async function main() {
   try {
     for (const step of STEPS) {
       const output = await runScript(step);
+      // 每日 cron 空跑短路:parse 把所有批次都判為重複(MOI 未更新)且沒有任何
+      // 城市入庫時,後續統計/定位/歸戶全是無效重算,直接提前收工
+      if (step === "etl:parse"
+          && /內容與同季既有批次完全重複/.test(output)
+          && !/(買賣|預售|租賃) \d+ 筆/.test(output)) {
+        console.log("[etl-run] 無新資料(MOI 尚未更新),提前收工");
+        break;
+      }
       if (step === "etl:geocode-projects") {
         const match = output.match(/fallback=(\d+)/g)?.at(-1)?.match(/\d+/);
         if (match) fallbackHits = Number(match[0]);
