@@ -5,12 +5,19 @@ import {
   collectQualityMetrics, evaluateQuality, latestSuccessfulMetrics, writeActionsSummary,
 } from "./quality-check";
 
-const STEPS = [
+const ALL_STEPS = [
   "etl:download", "etl:parse", "etl:fix-names", "etl:geocode", "etl:stats", "etl:use-permits",
   "etl:communities", "etl:geocode-projects", "etl:geocode-lots", "etl:match-leju", "etl:presale-doors",
   "etl:repair-projects", "etl:zone-bands",
   "etl:rent-benchmarks", "etl:zone-rents",
 ];
+
+// ETL_STEPS=etl:a,etl:b 只跑指定步驟(手動回填用;非發布日全跑會被 parse 短路擋掉)。
+// 只接受白名單內的步驟名,依 ALL_STEPS 原順序執行。
+const requested = (process.env.ETL_STEPS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+const unknown = requested.filter((s) => !ALL_STEPS.includes(s));
+if (unknown.length) throw new Error(`未知步驟:${unknown.join(", ")}`);
+const STEPS = requested.length ? ALL_STEPS.filter((s) => requested.includes(s)) : ALL_STEPS;
 
 function runScript(name: string): Promise<string> {
   console.log(`\n[etl-run] ${name}`);
