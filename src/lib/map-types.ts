@@ -29,13 +29,15 @@ export type PresaleProps = {
 export type PresaleFeature = Feature<Point, PresaleProps>;
 export type PresaleFC = FeatureCollection<Point, PresaleProps>;
 
-/** 租賃棟級點位屬性(/api/rentals) */
+/** 租賃社區/棟級點位屬性(/api/rentals):可歸戶者聚成社區點,其餘為門牌點 */
 export type RentalProps = {
-  key: string;                    // addr_key,建議清單/開啟點位用
-  name: string | null;            // 配對到備查建案才有
+  key: string;                    // 社區點="c"+community_id、門牌點=addr_key;社宅點加 "|s" 尾碼
+  name: string | null;            // 歸戶到社區才有
   city: string;
   district: string;
-  address: string;                // 棟級門牌(不含樓層室號)
+  address: string;                // 棟級門牌(社區點為代表門牌;不含樓層室號)
+  doors: number;                  // 聚合的門牌數(門牌點=1)
+  is_social: boolean;             // 社宅包租代管件;獨立聚合、不列入行情統計
   building_type: string;
   build_year: number;
   age: number;

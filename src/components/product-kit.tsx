@@ -46,6 +46,8 @@ export type RentalSummary = {
   rentPerPing: number;
   deals: number;
   lastDeal: string | null;
+  doors: number;
+  isSocial: boolean;
 };
 
 export function summaryFromFeature(f: PresaleFeature): ProjectSummary {
@@ -85,6 +87,8 @@ export function rentalSummaryFromFeature(f: RentalFeature): RentalSummary {
     rentPerPing: +p.rent_per_ping,
     deals: +p.deal_count,
     lastDeal: p.last_deal ?? null,
+    doors: +(p.doors ?? 1),
+    isSocial: p.is_social === true,
   };
 }
 

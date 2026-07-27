@@ -18,7 +18,7 @@ export default function MapLegend({ market, rooms, nearMetro, nearIC, detail, sh
       <div className={noteCls}>
         {[
           "行政區僅顯示邊界，不依房價著色",
-          market === "rental" ? "棕色「租」＝屋齡 1–10 年、非社宅租賃實登" : null,
+          market === "rental" ? "棕「租」＝市場租賃(屋齡 1–10 年,同社區歸戶)・綠「社」＝社宅包租代管(不列入行情)" : null,
           market === "presale" && rooms !== "all" ? `只計 ${ROOM_LABEL[rooms]} 的成交` : null,
           market === "presale" && nearMetro ? "只顯示步行 10 分內有站的建案" : null,
           market === "presale" && nearIC ? "只顯示 2 公里內有交流道的建案" : null,

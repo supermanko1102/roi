@@ -86,7 +86,7 @@ export function buildSuggestions(opts: {
       .map((f) => ({
         kind: "rental" as const, key: f.properties.key,
         label: f.properties.name ?? f.properties.address,
-        sub: `${cityTag(f.properties.city)}${f.properties.district}`,
+        sub: `${cityTag(f.properties.city)}${f.properties.district}${f.properties.is_social ? "・社宅" : ""}`,
       }));
   }
   // 全量索引(含無座標案)優先;索引還沒載好時退回地圖 catalog

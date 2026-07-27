@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Map, { Source, Layer, Marker, Popup, MapRef } from "react-map-gl/maplibre";
 import ProjectDrawer from "./ProjectDrawer";
+import RentalDrawer from "./RentalDrawer";
 import MapLegend from "./MapLegend";
 import MobileExplorer from "./MobileExplorer";
 import {
@@ -41,10 +42,11 @@ type PresalePopupData = {
 };
 
 type RentalPopupData = {
-  lng: number; lat: number; name: string | null; district: string; address: string;
+  lng: number; lat: number; key: string; name: string | null; district: string; address: string;
   building_type: string; build_year: number; age: number; monthly_rent: number;
   housing_rent: number; parking_rent: number | null;
   area_ping: number; rent_per_ping: number; deal_count: number; last_deal: string | null;
+  doors: number; is_social: boolean;
 };
 
 // CARTO Positron 淺色底圖:極簡資料視覺化風格,CDN 快(NLSC 官方圖磚較慢且視覺雜訊多)
@@ -104,6 +106,7 @@ export default function PropertyMap() {
   const [catalog, setCatalog] = useState<PresaleFC | null>(null);
   const [projectIndex, setProjectIndex] = useState<ProjectIndexEntry[] | null>(null);
   const [drawerProj, setDrawerProj] = useState<{ city: string; district: string; name: string } | null>(null);
+  const [rentalDrawerKey, setRentalDrawerKey] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [exploreOpen, setExploreOpen] = useState(false);
@@ -148,6 +151,9 @@ export default function PropertyMap() {
       if (Array.isArray(local)) setSaved(local.slice(0, 3).map((p: any) =>
         p.city ? p : { ...p, city: "桃園市", key: `桃園市|${p.district}|${p.name}` }));
     } catch { /* 忽略損壞的本機偏好 */ }
+    // 深連結:?rentkey=社區/門牌鍵 直接開租賃抽屜(可分享)
+    const rk = qs.get("rentkey");
+    if (initialMarket === "rental" && rk) setRentalDrawerKey(rk);
     // 深連結:?proj=城市|區|建案名 直接開抽屜(可分享);舊網址只有 區|建案名 → 桃園市
     const pj = qs.get("proj");
     if (initialMarket === "presale" && pj && pj.includes("|")) {
@@ -194,6 +200,16 @@ export default function PropertyMap() {
   function closeProjDrawer() {
     setDrawerProj(null);
     syncUrl({ proj: null });
+  }
+  // 租賃抽屜以地圖點 key(去掉社宅 |s 尾碼)為鍵;明細 API 一次回傳市場+社宅
+  function openRentalDrawer(key: string) {
+    const k = key.replace(/\|s$/, "");
+    setRentalDrawerKey(k); setRentalPopup(null);
+    syncUrl({ rentkey: k });
+  }
+  function closeRentalDrawer() {
+    setRentalDrawerKey(null);
+    syncUrl({ rentkey: null });
   }
 
   async function loadCatalog(room: RoomFilter) {
@@ -248,6 +264,13 @@ export default function PropertyMap() {
   const projectSummaries = useMemo(() => (visibleCatalog?.features ?? [])
     .map(summaryFromFeature)
     .sort((a, b) => a.name.localeCompare(b.name, "zh-Hant")), [visibleCatalog]);
+  // 市場件與社宅件分成兩個 Source:各自 cluster、各自配色,社宅不混進市場行情視覺
+  const marketRentals = useMemo(() => rentals && ({
+    ...rentals, features: rentals.features.filter((f) => !f.properties.is_social),
+  }), [rentals]);
+  const socialRentals = useMemo(() => rentals && ({
+    ...rentals, features: rentals.features.filter((f) => f.properties.is_social),
+  }), [rentals]);
   const rentalSummaries = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("zh-Hant");
     return (rentals?.features ?? [])
@@ -397,14 +420,17 @@ export default function PropertyMap() {
   function openRental(f: any) {
     const p = f.properties as RentalProps, [lng, lat] = f.geometry.coordinates;
     setPresalePopup(null);
+    // 抽屜開著時點別的租賃點直接切換內容,與預售「掃描→查看→再掃描」同節奏
+    if (rentalDrawerKey) { openRentalDrawer(p.key); return; }
     setRentalPopup({
-      lng, lat, name: p.name ?? null, district: p.district, address: p.address,
+      lng, lat, key: p.key, name: p.name ?? null, district: p.district, address: p.address,
       building_type: p.building_type, build_year: +p.build_year, age: +p.age,
       monthly_rent: +p.monthly_rent, area_ping: +p.area_ping,
       housing_rent: +(p.housing_rent ?? p.monthly_rent),
       parking_rent: p.parking_rent == null ? null : +p.parking_rent,
       rent_per_ping: +p.rent_per_ping, deal_count: +p.deal_count,
       last_deal: p.last_deal ?? null,
+      doors: +(p.doors ?? 1), is_social: p.is_social === true,
     });
   }
 
@@ -418,10 +444,11 @@ export default function PropertyMap() {
   function openRentalSummary(r: RentalSummary) {
     mapRef.current?.flyTo({ center: [r.lng, r.lat], zoom: PROJECT_ZOOM, duration: 650 });
     setRentalPopup({
-      lng: r.lng, lat: r.lat, name: r.name, district: r.district, address: r.address,
+      lng: r.lng, lat: r.lat, key: r.key, name: r.name, district: r.district, address: r.address,
       building_type: r.buildingType, build_year: new Date().getFullYear() - r.age, age: r.age,
       monthly_rent: r.monthlyRent, housing_rent: r.housingRent, parking_rent: r.parkingRent,
       area_ping: r.area, rent_per_ping: r.rentPerPing, deal_count: r.deals, last_deal: r.lastDeal,
+      doors: r.doors, is_social: r.isSocial,
     });
   }
 
@@ -433,6 +460,7 @@ export default function PropertyMap() {
     setPresalePopup(null);
     setRentalPopup(null);
     if (next === "rental") closeProjDrawer();
+    if (next === "presale") closeRentalDrawer();
     if (next === "presale") {
       const map = mapRef.current?.getMap();
       if (map && map.getZoom() >= DETAIL_ZOOM) {
@@ -546,15 +574,19 @@ export default function PropertyMap() {
               ? z >= POINT_ZOOM ? ["pt-cluster", "pt-pill"]
                 : z >= DETAIL_ZOOM ? ["zone-fill"] : ["district-fill"]
               : z < DETAIL_ZOOM ? ["district-fill"] : []),
-            ...(market === "rental" ? ["rent-cluster", "rent-point", "rent-symbol", "rent-label"] : []),
+            ...(market === "rental" ? [
+              "rent-cluster", "rent-point", "rent-symbol", "rent-label",
+              "rent-social-cluster", "rent-social-point", "rent-social-symbol", "rent-social-label",
+            ] : []),
           ].filter((l) => map.getLayer(l));
           const f = clickable.length ? map.queryRenderedFeatures(e.point, { layers: clickable })[0] : undefined;
           if (!f) return;
-          if (market === "rental" && f.layer.id === "rent-cluster") {
-            const src: any = mapRef.current?.getSource("rentals");
+          if (market === "rental" && ["rent-cluster", "rent-social-cluster"].includes(f.layer.id)) {
+            const src: any = mapRef.current?.getSource(
+              f.layer.id === "rent-social-cluster" ? "rentals-social" : "rentals");
             src?.getClusterExpansionZoom(f.properties!.cluster_id).then((z: number) =>
               mapRef.current?.easeTo({ center: (f.geometry as any).coordinates, zoom: z + 0.4, duration: 500 }));
-          } else if (market === "rental" && ["rent-point", "rent-symbol", "rent-label"].includes(f.layer.id)) {
+          } else if (market === "rental" && f.layer.id.startsWith("rent-")) {
             openRental(f);
           } else if (market === "presale" && f.layer.id === "pt-cluster") {
             // 點 cluster → 展開放大
@@ -576,7 +608,10 @@ export default function PropertyMap() {
             ? pointsVisible ? ["pt-cluster", "pt-pill"]
               : zoneLevel ? ["zone-fill"] : ["district-fill"]
             : !detail ? ["district-fill"] : []),
-          ...(market === "rental" ? ["rent-cluster", "rent-point", "rent-symbol", "rent-label"] : []),
+          ...(market === "rental" ? [
+            "rent-cluster", "rent-point", "rent-symbol", "rent-label",
+            "rent-social-cluster", "rent-social-point", "rent-social-symbol", "rent-social-label",
+          ] : []),
         ]}
       >
         {districts && (
@@ -626,8 +661,8 @@ export default function PropertyMap() {
           </Source>
         )}
 
-        {market === "rental" && rentals && (
-          <Source id="rentals" type="geojson" data={rentals} cluster clusterMaxZoom={14} clusterRadius={44}>
+        {market === "rental" && marketRentals && (
+          <Source id="rentals" type="geojson" data={marketRentals} cluster clusterMaxZoom={14} clusterRadius={44}>
             <Layer id="rent-cluster" type="circle" filter={["has", "point_count"]}
               paint={{
                 "circle-color": "#8a6234", "circle-opacity": 0.9,
@@ -651,6 +686,35 @@ export default function PropertyMap() {
                 "text-offset": [0, 1.55], "text-anchor": "top", "text-optional": true,
               }}
               paint={{ "text-color": "#6c4b27", "text-halo-color": "#fff", "text-halo-width": 1.7 }} />
+          </Source>
+        )}
+
+        {/* 社宅包租代管件:綠色「社」獨立圖層;僅供參考,租金非市場行情 */}
+        {market === "rental" && socialRentals && (
+          <Source id="rentals-social" type="geojson" data={socialRentals} cluster clusterMaxZoom={14} clusterRadius={44}>
+            <Layer id="rent-social-cluster" type="circle" filter={["has", "point_count"]}
+              paint={{
+                "circle-color": "#2f7d68", "circle-opacity": 0.9,
+                "circle-radius": ["step", ["get", "point_count"], 15, 20, 20, 80, 26],
+                "circle-stroke-width": 2, "circle-stroke-color": "#fff",
+              }} />
+            <Layer id="rent-social-cluster-count" type="symbol" filter={["has", "point_count"]}
+              layout={{ "text-field": ["get", "point_count_abbreviated"], "text-size": 12.5 }}
+              paint={{ "text-color": "#fff" }} />
+            <Layer id="rent-social-point" type="circle" filter={["!", ["has", "point_count"]]}
+              paint={{
+                "circle-color": "#f0faf5", "circle-radius": 11,
+                "circle-stroke-color": "#2f7d68", "circle-stroke-width": 2.5,
+              }} />
+            <Layer id="rent-social-symbol" type="symbol" filter={["!", ["has", "point_count"]]}
+              layout={{ "text-field": "社", "text-size": 10.5, "text-allow-overlap": true }}
+              paint={{ "text-color": "#1f5c4b" }} />
+            <Layer id="rent-social-label" type="symbol" minzoom={15} filter={["!", ["has", "point_count"]]}
+              layout={{
+                "text-field": ["get", "rent_label"], "text-size": 11,
+                "text-offset": [0, 1.55], "text-anchor": "top", "text-optional": true,
+              }}
+              paint={{ "text-color": "#1f5c4b", "text-halo-color": "#fff", "text-halo-width": 1.7 }} />
           </Source>
         )}
 
@@ -856,9 +920,13 @@ export default function PropertyMap() {
           <Popup longitude={rentalPopup.lng} latitude={rentalPopup.lat} anchor="bottom"
             onClose={() => setRentalPopup(null)} closeButton maxWidth="300px" offset={16}>
             <div className="popup-card rental-popup">
-              <div className="rental-kicker">租賃實價登錄・屋齡 {rentalPopup.age} 年</div>
+              <div className="rental-kicker">
+                {rentalPopup.is_social ? "社會住宅包租代管" : "租賃實價登錄"}・屋齡 {rentalPopup.age} 年
+              </div>
               <h3>{rentalPopup.name ?? `${rentalPopup.building_type}出租住宅`}</h3>
-              <div className="rental-address">{rentalPopup.address}</div>
+              <div className="rental-address">
+                {rentalPopup.address}{rentalPopup.doors > 1 ? `(社區共 ${rentalPopup.doors} 個門牌)` : ""}
+              </div>
               <div className="rental-price">
                 <b className="num">{rentalPopup.monthly_rent.toLocaleString()}</b><span>元／月</span>
               </div>
@@ -869,7 +937,14 @@ export default function PropertyMap() {
                 <div><dt>實登樣本</dt><dd className="num">{rentalPopup.deal_count} 筆</dd></div>
                 <div><dt>最近租約</dt><dd className="num">{rentalPopup.last_deal ?? "—"}</dd></div>
               </dl>
-              <div className="rental-trust">同門牌租約中位數・排除社宅案件・不代表目前仍在招租</div>
+              <div className="rental-trust">
+                {rentalPopup.is_social
+                  ? "社宅包租代管件中位數・租金非市場行情,不列入行情統計"
+                  : `同${rentalPopup.doors > 1 ? "社區" : "門牌"}租約中位數・社宅另計不列入・不代表目前仍在招租`}
+              </div>
+              <button className="detailbtn" onClick={() => openRentalDrawer(rentalPopup.key)}>
+                查看歷史租約明細 →
+              </button>
             </div>
           </Popup>
         )}
@@ -915,6 +990,10 @@ export default function PropertyMap() {
 
       <ComparePanel open={market === "presale" && compareOpen} saved={saved} onClose={() => setCompareOpen(false)}
         onRemove={toggleSaved} onOpen={openSummary} />
+
+      {rentalDrawerKey && <RentalDrawer rentalKey={rentalDrawerKey}
+        onClose={closeRentalDrawer}
+        onOpenProject={(pj) => { closeRentalDrawer(); openProjDrawer(pj.city, pj.district, pj.name); }} />}
 
       {drawerProj && <ProjectDrawer city={drawerProj.city} district={drawerProj.district} name={drawerProj.name}
         onClose={closeProjDrawer}

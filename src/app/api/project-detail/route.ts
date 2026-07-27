@@ -150,20 +150,32 @@ export async function GET(req: NextRequest) {
     unitDoors = [...merged.values()];
   }
 
-  // 本社區出租行情:與轉售同一條歸戶管線(communities → building_community → rent_deals)
+  // 本社區出租行情與租約明細:與轉售同一條歸戶管線(communities → building_community → rent_deals)。
+  // 欄位對齊 drawer-kit 的 RLease,前端直接餵 LeaseTable;中位數也由前端以市場件計算。
   let rents: {
-    deal_date: string | null; monthly_rent: number | null; rent_per_ping: number | null;
-    area_ping: number | null; rooms: number | null; rental_type: string | null; is_social: boolean | null;
+    deal_date: string | null; addr: string | null;
+    floor_no: number | null; total_floors: number | null;
+    area_ping: number | null; rooms: number | null; halls: number | null;
+    rental_type: string | null; building_type: string | null; build_year: number | null;
+    monthly_rent: number | null; housing_rent: number | null;
+    parking_rent: number | null; rent_per_ping: number | null;
+    is_social: boolean | null;
   }[] = [];
   if (caseNos.length) {
-    rents = await db.select({
-      deal_date: rent_deals.deal_date, monthly_rent: rent_deals.monthly_rent,
-      rent_per_ping: rent_deals.rent_per_ping, area_ping: rent_deals.area_ping,
-      rooms: rent_deals.rooms, rental_type: rent_deals.rental_type, is_social: rent_deals.is_social,
+    const rentRows = await db.selectDistinct({
+      deal_date: rent_deals.deal_date, addr_key: rent_deals.addr_key,
+      floor_no: rent_deals.floor_no, total_floors: rent_deals.total_floors,
+      area_ping: rent_deals.area_ping, rooms: rent_deals.rooms, halls: rent_deals.halls,
+      rental_type: rent_deals.rental_type, building_type: rent_deals.building_type,
+      build_year: rent_deals.build_year,
+      monthly_rent: rent_deals.monthly_rent, housing_rent: rent_deals.housing_rent,
+      parking_rent: rent_deals.parking_rent, rent_per_ping: rent_deals.rent_per_ping,
+      is_social: rent_deals.is_social,
     }).from(rent_deals)
       .innerJoin(building_community, eq(building_community.addr_key, rent_deals.addr_key))
       .where(inArray(building_community.case_no, caseNos))
-      .orderBy(desc(rent_deals.deal_date)).limit(200);
+      .orderBy(desc(rent_deals.deal_date)).limit(400);
+    rents = rentRows.map(({ addr_key, ...r }) => ({ ...r, addr: stripAddr(addr_key) }));
   }
 
   return NextResponse.json({

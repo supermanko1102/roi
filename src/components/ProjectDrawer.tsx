@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { fmtP } from "./drawer-kit";
+import { dealsTh, Fact, fmtP, LeaseTable, median, shortRocDate, type RLease } from "./drawer-kit";
 import BuildingGrid, { parseStack } from "./BuildingGrid";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,13 +32,8 @@ type PDetail = {
   deals: PDeal[];
   resales: Resale[];
   unit_doors?: UnitDoor[];
-  rents?: RentRow[];
+  rents?: RLease[];
   materials: { sections: { title: string; body: string }[]; pdf_url: string | null } | null;
-};
-
-type RentRow = {
-  deal_date: string | null; monthly_rent: number | null; rent_per_ping: number | null;
-  area_ping: number | null; rooms: number | null; rental_type: string | null; is_social: boolean | null;
 };
 
 type Resale = {
@@ -51,25 +46,11 @@ type Resale = {
 
 type UnitDoor = { unit_id: string | null; addr: string | null; n: number };
 
-const median = (xs: number[]) => {
-  if (!xs.length) return null;
-  const s = [...xs].sort((a, b) => a - b);
-  return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
-};
-
-const dealsTh = "border-b border-line px-1.5 py-[5px] text-left text-[9.5px] font-bold text-ink-soft";
-
 function unitLabel(unitId: string | null): string {
   const parsed = parseStack(unitId);
   if (!parsed) return unitId || "戶別未登錄";
   return [parsed.building || null, parsed.stack ? `${parsed.stack}戶` : null]
     .filter(Boolean).join("・") || unitId || "戶別未登錄";
-}
-
-function shortRocDate(iso: string | null): string {
-  if (!iso) return "—";
-  const [year, month, day] = iso.split("-");
-  return `${Number(year) - 1911}/${month}/${day}`;
 }
 
 function ListParking({ deal }: { deal: PDeal }) {
@@ -98,15 +79,6 @@ function ListParking({ deal }: { deal: PDeal }) {
     <span className="inline-block rounded-full border border-dashed border-[#b8c2bd] px-1.5 py-0.5 text-[8.5px] font-bold text-ink-soft">
       未登錄
     </span>
-  );
-}
-
-function Fact({ label, value }: { label: string; value: string | number | null | undefined }) {
-  return (
-    <div className="min-w-0 rounded-[10px] border border-[#e4e8e5] bg-white p-2.5">
-      <span className="mb-1 block text-[9px] text-ink-soft">{label}</span>
-      <b className="num block text-[11px] font-bold wrap-anywhere">{value == null || value === "" ? "—" : value}</b>
-    </div>
   );
 }
 
@@ -203,9 +175,12 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
     })),
   ].sort((a, b) => +new Date(b.deal_date ?? 0) - +new Date(a.deal_date ?? 0)), [active, resales]);
 
-  // 本社區出租行情(排除社宅包租代管,以免拉低市場價)
+  // 本社區出租行情(排除社宅包租代管,以免拉低市場價;社宅件在租約區塊折疊另列)
   const marketRents = useMemo(
     () => (detail?.rents ?? []).filter((r) => r.is_social !== true),
+    [detail]);
+  const socialRents = useMemo(
+    () => (detail?.rents ?? []).filter((r) => r.is_social === true),
     [detail]);
   const rentMedian = useMemo(
     () => median(marketRents.map((r) => r.rent_per_ping).filter((v): v is number => v != null).map(Number)),
@@ -378,6 +353,31 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
               </>
             )}
           </section>
+
+          {(marketRents.length > 0 || socialRents.length > 0) && (
+            <section className="mt-[21px]">
+              <div className="flex items-baseline gap-2.5 text-[13.5px] font-extrabold">本社區租約
+                <span className="num text-[12.5px] text-teal">{marketRents.length} 筆</span>
+                {rentMedian != null && (
+                  <span className="num text-[9.5px] font-bold text-ink-soft">
+                    每坪月租中位 {Math.round(rentMedian).toLocaleString()} 元
+                  </span>
+                )}
+              </div>
+              {marketRents.length > 0 && <LeaseTable rows={marketRents} cap={40} />}
+              {socialRents.length > 0 && (
+                <details className="mt-2">
+                  <summary className="py-1.5 text-[11px] font-extrabold text-[#2f7d68]">
+                    社會住宅包租代管紀錄（{socialRents.length} 筆）
+                  </summary>
+                  <div className="mb-1 text-[9.5px] leading-normal text-ink-soft">
+                    社宅包租代管租金有政策折價，非市場行情，未計入出租中位數與各級行情統計。
+                  </div>
+                  <LeaseTable rows={socialRents} cap={20} />
+                </details>
+              )}
+            </section>
+          )}
 
           {cancelled.length > 0 && (
             <details className="mt-[18px] border-t border-line">
