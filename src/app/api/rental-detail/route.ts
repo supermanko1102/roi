@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db, building_community, communities, physical_communities, projects, rent_deals } from "@/lib/db";
 import { MIN_RENT_BUILDING_AGE, MAX_RENT_BUILDING_AGE } from "@/lib/rent";
 import { cityPrefixRe } from "@/lib/cities";
@@ -24,11 +24,33 @@ export async function GET(req: NextRequest) {
     sql`${rent_deals.rent_per_ping} BETWEEN 150 AND 5000`,
   );
 
+  // 三種鍵:社區 "n|城市|區|建案名"(地圖現行)、舊制 "c<community_id>"(相容舊分享網址)、門牌 addr_key
+  const nameMatch = /^n\|([^|]+)\|([^|]+)\|(.+)$/.exec(key!);
   const communityMatch = /^c(\d{1,10})$/.exec(key!);
   let addrKeys: string[];
   let caseNos: string[] = [];
   let name: string | null = null;
-  if (communityMatch) {
+  if (nameMatch) {
+    const [, keyCity, keyDistrict, keyName] = nameMatch;
+    name = keyName;
+    // 同名備查案(分期)與同名實體社區的門牌都收進來,與地圖聚合口徑一致
+    const cases = await db.select({ case_no: communities.case_no }).from(communities)
+      .where(and(eq(communities.city, keyCity), eq(communities.district, keyDistrict), eq(communities.name, keyName)));
+    const pcs = await db.select({ id: physical_communities.id }).from(physical_communities)
+      .where(and(eq(physical_communities.city, keyCity), eq(physical_communities.district, keyDistrict), eq(physical_communities.name, keyName)));
+    caseNos = cases.map((r) => r.case_no);
+    const filters = [
+      caseNos.length ? inArray(building_community.case_no, caseNos) : null,
+      pcs.length ? inArray(building_community.community_id, pcs.map((r) => r.id)) : null,
+    ].filter((f) => f != null);
+    if (!filters.length) return NextResponse.json({ error: "not found" }, { status: 404 });
+    const members = await db.select({
+      addr_key: building_community.addr_key, case_no: building_community.case_no,
+    }).from(building_community).where(filters.length === 1 ? filters[0] : or(...filters));
+    if (!members.length) return NextResponse.json({ error: "not found" }, { status: 404 });
+    addrKeys = [...new Set(members.map((m) => m.addr_key))];
+    caseNos = [...new Set(members.map((m) => m.case_no))];
+  } else if (communityMatch) {
     const communityId = Number(communityMatch[1]);
     const members = await db.select({
       addr_key: building_community.addr_key, case_no: building_community.case_no,

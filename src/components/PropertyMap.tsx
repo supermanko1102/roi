@@ -46,7 +46,7 @@ type RentalPopupData = {
   building_type: string; build_year: number; age: number; monthly_rent: number;
   housing_rent: number; parking_rent: number | null;
   area_ping: number; rent_per_ping: number; deal_count: number; last_deal: string | null;
-  doors: number; is_social: boolean;
+  doors: number; is_social: boolean; social_count: number;
 };
 
 // CARTO Positron 淺色底圖:極簡資料視覺化風格,CDN 快(NLSC 官方圖磚較慢且視覺雜訊多)
@@ -201,11 +201,10 @@ export default function PropertyMap() {
     setDrawerProj(null);
     syncUrl({ proj: null });
   }
-  // 租賃抽屜以地圖點 key(去掉社宅 |s 尾碼)為鍵;明細 API 一次回傳市場+社宅
+  // 租賃抽屜以地圖點 key 為鍵;明細 API 一次回傳市場+社宅
   function openRentalDrawer(key: string) {
-    const k = key.replace(/\|s$/, "");
-    setRentalDrawerKey(k); setRentalPopup(null);
-    syncUrl({ rentkey: k });
+    setRentalDrawerKey(key); setRentalPopup(null);
+    syncUrl({ rentkey: key });
   }
   function closeRentalDrawer() {
     setRentalDrawerKey(null);
@@ -431,6 +430,7 @@ export default function PropertyMap() {
       rent_per_ping: +p.rent_per_ping, deal_count: +p.deal_count,
       last_deal: p.last_deal ?? null,
       doors: +(p.doors ?? 1), is_social: p.is_social === true,
+      social_count: +(p.social_count ?? 0),
     });
   }
 
@@ -448,7 +448,7 @@ export default function PropertyMap() {
       building_type: r.buildingType, build_year: new Date().getFullYear() - r.age, age: r.age,
       monthly_rent: r.monthlyRent, housing_rent: r.housingRent, parking_rent: r.parkingRent,
       area_ping: r.area, rent_per_ping: r.rentPerPing, deal_count: r.deals, last_deal: r.lastDeal,
-      doors: r.doors, is_social: r.isSocial,
+      doors: r.doors, is_social: r.isSocial, social_count: r.socialCount,
     });
   }
 
@@ -940,7 +940,9 @@ export default function PropertyMap() {
               <div className="rental-trust">
                 {rentalPopup.is_social
                   ? "社宅包租代管件中位數・租金非市場行情,不列入行情統計"
-                  : `同${rentalPopup.doors > 1 ? "社區" : "門牌"}租約中位數・社宅另計不列入・不代表目前仍在招租`}
+                  : `同${rentalPopup.doors > 1 ? "社區" : "門牌"}租約中位數`
+                    + (rentalPopup.social_count > 0 ? `・另有社宅 ${rentalPopup.social_count} 筆未計入` : "")
+                    + "・不代表目前仍在招租"}
               </div>
               <button className="detailbtn" onClick={() => openRentalDrawer(rentalPopup.key)}>
                 查看歷史租約明細 →

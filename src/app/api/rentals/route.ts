@@ -9,10 +9,12 @@ export const dynamic = "force-dynamic";
 
 const RESIDENTIAL = "^(住宅大樓|華廈|透天厝|公寓|套房)";
 
-// 屋齡 1–10 年租賃實登：能透過 building_community 歸戶者聚成社區級點位(與預售建案同口徑)，
-// 其餘同門牌彙總成棟級點位。社宅包租代管件納入顯示但獨立聚合並帶 is_social 旗標；
-// 行情統計(compute-stats/compute-zone-rents)本就排除社宅,此處只影響地圖呈現。
-// 租賃 CSV 沒有完整建案名；只有能歸戶者才顯示正式名稱。
+// 屋齡 1–10 年租賃實登：能歸戶出建案名者按「城市|區|建案名」聚成一個社區點
+// (與預售建案點同口徑,分期備查案也合併;實體社區名 physical_communities 優先),
+// 配不到名字的門牌彙總成棟級點位。
+// 同社區的市場件與社宅包租代管件合併為單一點:有市場件即為市場點(社宅筆數附註),
+// 純社宅才成為社宅點(is_social=true)。行情統計(compute-stats/compute-zone-rents)
+// 本就排除社宅,此處只影響地圖呈現。
 export async function GET(req: NextRequest) {
   const bboxResult = parseBbox(req.nextUrl.searchParams.get("bbox"));
   if (bboxResult.error) return NextResponse.json({ error: bboxResult.error }, { status: 400 });
@@ -36,9 +38,10 @@ export async function GET(req: NextRequest) {
         AND r.area_ping BETWEEN 3 AND 200
         AND r.rent_per_ping BETWEEN 150 AND 5000
     )
-    SELECT * FROM (
-    SELECT COALESCE('c' || bc.community_id::text, r.addr_key) AS key,
-           r.is_social,
+    SELECT COALESCE(
+             'n|' || COALESCE(pc.city, c.city) || '|' || COALESCE(pc.district, c.district)
+                  || '|' || COALESCE(pc.name, c.name),
+             r.addr_key) AS key,
            min(r.city) AS city, min(r.district) AS district,
            avg(g.lng)::float AS lng, avg(g.lat)::float AS lat,
            COALESCE(max(pc.name), max(c.name)) AS community_name,
@@ -46,25 +49,39 @@ export async function GET(req: NextRequest) {
            count(DISTINCT r.addr_key)::int AS doors,
            max(r.build_year)::int AS build_year,
            mode() WITHIN GROUP (ORDER BY r.building_type) AS building_type,
-           percentile_cont(0.5) WITHIN GROUP (ORDER BY r.monthly_rent)::numeric AS monthly_rent,
-           percentile_cont(0.5) WITHIN GROUP (ORDER BY r.housing_rent)::numeric AS housing_rent,
+           count(*) FILTER (WHERE NOT r.is_social)::int AS m_cnt,
+           count(*) FILTER (WHERE r.is_social)::int AS s_cnt,
+           max(r.deal_date) FILTER (WHERE NOT r.is_social) AS m_last,
+           max(r.deal_date) FILTER (WHERE r.is_social) AS s_last,
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY r.monthly_rent)
+             FILTER (WHERE NOT r.is_social)::numeric AS m_monthly,
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY r.housing_rent)
+             FILTER (WHERE NOT r.is_social)::numeric AS m_housing,
            percentile_cont(0.5) WITHIN GROUP (ORDER BY r.parking_rent)
-             FILTER (WHERE r.parking_rent > 0)::numeric AS parking_rent,
-           percentile_cont(0.5) WITHIN GROUP (ORDER BY r.area_ping)::numeric AS area_ping,
-           percentile_cont(0.5) WITHIN GROUP (ORDER BY r.rent_per_ping)::numeric AS rent_per_ping,
-           count(*)::int AS deal_count, max(r.deal_date) AS last_deal,
-           row_number() OVER (PARTITION BY r.is_social
-             ORDER BY max(r.deal_date) DESC NULLS LAST) AS rn
+             FILTER (WHERE NOT r.is_social AND r.parking_rent > 0)::numeric AS m_parking,
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY r.area_ping)
+             FILTER (WHERE NOT r.is_social)::numeric AS m_area,
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY r.rent_per_ping)
+             FILTER (WHERE NOT r.is_social)::numeric AS m_per_ping,
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY r.monthly_rent)
+             FILTER (WHERE r.is_social)::numeric AS s_monthly,
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY r.housing_rent)
+             FILTER (WHERE r.is_social)::numeric AS s_housing,
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY r.area_ping)
+             FILTER (WHERE r.is_social)::numeric AS s_area,
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY r.rent_per_ping)
+             FILTER (WHERE r.is_social)::numeric AS s_per_ping
     FROM rental_base r
     JOIN geocode_cache g ON g.addr_key = r.addr_key AND g.precision = 'door'
     LEFT JOIN building_community bc ON bc.addr_key = r.addr_key
     LEFT JOIN communities c ON c.case_no = bc.case_no
     LEFT JOIN physical_communities pc ON pc.id = bc.community_id
     WHERE g.lng IS NOT NULL AND g.lat IS NOT NULL ${within}
-    GROUP BY COALESCE('c' || bc.community_id::text, r.addr_key), r.is_social
-    ) t
-    WHERE t.rn <= 8000 -- 市場/社宅各自截舊,社宅加入不會擠掉市場點
-    ORDER BY t.last_deal DESC NULLS LAST
+    GROUP BY 1
+    ORDER BY GREATEST(
+      coalesce(max(r.deal_date) FILTER (WHERE NOT r.is_social), '1900-01-01'),
+      coalesce(max(r.deal_date) FILTER (WHERE r.is_social), '1900-01-01')) DESC
+    LIMIT 12000
   `);
 
   const currentYear = new Date().getFullYear();
@@ -72,33 +89,39 @@ export async function GET(req: NextRequest) {
     type: "FeatureCollection",
     meta: {
       min_age: MIN_RENT_BUILDING_AGE, max_age: MAX_RENT_BUILDING_AGE,
-      // 社宅件以 is_social 旗標分開聚合呈現;各級行情統計仍全數排除社宅。
+      // 社宅件與市場件同點合併,純社宅點才帶 is_social;各級行情統計仍全數排除社宅。
       social_flagged_separately: true, count: result.rows.length,
     },
-    features: result.rows.map((row: any) => ({
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [+row.lng, +row.lat] },
-      properties: {
-        key: `${row.key}${row.is_social ? "|s" : ""}`,
-        name: row.community_name ?? null,
-        city: row.city,
-        district: row.district,
-        // 只顯示棟級門牌(社區點取代表門牌)，不公開樓層或室號。
-        address: String(row.rep_addr).replace(cityPrefixRe, ""),
-        doors: +row.doors,
-        is_social: row.is_social === true,
-        building_type: row.building_type,
-        build_year: row.build_year,
-        age: Math.max(0, currentYear - row.build_year),
-        monthly_rent: Math.round(+row.monthly_rent),
-        housing_rent: Math.round(+(row.housing_rent ?? row.monthly_rent)),
-        parking_rent: row.parking_rent == null ? null : Math.round(+row.parking_rent),
-        area_ping: +(+row.area_ping).toFixed(1),
-        rent_per_ping: Math.round(+row.rent_per_ping),
-        deal_count: +row.deal_count,
-        last_deal: row.last_deal,
-        rent_label: `${Math.round(+row.monthly_rent / 1000) / 10}萬/月`,
-      },
-    })),
+    features: result.rows.map((row: any) => {
+      // 有市場件 → 市場點(社宅筆數附註);純社宅 → 社宅點,數字取社宅中位
+      const social = +row.m_cnt === 0;
+      const monthly = social ? +row.s_monthly : +row.m_monthly;
+      return {
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [+row.lng, +row.lat] },
+        properties: {
+          key: row.key,
+          name: row.community_name ?? null,
+          city: row.city,
+          district: row.district,
+          // 只顯示棟級門牌(社區點取代表門牌)，不公開樓層或室號。
+          address: String(row.rep_addr).replace(cityPrefixRe, ""),
+          doors: +row.doors,
+          is_social: social,
+          social_count: +row.s_cnt,
+          building_type: row.building_type,
+          build_year: row.build_year,
+          age: Math.max(0, currentYear - row.build_year),
+          monthly_rent: Math.round(monthly),
+          housing_rent: Math.round(+((social ? row.s_housing : row.m_housing) ?? monthly)),
+          parking_rent: social || row.m_parking == null ? null : Math.round(+row.m_parking),
+          area_ping: +(+(social ? row.s_area : row.m_area)).toFixed(1),
+          rent_per_ping: Math.round(+(social ? row.s_per_ping : row.m_per_ping)),
+          deal_count: social ? +row.s_cnt : +row.m_cnt,
+          last_deal: social ? row.s_last : row.m_last,
+          rent_label: `${Math.round(monthly / 1000) / 10}萬/月`,
+        },
+      };
+    }),
   }, { headers: MAP_CACHE_HEADERS });
 }
