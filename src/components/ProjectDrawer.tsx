@@ -31,6 +31,7 @@ type PDetail = {
   build_year: number | null;
   deals: PDeal[];
   resales: Resale[];
+  unit_doors?: UnitDoor[];
   rents?: RentRow[];
   materials: { sections: { title: string; body: string }[]; pdf_url: string | null } | null;
 };
@@ -45,7 +46,10 @@ type Resale = {
   total_price: number | null; unit_price: number | null; area_ping: number | null;
   parking_count: number | null; parking_type: string | null;
   parking_price: number | null; parking_area_ping: number | null;
+  addr: string | null; is_store: boolean;
 };
+
+type UnitDoor = { unit_id: string | null; addr: string | null; n: number };
 
 const median = (xs: number[]) => {
   if (!xs.length) return null;
@@ -168,8 +172,6 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
 
   const active = useMemo(() => (detail?.deals ?? []).filter((d) => !d.is_cancelled), [detail]);
   const cancelled = useMemo(() => (detail?.deals ?? []).filter((d) => d.is_cancelled), [detail]);
-  const recentDeals = useMemo(() => [...active]
-    .sort((a, b) => +new Date(b.deal_date ?? 0) - +new Date(a.deal_date ?? 0)), [active]);
   // 可放進「樓層×戶別」矩陣的成交（含解約，解約在格內另標示）
   const gridable = useMemo(() => (detail?.deals ?? [])
     .filter((d) => d.floor_no != null && parseStack(d.unit_id) != null).length >= 3, [detail]);
@@ -179,13 +181,27 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
   const age = detail?.build_year ? new Date().getFullYear() - detail.build_year : null;
   const presale = detail?.band === "presale";
 
-  // 交屋後轉售 vs 預售的價差(單價中位對單價中位)
+  // 交屋後轉售 vs 預售的價差(單價中位對單價中位)。
+  // 店面單價遠高於住宅,拆開計算避免拉高住宅轉售中位。
   const resales = detail?.resales ?? [];
+  const homeResales = useMemo(() => resales.filter((r) => r.is_store !== true), [resales]);
+  const storeResales = useMemo(() => resales.filter((r) => r.is_store === true), [resales]);
   const resaleMedian = useMemo(
-    () => median(resales.map((r) => r.unit_price).filter((v): v is number => v != null).map(Number)),
-    [resales]);
+    () => median(homeResales.map((r) => r.unit_price).filter((v): v is number => v != null).map(Number)),
+    [homeResales]);
+  const storeMedian = useMemo(
+    () => median(storeResales.map((r) => r.unit_price).filter((v): v is number => v != null).map(Number)),
+    [storeResales]);
   const premium = resaleMedian != null && p?.unit_price != null && +p.unit_price > 0
     ? ((resaleMedian - +p.unit_price) / +p.unit_price) * 100 : null;
+
+  // 列表 view:預售與交屋後轉售合併成同一條時間軸(轉售掛標記,時間延續到最新一筆)
+  const listRows = useMemo(() => [
+    ...active.map((d) => ({ ...d, is_resale: false, addr: null as string | null, is_store: false })),
+    ...resales.map((r) => ({
+      ...r, unit_id: null, total_floors: null, is_cancelled: false, cancel_date: null, is_resale: true,
+    })),
+  ].sort((a, b) => +new Date(b.deal_date ?? 0) - +new Date(a.deal_date ?? 0)), [active, resales]);
 
   // 本社區出租行情(排除社宅包租代管,以免拉低市場價)
   const marketRents = useMemo(
@@ -235,7 +251,9 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
               <Fact label="成交坪數中位數" value={p.median_area == null ? null : `${Math.round(+p.median_area)} 坪`} />
             </div>
             <div className="mt-2 text-[9.5px] text-[#78857f]">
-              {recentDeals[0]?.deal_date ? `最新成交 ${recentDeals[0].deal_date}` : "暫無成交日期"}
+              {listRows[0]?.deal_date
+                ? `${listRows[0].is_resale ? "最新轉售" : "最新成交"} ${listRows[0].deal_date}`
+                : "暫無成交日期"}
               ・{active.length} 筆成交
             </div>
             {resaleMedian != null && (
@@ -247,7 +265,14 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
                     （較預售 {premium >= 0 ? "+" : ""}{premium.toFixed(1)}%）
                   </b>
                 )}
-                <span className="num text-[9.5px]">{resales.length} 筆</span>
+                <span className="num text-[9.5px]">{homeResales.length} 筆</span>
+              </div>
+            )}
+            {storeMedian != null && (
+              <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5 rounded-[9px] border border-[#ecdec2] bg-white px-2.5 py-2 text-[10.5px] text-ink-soft">
+                店面轉售中位
+                <b className="num text-[15px] tracking-[-.02em] text-ink">{fmtP(storeMedian)}</b>萬／坪
+                <span className="num text-[9.5px]">{storeResales.length} 筆・不計入住宅中位</span>
               </div>
             )}
             {rentMedian != null && (
@@ -278,7 +303,10 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
 
           <section className="mt-[21px]">
             <div className={cn("flex items-baseline text-[13.5px] font-extrabold", gridable ? "gap-2.5" : "justify-between")}>成交紀錄
-              <span className="num text-[12.5px] text-teal">{recentDeals.length} 筆</span>
+              <span className="num text-[12.5px] text-teal">{listRows.length} 筆</span>
+              {resales.length > 0 && (
+                <span className="num text-[9.5px] font-bold text-ink-soft">含轉售 {resales.length} 筆</span>
+              )}
               {gridable && (
                 <span className="ml-auto inline-flex overflow-hidden rounded-full border border-line" role="tablist" aria-label="成交紀錄顯示方式">
                   <button role="tab" aria-selected={view === "grid"}
@@ -291,7 +319,7 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
               )}
             </div>
             {view === "grid" ? (
-              <BuildingGrid deals={detail.deals} resales={resales} />
+              <BuildingGrid deals={detail.deals} resales={resales} unitDoors={detail.unit_doors ?? []} />
             ) : (
               <>
                 <div className="mt-2 overflow-x-auto rounded-[10px] border border-line">
@@ -311,16 +339,24 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
                       </tr>
                     </thead>
                     <tbody>
-                      {recentDeals.slice(0, 40).map((d, i) => (
+                      {listRows.slice(0, 40).map((d, i) => (
                         <tr key={i} className="align-top even:bg-[#f5f7f4]">
                           <td className="whitespace-nowrap p-1.5">
                             <span className="max-mob:hidden">{d.deal_date ?? "—"}</span>
                             <span className="hidden max-mob:inline">{shortRocDate(d.deal_date)}</span>
                           </td>
                           <td className="p-1.5" title={d.unit_id ?? ""}>
-                            <b className="block font-extrabold text-ink">{unitLabel(d.unit_id)}</b>
+                            {d.is_resale ? (
+                              <b className="inline-block rounded-full bg-[#f6e8cd] px-1.5 py-0.5 text-[8.5px] font-extrabold text-amber">
+                                {d.is_store ? "店面轉售" : "交屋後轉售"}
+                              </b>
+                            ) : (
+                              <b className="block font-extrabold text-ink">{unitLabel(d.unit_id)}</b>
+                            )}
                             <small className="mt-0.5 block whitespace-nowrap text-[8.5px] text-ink-soft">
-                              {[d.floor_no != null ? `${d.floor_no}樓` : null, d.rooms != null ? `${d.rooms}房` : null]
+                              {[d.is_resale ? d.addr : null,
+                                d.floor_no != null ? `${d.floor_no}樓` : null,
+                                d.rooms != null && !d.is_store ? `${d.rooms}房` : null]
                                 .filter(Boolean).join("・") || "規格未登錄"}
                             </small>
                           </td>
@@ -338,7 +374,7 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
                     </tbody>
                   </table>
                 </div>
-                {recentDeals.length > 40 && <div className="mt-[7px] text-right text-[9px] text-ink-soft">顯示最近 40 筆</div>}
+                {listRows.length > 40 && <div className="mt-[7px] text-right text-[9px] text-ink-soft">顯示最近 40 筆</div>}
               </>
             )}
           </section>
