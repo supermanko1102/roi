@@ -31,7 +31,13 @@ type PDetail = {
   build_year: number | null;
   deals: PDeal[];
   resales: Resale[];
+  rents?: RentRow[];
   materials: { sections: { title: string; body: string }[]; pdf_url: string | null } | null;
+};
+
+type RentRow = {
+  deal_date: string | null; monthly_rent: number | null; rent_per_ping: number | null;
+  area_ping: number | null; rooms: number | null; rental_type: string | null; is_social: boolean | null;
 };
 
 type Resale = {
@@ -181,6 +187,17 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
   const premium = resaleMedian != null && p?.unit_price != null && +p.unit_price > 0
     ? ((resaleMedian - +p.unit_price) / +p.unit_price) * 100 : null;
 
+  // 本社區出租行情(排除社宅包租代管,以免拉低市場價)
+  const marketRents = useMemo(
+    () => (detail?.rents ?? []).filter((r) => r.is_social !== true),
+    [detail]);
+  const rentMedian = useMemo(
+    () => median(marketRents.map((r) => r.rent_per_ping).filter((v): v is number => v != null).map(Number)),
+    [marketRents]);
+  const rentMonthlyMedian = useMemo(
+    () => median(marketRents.map((r) => r.monthly_rent).filter((v): v is number => v != null).map(Number)),
+    [marketRents]);
+
   return (
     <aside className="absolute inset-y-0 right-0 z-55 w-[min(480px,100%)] animate-drawer-in overflow-y-auto bg-surface px-6 pb-8 pt-6 shadow-[-12px_0_50px_rgba(18,47,40,.18)] max-mob:top-auto max-mob:h-[min(84%,760px)] max-mob:w-full max-mob:animate-drawer-up max-mob:rounded-t-[20px] max-mob:px-[18px] max-mob:pb-[88px] max-mob:pt-[25px] max-mob:before:absolute max-mob:before:left-1/2 max-mob:before:top-2 max-mob:before:h-1 max-mob:before:w-[42px] max-mob:before:-translate-x-1/2 max-mob:before:rounded-full max-mob:before:bg-[#ced6d2] max-mob:before:content-[''] max-tiny:px-[15px]"
       aria-label={`${name}建案資料`}>
@@ -231,6 +248,16 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
                   </b>
                 )}
                 <span className="num text-[9.5px]">{resales.length} 筆</span>
+              </div>
+            )}
+            {rentMedian != null && (
+              <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5 rounded-[9px] border border-[#d8e4de] bg-white px-2.5 py-2 text-[10.5px] text-ink-soft">
+                本社區出租中位
+                <b className="num text-[15px] tracking-[-.02em] text-ink">{Math.round(rentMedian).toLocaleString()}</b>元／坪
+                {rentMonthlyMedian != null && (
+                  <span>月租中位 <b className="num text-[11px] text-ink">{Math.round(rentMonthlyMedian).toLocaleString()}</b> 元</span>
+                )}
+                <span className="num text-[9.5px]">{marketRents.length} 筆</span>
               </div>
             )}
           </div>

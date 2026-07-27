@@ -187,6 +187,42 @@ async function main() {
         HAVING count(*) >= 1
       );
   `);
+  // 社區實測租金優先:租賃可經 building_community 歸戶到建案社區,
+  // 近三年樣本 ≥ MIN_SAMPLES 時用本社區中位租金覆蓋上面 INSERT 寫入的區域基準,
+  // est_roi 從「區域推估」升級成「社區實測」;樣本不足的案維持區域 fallback。
+  await tx.execute(sql`
+    WITH comm_rent AS (
+      SELECT c.city, c.district, c.name,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY rd.rent_per_ping) AS mrp,
+             count(*) AS n,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY rd.rent_per_ping)
+               FILTER (WHERE rd.is_social IS NOT TRUE) AS mrp_mkt,
+             count(*) FILTER (WHERE rd.is_social IS NOT TRUE) AS n_mkt
+      FROM communities c
+      JOIN building_community bc ON bc.case_no = c.case_no
+      JOIN rent_deals rd ON rd.addr_key = bc.addr_key
+      WHERE rd.rent_per_ping IS NOT NULL AND rd.rent_per_ping > 0
+        AND rd.deal_date >= now() - interval '3 years'
+      GROUP BY 1, 2, 3
+    )
+    UPDATE projects p SET
+      est_rent = round(cr.mrp * p.median_area * ${AREA_DISCOUNT}),
+      est_roi  = CASE WHEN p.median_total > 0
+        THEN round((cr.mrp * p.median_area * ${AREA_DISCOUNT} * 12
+             / (p.median_total * 10000) * 100)::numeric, 2) END,
+      rent_samples = cr.n,
+      est_rent_market = CASE WHEN cr.n_mkt >= ${MIN_SAMPLES}
+        THEN round(cr.mrp_mkt * p.median_area * ${AREA_DISCOUNT}) ELSE p.est_rent_market END,
+      est_roi_market = CASE WHEN cr.n_mkt >= ${MIN_SAMPLES} AND p.median_total > 0
+        THEN round((cr.mrp_mkt * p.median_area * ${AREA_DISCOUNT} * 12
+             / (p.median_total * 10000) * 100)::numeric, 2) ELSE p.est_roi_market END,
+      rent_samples_market = CASE WHEN cr.n_mkt >= ${MIN_SAMPLES} THEN cr.n_mkt
+        ELSE p.rent_samples_market END
+    FROM comm_rent cr
+    WHERE cr.name = p.name AND cr.city = p.city AND cr.district = p.district
+      AND p.is_demo = false AND cr.n >= ${MIN_SAMPLES} AND p.median_area IS NOT NULL;
+  `);
+
   // 棟級彙總:中古交易按門牌歸戶 + geocode 座標(只收已定位的)。
   // 僅在有真資料時重建,否則保留 seed 直插的 demo 棟級點位
   if (realSales > 0) {

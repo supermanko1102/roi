@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, asc, desc, eq, gt, inArray } from "drizzle-orm";
-import { db, building_community, communities, presale_deals, projects, sale_deals, contract_materials } from "@/lib/db";
+import { db, building_community, communities, presale_deals, projects, rent_deals, sale_deals, contract_materials } from "@/lib/db";
 import { ageBand } from "@/lib/age";
 import { DETAIL_CACHE_HEADERS, parseCity, validText } from "@/lib/api-params";
 
@@ -90,6 +90,22 @@ export async function GET(req: NextRequest) {
       .orderBy(desc(sale_deals.deal_date)).limit(200);
   }
 
+  // 本社區出租行情:與轉售同一條歸戶管線(communities → building_community → rent_deals)
+  let rents: {
+    deal_date: string | null; monthly_rent: number | null; rent_per_ping: number | null;
+    area_ping: number | null; rooms: number | null; rental_type: string | null; is_social: boolean | null;
+  }[] = [];
+  if (caseNos.length) {
+    rents = await db.select({
+      deal_date: rent_deals.deal_date, monthly_rent: rent_deals.monthly_rent,
+      rent_per_ping: rent_deals.rent_per_ping, area_ping: rent_deals.area_ping,
+      rooms: rent_deals.rooms, rental_type: rent_deals.rental_type, is_social: rent_deals.is_social,
+    }).from(rent_deals)
+      .innerJoin(building_community, eq(building_community.addr_key, rent_deals.addr_key))
+      .where(inArray(building_community.case_no, caseNos))
+      .orderBy(desc(rent_deals.deal_date)).limit(200);
+  }
+
   return NextResponse.json({
     project: p,
     community: comm && {
@@ -101,6 +117,7 @@ export async function GET(req: NextRequest) {
     build_year: completed ? regYear : null,
     deals,
     resales,
+    rents,
     materials,
   }, { headers: DETAIL_CACHE_HEADERS });
 }
