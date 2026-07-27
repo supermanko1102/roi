@@ -14,6 +14,9 @@
  *
  * 防呆:同門牌命中多建案取地號交集數最多者;buildings.build_year 與建案
  * 第1次登記年差 > 4 年者不配(避免重劃重編地號誤配到舊屋)。
+ * 鄰棟繼承:地號配完後,未歸戶門牌若 70m 內有完工年 ±1 的已歸戶門牌,
+ * 且範圍內候選只有單一社區,則繼承之(match_method='neighbor',confidence 70)
+ * ——救回分期漏備查、地號重編的社區成員門牌。
  * 寫入:communities、physical_communities、community_cases、building_community
  * (整批重建,可重複執行)。
  */
@@ -210,19 +213,84 @@ async function main() {
   const buildYear = new Map((byRows as BuildingRow[]).map((r) => [r.addr_key, r.build_year]));
 
   const assignments: (typeof building_community.$inferInsert)[] = [];
+  // 診斷聚焦備查時代(2021+ 完工)門牌:老屋零交集是制度性的,不值得看
+  const diag = { hit: 0, zero: 0, gap: 0 };
+  const zeroDistricts = new Map<string, number>();
+  const districtOf = (addrKey: string) =>
+    addrKey.replace(/^.{2,3}[市縣]/, "").match(/^(.+?[區鎮鄉市])/)?.[1] ?? "?";
   for (const [addr_key, parcels] of addrParcels) {
     const hits = new Map<string, number>();
     for (const p of parcels)
       for (const c of parcelToCases.get(p) ?? []) hits.set(c, (hits.get(c) ?? 0) + 1);
-    if (!hits.size) continue;
     const by = buildYear.get(addr_key);
+    const modern = by != null && by >= 2021;
+    if (!hits.size) {
+      if (modern) {
+        diag.zero++;
+        const d = districtOf(addr_key);
+        zeroDistricts.set(d, (zeroDistricts.get(d) ?? 0) + 1);
+      }
+      continue;
+    }
     const best = [...hits.entries()].sort((a, b) => b[1] - a[1]).find(([c]) => {
       const reg = cases.get(c)!.first_reg;
       if (by == null || !reg) return true;
       return Math.abs(by - +reg.slice(0, 4)) <= MAX_YEAR_GAP;
     });
-    if (best) assignments.push({ addr_key, case_no: best[0], matched_parcels: best[1] });
+    if (best) {
+      assignments.push({ addr_key, case_no: best[0], matched_parcels: best[1] });
+      if (modern) diag.hit++;
+    } else if (modern) diag.gap++;
   }
+  console.log(`[communities] 診斷(2021+ 完工門牌):命中 ${diag.hit}、有地號但零交集 ${diag.zero}、` +
+    `年差 >${MAX_YEAR_GAP} 剔除 ${diag.gap}`);
+  if (zeroDistricts.size) console.log(`  零交集前幾區:` + [...zeroDistricts.entries()]
+    .sort((a, b) => b[1] - a[1]).slice(0, 8).map(([d, n]) => `${d} ${n}`).join("、"));
+
+  // ---- 鄰棟繼承:未歸戶門牌 70m 內有完工年 ±1 的已歸戶門牌,且唯一社區,則繼承 ----
+  const NEIGHBOR_M = 70, NEIGHBOR_YEAR = 1, CELL = 0.0007; // ≈78m 網格,掃 3×3 覆蓋 70m 半徑
+  const metersApprox = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+    const dy = (lat1 - lat2) * 111_320;
+    const dx = (lng1 - lng2) * 111_320 * Math.cos((lat1 * Math.PI) / 180);
+    return Math.hypot(dx, dy);
+  };
+  const cellOf = (lat: number, lng: number) => `${Math.round(lat / CELL)}|${Math.round(lng / CELL)}`;
+  type Anchor = { lat: number; lng: number; by: number; case_no: string; ek: string };
+  const grid = new Map<string, Anchor[]>();
+  const assignedKeys = new Set(assignments.map((a) => a.addr_key));
+  for (const a of assignments) {
+    const b = buildingData.get(a.addr_key);
+    if (b?.lat == null || b.lng == null || b.build_year == null) continue;
+    const anchor: Anchor = {
+      lat: +b.lat, lng: +b.lng, by: +b.build_year,
+      case_no: a.case_no, ek: entityKey(cases.get(a.case_no)!),
+    };
+    const key = cellOf(anchor.lat, anchor.lng);
+    (grid.get(key) ?? grid.set(key, []).get(key)!).push(anchor);
+  }
+  let nbAssigned = 0, nbAmbiguous = 0;
+  for (const b of byRows as BuildingRow[]) {
+    if (assignedKeys.has(b.addr_key) || b.lat == null || b.lng == null || b.build_year == null) continue;
+    const lat = +b.lat, lng = +b.lng, by = +b.build_year;
+    const cands: Anchor[] = [];
+    const cx = Math.round(lat / CELL), cy = Math.round(lng / CELL);
+    for (let dx = -1; dx <= 1; dx++)
+      for (let dy = -1; dy <= 1; dy++)
+        for (const a of grid.get(`${cx + dx}|${cy + dy}`) ?? []) {
+          if (Math.abs(a.by - by) <= NEIGHBOR_YEAR && metersApprox(lat, lng, a.lat, a.lng) <= NEIGHBOR_M)
+            cands.push(a);
+        }
+    if (!cands.length) continue;
+    if (new Set(cands.map((a) => a.ek)).size > 1) { nbAmbiguous++; continue; } // 兩社區交界,不硬猜
+    const nearest = cands.sort((x, y) =>
+      metersApprox(lat, lng, x.lat, x.lng) - metersApprox(lat, lng, y.lat, y.lng))[0];
+    assignments.push({
+      addr_key: b.addr_key, case_no: nearest.case_no, matched_parcels: 0,
+      match_method: "neighbor", confidence: 70,
+    });
+    nbAssigned++;
+  }
+  console.log(`[communities] 鄰棟繼承:+${nbAssigned} 個門牌(交界不明跳過 ${nbAmbiguous})`);
 
   // ---- 實體社區:同市同區標準化建案名歸併，容納分期與不同建照 ----
   const entityDefs = new Map<string, {
@@ -282,8 +350,8 @@ async function main() {
     const linkedAssignments = assignments.map((a) => ({
       ...a,
       community_id: entityId.get(entityKey(cases.get(a.case_no)!)),
-      match_method: "parcel",
-      confidence: Math.min(100, 90 + Math.min(10, (a.matched_parcels ?? 0) * 2)),
+      match_method: a.match_method ?? "parcel",
+      confidence: a.confidence ?? Math.min(100, 90 + Math.min(10, (a.matched_parcels ?? 0) * 2)),
     }));
     for (let i = 0; i < linkedAssignments.length; i += BATCH)
       await tx.insert(building_community).values(linkedAssignments.slice(i, i + BATCH));

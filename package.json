@@ -25,6 +25,7 @@
     "etl:repair-projects": "uv run --project project-address-agent --no-dev --locked project-address-agent auto --apply --limit 100",
     "etl:use-permits": "tsx etl/import-use-permits.ts",
     "etl:communities": "tsx etl/match-communities.ts",
+    "etl:unmatched-report": "tsx etl/report-unmatched-clusters.ts",
     "etl:rent-benchmarks": "tsx etl/import-rent-benchmarks.ts",
     "etl:zones": "tsx etl/build-zones.ts",
     "etl:zones-ntpc": "tsx etl/build-ntpc-zones.ts",
@@ -37,6 +38,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
+    "@vercel/analytics": "^2.0.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
