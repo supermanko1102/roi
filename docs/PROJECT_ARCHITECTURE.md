@@ -211,10 +211,11 @@ NLSC 只是「候選地址驗證與定位服務」，它不知道哪個地址屬
 8. `etl:geocode-projects`
 9. `etl:geocode-lots`
 10. `etl:match-leju`
-11. `etl:repair-projects`
-12. `etl:zone-bands`
-13. `etl:rent-benchmarks`
-14. `etl:zone-rents`
+11. `etl:presale-doors`
+12. `etl:repair-projects`
+13. `etl:zone-bands`
+14. `etl:rent-benchmarks`
+15. `etl:zone-rents`
 
 `etl:all` 會：
 
@@ -286,6 +287,21 @@ NLSC 只是「候選地址驗證與定位服務」，它不知道哪個地址屬
 4. `building_community` upsert（`match_method='leju-door'`，錨點 confidence=100、鄰棟 80）。
 
 不覆蓋既有的地號歸戶結果；冪等可重跑。
+
+### 7.7 老案門牌歸戶（`etl:presale-doors`）
+
+實登 2.0（2021-07）前的預售案交屋前後才申報，b 檔地址即真門牌
+（「吉安街171號11樓B3-11F」）。`etl/match-presale-doors.ts` 對無歸戶案：
+
+1. 從 `presale_deals.address` 抽「街路＋號」（剝市/區/里鄰前綴；「號旁」等描述型拒絕）。
+2. 門檻：門牌列 ≥6、相異門牌 ≥2、主要街道 ≥80%、門牌列佔全案 ≥50%。
+3. 合成 `communities`（`case_no='pd|城市|區|建案名'`，`first_reg` 用門牌上
+   `sale_deals.build_year` 多數決）＋ `building_community`（`match_method='presale-door'`）。
+4. 跨案搶同一門牌整個放棄；不覆蓋地號/樂居歸戶。
+5. 順帶把地址尾碼的棟戶代號（A1-4F）回填 `unit_id`，老案棟別圖因此可畫。
+
+另 `project-detail` 對老案直接從地址派生「棟戶↔門牌」錨點（`unit_doors`），
+與 2.0 後案的 a/b 檔重複揭露 join 併用，轉售按門牌歸回棟別圖欄位。
 
 ## 8. 建案地址與座標流程
 

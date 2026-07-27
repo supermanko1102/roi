@@ -121,7 +121,33 @@ export async function GET(req: NextRequest) {
         isNotNull(presale_deals.unit_id),
       ))
       .groupBy(presale_deals.unit_id, sale_deals.addr_key);
-    unitDoors = doorRows.map((u) => ({ unit_id: u.unit_id, addr: stripAddr(u.addr_key), n: u.n }));
+
+    // 老案(實登 2.0 前)預售地址本身就帶門牌(「吉安街185號4樓A1-4F」),
+    // 地址內含歸戶門牌者直接成為對照錨點,不必等 a 檔重複揭露
+    const addrRows = await db.select({
+      unit_id: presale_deals.unit_id,
+      addr_key: building_community.addr_key,
+      n: sql<number>`count(*)::int`,
+    }).from(presale_deals)
+      .innerJoin(building_community, and(
+        inArray(building_community.case_no, caseNos),
+        sql`translate("presale_deals"."address", '0123456789', '０１２３４５６７８９')
+          LIKE '%' || replace("building_community"."addr_key", ${city + district}, '') || '%'`,
+      ))
+      .where(and(
+        eq(presale_deals.project_name, name), eq(presale_deals.city, city), eq(presale_deals.district, district),
+        isNotNull(presale_deals.unit_id),
+      ))
+      .groupBy(presale_deals.unit_id, building_community.addr_key);
+
+    const merged = new Map<string, { unit_id: string | null; addr: string | null; n: number }>();
+    for (const u of [...doorRows, ...addrRows]) {
+      const key = `${u.unit_id}|${u.addr_key}`;
+      const e = merged.get(key) ?? { unit_id: u.unit_id, addr: stripAddr(u.addr_key), n: 0 };
+      e.n += u.n;
+      merged.set(key, e);
+    }
+    unitDoors = [...merged.values()];
   }
 
   // 本社區出租行情:與轉售同一條歸戶管線(communities → building_community → rent_deals)
