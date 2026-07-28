@@ -1,5 +1,5 @@
 /**
- * 由樂居生活圈邊界產生 data/zones.geojson(多城市合併;取代 build-zones.ts 的官方 GIS 版)
+ * 由樂居生活圈邊界產生 data/zones.geojson(多城市合併;已取代舊官方 GIS 版 build-zones.ts,該檔 2026-07 移除)
  *
  * 資料源:data/leju-subareas-{slug}.geojson(樂居 subarea API 抓下的手繪邊界,
  *   api.leju.com.tw 有 Cloudflare 驗證,無法在此直接重抓;更新方式見 memory leju-subarea-api)

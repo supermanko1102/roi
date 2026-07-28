@@ -185,7 +185,8 @@ NLSC 只是「候選地址驗證與定位服務」，它不知道哪個地址屬
 - 主要來源：樂居 subarea API 的手繪邊界，存 `data/leju-subareas-{slug}.geojson`。
   `api.leju.com.tw` 有 Cloudflare 驗證，ETL 無法直接重抓，須以瀏覽器手動更新來源檔。
 - `etl/leju-zones.ts` 將來源檔以 `leju_id` 去重、合併跨區重複後產出 `data/zones.geojson`。
-- 舊版官方 GIS 管線（`etl/build-zones.ts` 桃園都計圖資、`etl/build-ntpc-zones.ts`）保留作替代來源。
+- 舊版官方 GIS 管線：桃園版 `build-zones.ts` 已於 2026-07 移除（樂居版完全取代、產出無引用）；
+  新北版 `etl/build-ntpc-zones.ts` 保留——其產出 `data/ntpc-zones.geojson` 仍是 `leju-zones.ts` 的輸入。
 - `zone_key = city|name`：跨市撞名時的唯一鍵，`name` 只作顯示。
 
 ### 6.6 其他資料
