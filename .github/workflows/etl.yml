@@ -51,6 +51,16 @@ jobs:
       - name: 安裝依賴
         run: pnpm install --frozen-lockfile
 
+      # 使照門牌查詢快取(match-permit-doors):沒有快取時每晚會對桃園建管 API
+      # 重打 ~1,200 發;帶 run_id 的 key 讓每輪存新快取、restore-keys 撈最近一份
+      - name: 還原使照查詢快取
+        uses: actions/cache@v4
+        with:
+          path: etl/downloads/permit-doors
+          key: permit-doors-${{ github.run_id }}
+          restore-keys: |
+            permit-doors-
+
       - name: 套用資料庫 migration
         run: pnpm db:migrate
         env:

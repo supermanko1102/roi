@@ -22,6 +22,7 @@
     "etl:geocode-lots": "tsx etl/geocode-landlots.ts",
     "etl:match-leju": "tsx etl/match-leju-buildings.ts",
     "etl:presale-doors": "tsx etl/match-presale-doors.ts",
+    "etl:permit-doors": "tsx etl/match-permit-doors.ts",
     "etl:repair-projects": "uv run --project project-address-agent --no-dev --locked project-address-agent auto --apply --limit 100",
     "etl:use-permits": "tsx etl/import-use-permits.ts",
     "etl:communities": "tsx etl/match-communities.ts",

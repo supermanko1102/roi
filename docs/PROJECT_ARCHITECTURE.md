@@ -190,7 +190,9 @@ NLSC 只是「候選地址驗證與定位服務」，它不知道哪個地址屬
 
 ### 6.6 其他資料
 
-- 雙北使用執照：`use_permits`
+- 使用執照：`use_permits`。雙北走整批開放資料（`etl/import-use-permits.ts`）；
+  桃園無整批資料源，由 `etl/match-permit-doors.ts` 按備查案建照號碼逐案查
+  桃園建管 BUILDLIC API 補入（import-use-permits 對桃園 no-op，不會清掉這些列）。
 - 預售契約 PDF／建材設備：`contract_materials`
 - 300 億租金補貼有效租約統計：`rent_benchmarks`
 - 樂居資料只作輔助歸戶／生活圈，不是地址 Agent 自動發布證據
@@ -212,10 +214,11 @@ NLSC 只是「候選地址驗證與定位服務」，它不知道哪個地址屬
 9. `etl:geocode-lots`
 10. `etl:match-leju`
 11. `etl:presale-doors`
-12. `etl:repair-projects`
-13. `etl:zone-bands`
-14. `etl:rent-benchmarks`
-15. `etl:zone-rents`
+12. `etl:permit-doors`
+13. `etl:repair-projects`
+14. `etl:zone-bands`
+15. `etl:rent-benchmarks`
+16. `etl:zone-rents`
 
 `etl:all` 會：
 
@@ -302,6 +305,23 @@ NLSC 只是「候選地址驗證與定位服務」，它不知道哪個地址屬
 
 另 `project-detail` 對老案直接從地址派生「棟戶↔門牌」錨點（`unit_doors`），
 與 2.0 後案的 a/b 檔重複揭露 join 併用，轉售按門牌歸回棟別圖欄位。
+
+### 7.8 使照門牌歸戶（`etl:permit-doors`）
+
+近半數備查列「編號」空白只剩單一代表地號，大基地案地號交集恆零。
+`etl/match-permit-doors.ts` 以備查案建照號碼查桃園建管 BUILDLIC API：
+
+1. `communities.permit_no` → `parsePermit` 拆年度/區碼/序號（備查登打髒，
+   「字第」可能漏寫、年度可能缺），以「原領執照字號」模糊查使用執照。
+2. 比對走 `permitsMatch`：序號必等；年度與區碼兩邊都有才比；缺項（lenient）
+   需使照門牌/地號行政區落在本案行政區才收。
+3. 使照「逐戶門牌清單」→ `normAddrKey`（連字號轉「之」）→ `building_community`
+   （`match_method='permit-door'`，confidence 98，不覆蓋既有歸戶）。
+4. 使照本體 upsert 進 `use_permits`（桃園逐案補），並回填 `communities.use_issue_date`。
+
+查詢結果快取在 `etl/downloads/permit-doors/`（GHA 以 actions/cache 保留），
+查無使照 30 天後重試（新完工案領照後自動補上）。冪等；每晚 `building_community`
+重建後由本步驟重灌。
 
 ## 8. 建案地址與座標流程
 

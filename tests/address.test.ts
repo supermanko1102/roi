@@ -42,3 +42,45 @@ test("community streets are ordered after deal address and deduplicated", () => 
     { raw: "民權路2號", source: "community" },
   ]);
 });
+
+test("permitQueryTail extracts fuzzy query key after 字第", async () => {
+  const { permitQueryTail } = await import("../etl/match-permit-doors");
+  assert.equal(permitQueryTail("109桃市都建執照字第會龍01641號"), "會龍01641");
+  assert.equal(permitQueryTail("(109)桃市都建執照字第會龍01641號"), "會龍01641");
+  assert.equal(permitQueryTail("105桃市都建執照字第會龍01168-2"), "會龍01168");
+  assert.equal(permitQueryTail("１０９桃市都建執字第會楊００５０８-２"), "會楊00508");
+  assert.equal(permitQueryTail("亂七八糟"), null);
+});
+
+test("permitMatchKey normalizes year, zeros, parens and revision suffix", async () => {
+  const { permitMatchKey, cnRocDate } = await import("../etl/match-permit-doors");
+  assert.equal(permitMatchKey("(109)桃市都建執照字第會龍01641號"),
+    permitMatchKey("109桃市都建執照字第會龍01641-2"));
+  assert.equal(permitMatchKey("109桃市都建執照字第會龍01641號"), "109|會龍1641");
+  assert.notEqual(permitMatchKey("108桃市都建執照字第會龍01641號"),
+    permitMatchKey("109桃市都建執照字第會龍01641號"));
+  assert.equal(cnRocDate("113年04月10日"), "2024-04-10");
+  assert.equal(cnRocDate("113年13月10日"), null);
+  assert.equal(cnRocDate("年月日"), null);
+});
+
+test("parsePermit handles mangled permit formats and permitsMatch guards collisions", async () => {
+  const { parsePermit, permitQueryTail, permitsMatch } = await import("../etl/match-permit-doors");
+  assert.deepEqual(parsePermit("108桃市都建執照01465-1號"),
+    { year: 108, prefix: "", serial: "1465", serialRaw: "01465" });
+  assert.deepEqual(parsePermit("桃市都建執照字會觀01532-01號"),
+    { year: null, prefix: "會觀", serial: "1532", serialRaw: "01532" });
+  assert.equal(permitQueryTail("108桃市都建執照01465-1號"), "01465");
+  const a = parsePermit("(109)桃市都建執照字第會龍01641號");
+  assert.equal(permitsMatch(a, parsePermit("109桃市都建執字第會龍01641-2")), "exact");
+  assert.equal(permitsMatch(a, parsePermit("108桃市都建執照字第會龍01641號")), null);
+  assert.equal(permitsMatch(a, parsePermit("109桃市都建執照字第會楊01641號")), null);
+  assert.equal(permitsMatch(parsePermit("108桃市都建執照01465號"),
+    parsePermit("(108)桃市都建執照字第會桃01465號")), "lenient");
+});
+
+test("cnRocDate rejects rolled-over calendar dates", async () => {
+  const { cnRocDate } = await import("../etl/match-permit-doors");
+  assert.equal(cnRocDate("92年02月29日"), null);
+  assert.equal(cnRocDate("113年02月29日"), "2024-02-29");
+});
