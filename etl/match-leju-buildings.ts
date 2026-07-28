@@ -21,6 +21,15 @@ const OV_FILE = path.join(import.meta.dirname, "coord-overrides.json");
 const NEIGHBOR_RADIUS_M = 70;
 const YEAR_TOLERANCE = 1;
 
+// 大社區(戶數多)常橫跨 70m 以上;依樂居戶數放大擴散半徑。
+// 但同一街道前綴有多個 override(相鄰分期案)時一律縮回 70m,避免互吃。
+const radiusFor = (households: number | null | undefined, streetContested: boolean) => {
+  if (streetContested || !households) return NEIGHBOR_RADIUS_M;
+  if (households >= 800) return 160;
+  if (households >= 300) return 110;
+  return NEIGHBOR_RADIUS_M;
+};
+
 // buildings.addr_key 沿用實登原文的全形數字(朝陽街３５３號);樂居門牌是半形,先轉全形
 const toFullDigits = (s: string) =>
   s.replace(/[0-9]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0xfee0));
@@ -33,9 +42,19 @@ const metersApprox = (lat1: number, lng1: number, lat2: number, lng2: number) =>
 
 async function main() {
   if (!fs.existsSync(OV_FILE)) { console.log("[leju-match] 無 coord-overrides.json,跳過"); return; }
-  const overrides: Array<{ city: string; district: string; name: string; address: string }> =
+  const overrides: Array<{ city: string; district: string; name: string; address: string; households?: number | null }> =
     JSON.parse(fs.readFileSync(OV_FILE, "utf8"));
   const { pool } = createDb();
+
+  // 同街道前綴出現多個 override → 相鄰分期案,擴散半徑不放大
+  const prefixCount = new Map<string, number>();
+  for (const ov of overrides) {
+    const city = cityByName(ov.city);
+    const key = city && normAddrKey(city, ov.district, toFullDigits(ov.address));
+    if (!key) continue;
+    const prefix = key.replace(/[０-９]+(之[０-９]+)?號$/, "");
+    prefixCount.set(prefix, (prefixCount.get(prefix) ?? 0) + 1);
+  }
 
   let anchors = 0, neighbors = 0, noBuilding = 0;
   for (const ov of overrides) {
@@ -66,13 +85,14 @@ async function main() {
     // 鄰棟:同街道前綴(去掉門牌號)+ 完工年相近 + 距離內
     const streetPrefix = addrKey.replace(/[０-９]+(之[０-９]+)?號$/, "");
     if (streetPrefix !== addrKey && anchor.build_year) {
+      const radius = radiusFor(ov.households, (prefixCount.get(streetPrefix) ?? 0) > 1);
       const { rows: cluster } = await pool.query(`
         SELECT addr_key, lat, lng FROM buildings
         WHERE addr_key LIKE $1 || '%號' AND addr_key <> $2
           AND build_year BETWEEN $3 AND $4 AND lat IS NOT NULL
       `, [streetPrefix, anchor.addr_key, anchor.build_year - YEAR_TOLERANCE, anchor.build_year + YEAR_TOLERANCE]);
       for (const b of cluster) {
-        if (metersApprox(+anchor.lat, +anchor.lng, +b.lat, +b.lng) > NEIGHBOR_RADIUS_M) continue;
+        if (metersApprox(+anchor.lat, +anchor.lng, +b.lat, +b.lng) > radius) continue;
         const { rowCount: n } = await pool.query(`
           INSERT INTO building_community (addr_key, case_no, match_method, confidence)
           VALUES ($1, $2, 'leju-door', 80) ON CONFLICT (addr_key) DO NOTHING

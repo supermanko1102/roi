@@ -11,7 +11,8 @@
     "district": "淡水區",
     "name": "益翔樂多多",
     "address": "新春街125巷122號",
-    "source": "樂居批次查證 2026-07-24"
+    "source": "樂居批次查證 2026-07-24",
+    "households": 176
   },
   {
     "city": "新北市",
@@ -137,7 +138,8 @@
     "district": "龜山區",
     "name": "富宇哈佛苑",
     "address": "文桃路419號",
-    "source": "樂居批次查證 2026-07-24"
+    "source": "樂居批次查證 2026-07-24",
+    "households": 491
   },
   {
     "city": "新北市",
@@ -193,7 +195,8 @@
     "district": "楊梅區",
     "name": "鼎藏昕站",
     "address": "新梅六街9號",
-    "source": "樂居批次查證 2026-07-24"
+    "source": "樂居批次查證 2026-07-24",
+    "households": 231
   },
   {
     "city": "新北市",
@@ -529,7 +532,8 @@
     "district": "新莊區",
     "name": "國鉅富",
     "address": "福美街189號",
-    "source": "樂居批次查證 2026-07-24"
+    "source": "樂居批次查證 2026-07-24",
+    "households": 155
   },
   {
     "city": "新北市",
@@ -788,7 +792,8 @@
     "district": "龜山區",
     "name": "大亮時代A7",
     "address": "文化一路512巷66號",
-    "source": "樂居批次查證 2026-07-24"
+    "source": "樂居批次查證 2026-07-24",
+    "households": 135
   },
   {
     "city": "臺北市",
@@ -837,7 +842,8 @@
     "district": "五股區",
     "name": "樂洋洋",
     "address": "新城八路247號",
-    "source": "樂居批次查證 2026-07-24"
+    "source": "樂居批次查證 2026-07-24",
+    "households": 226
   },
   {
     "city": "新北市",
@@ -900,7 +906,8 @@
     "district": "板橋區",
     "name": "禾川琚",
     "address": "華江三路118號",
-    "source": "樂居批次查證 2026-07-24"
+    "source": "樂居批次查證 2026-07-24",
+    "households": 256
   },
   {
     "city": "桃園市",
@@ -963,7 +970,8 @@
     "district": "汐止區",
     "name": "微笑昇樺",
     "address": "樟樹二路330巷6號",
-    "source": "樂居批次查證 2026-07-24"
+    "source": "樂居批次查證 2026-07-24",
+    "households": 123
   },
   {
     "city": "桃園市",
@@ -1005,7 +1013,8 @@
     "district": "八德區",
     "name": "元臺謙",
     "address": "和平路276巷15號",
-    "source": "樂居批次查證 2026-07-24"
+    "source": "樂居批次查證 2026-07-24",
+    "households": 135
   },
   {
     "city": "新北市",
@@ -1082,7 +1091,8 @@
     "district": "板橋區",
     "name": "忠泰本質",
     "address": "華江一路421號",
-    "source": "樂居批次查證 2026-07-24"
+    "source": "樂居批次查證 2026-07-24",
+    "households": 162
   },
   {
     "city": "新北市",
@@ -1117,7 +1127,8 @@
     "district": "板橋區",
     "name": "立川琚",
     "address": "華江三路200號",
-    "source": "樂居批次查證 2026-07-24"
+    "source": "樂居批次查證 2026-07-24",
+    "households": 265
   },
   {
     "city": "新北市",
@@ -1145,7 +1156,8 @@
     "district": "龜山區",
     "name": "遠雄新未來",
     "address": "文化一路529號",
-    "source": "樂居批次查證 2026-07-24 R2"
+    "source": "樂居批次查證 2026-07-24 R2",
+    "households": 824
   },
   {
     "city": "桃園市",
@@ -1159,14 +1171,16 @@
     "district": "板橋區",
     "name": "江翠ONE",
     "address": "華江一路150號",
-    "source": "樂居批次查證 2026-07-24 R2"
+    "source": "樂居批次查證 2026-07-24 R2",
+    "households": 471
   },
   {
     "city": "新北市",
     "district": "淡水區",
     "name": "宏盛水悅",
     "address": "新市三路一段50號",
-    "source": "樂居批次查證 2026-07-24 R2"
+    "source": "樂居批次查證 2026-07-24 R2",
+    "households": 991
   },
   {
     "city": "新北市",
@@ -1180,7 +1194,8 @@
     "district": "八德區",
     "name": "桃大誠",
     "address": "公園路102號",
-    "source": "樂居批次查證 2026-07-24 R2"
+    "source": "樂居批次查證 2026-07-24 R2",
+    "households": 587
   },
   {
     "city": "桃園市",
@@ -1222,7 +1237,8 @@
     "district": "楊梅區",
     "name": "鴻築里昂",
     "address": "中山北路一段494巷58號",
-    "source": "樂居批次查證 2026-07-24 R2"
+    "source": "樂居批次查證 2026-07-24 R2",
+    "households": 266
   },
   {
     "city": "新北市",
@@ -1264,7 +1280,8 @@
     "district": "五股區",
     "name": "合新NEW STAR世界之星",
     "address": "新五路三段202號",
-    "source": "樂居批次查證 2026-07-24 R2"
+    "source": "樂居批次查證 2026-07-24 R2",
+    "households": 285
   },
   {
     "city": "桃園市",
@@ -1299,7 +1316,8 @@
     "district": "楊梅區",
     "name": "鴻築新巴黎",
     "address": "中山北路一段494巷46號",
-    "source": "樂居批次查證 2026-07-24 R2"
+    "source": "樂居批次查證 2026-07-24 R2",
+    "households": 381
   },
   {
     "city": "桃園市",
@@ -1355,14 +1373,16 @@
     "district": "汐止區",
     "name": "筑丰陽陽",
     "address": "樟樹二路358號",
-    "source": "樂居批次查證 2026-07-24 R2"
+    "source": "樂居批次查證 2026-07-24 R2",
+    "households": 241
   },
   {
     "city": "桃園市",
     "district": "龜山區",
     "name": "欣時代",
     "address": "樂善三路62號",
-    "source": "樂居批次查證 2026-07-24 R2"
+    "source": "樂居批次查證 2026-07-24 R2",
+    "households": 258
   },
   {
     "city": "新北市",
@@ -1390,14 +1410,16 @@
     "district": "楊梅區",
     "name": "鴻築新米蘭",
     "address": "中山北路一段494巷78號",
-    "source": "樂居批次查證 2026-07-24 R2"
+    "source": "樂居批次查證 2026-07-24 R2",
+    "households": 132
   },
   {
     "city": "桃園市",
     "district": "楊梅區",
     "name": "鼎藏大硯",
     "address": "青山一街127號",
-    "source": "樂居批次查證 2026-07-24 R2"
+    "source": "樂居批次查證 2026-07-24 R2",
+    "households": 541
   },
   {
     "city": "桃園市",
@@ -1768,7 +1790,8 @@
     "district": "八德區",
     "name": "三本雲上",
     "address": "建德路150號",
-    "source": "樂居批次查證 2026-07-24 R2"
+    "source": "樂居批次查證 2026-07-24 R2",
+    "households": 196
   },
   {
     "city": "新北市",
@@ -1859,7 +1882,8 @@
     "district": "龜山區",
     "name": "頤昌璞岳",
     "address": "文桃路476巷20號",
-    "source": "樂居批次查證 2026-07-24 R2"
+    "source": "樂居批次查證 2026-07-24 R2",
+    "households": 135
   },
   {
     "city": "桃園市",
@@ -1972,5 +1996,2861 @@
     "name": "馥都悅",
     "address": "穀保街101號",
     "source": "樂居批次查證 2026-07-24 R2"
+  },
+  {
+    "city": "新北市",
+    "district": "淡水區",
+    "name": "海洋都心",
+    "address": "新市五路三段152號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 1658
+  },
+  {
+    "city": "新北市",
+    "district": "淡水區",
+    "name": "宏盛海都/海洋都心2",
+    "address": "新市三路二段181號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 1659
+  },
+  {
+    "city": "新北市",
+    "district": "淡水區",
+    "name": "台北灣6江南大宅",
+    "address": "沙崙路一段1號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 1265
+  },
+  {
+    "city": "新北市",
+    "district": "淡水區",
+    "name": "宏普樂高/宏普有逸天",
+    "address": "新市二路一段76號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 356
+  },
+  {
+    "city": "新北市",
+    "district": "淡水區",
+    "name": "一森原",
+    "address": "中正路二段34號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 398
+  },
+  {
+    "city": "新北市",
+    "district": "淡水區",
+    "name": "台北灣5四季之旅",
+    "address": "新市一路一段106號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 1166
+  },
+  {
+    "city": "新北市",
+    "district": "淡水區",
+    "name": "台北灣2觀海/台北灣B區大樓區",
+    "address": "新市一路一段2號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 615
+  },
+  {
+    "city": "新北市",
+    "district": "淡水區",
+    "name": "宏盛蒙德里安/宏盛新世界2",
+    "address": "沙崙路一段126巷61號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 694
+  },
+  {
+    "city": "新北市",
+    "district": "淡水區",
+    "name": "宏盛新世界",
+    "address": "沙崙路一段126巷60號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 468
+  },
+  {
+    "city": "新北市",
+    "district": "淡水區",
+    "name": "佳昂晴海",
+    "address": "新市一路一段331巷90號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 317
+  },
+  {
+    "city": "新北市",
+    "district": "淡水區",
+    "name": "宏英加州大樓",
+    "address": "新春街134號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 734
+  },
+  {
+    "city": "新北市",
+    "district": "淡水區",
+    "name": "丰悅夏宮",
+    "address": "新春街146號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 581
+  },
+  {
+    "city": "新北市",
+    "district": "淡水區",
+    "name": "灣頂大樓",
+    "address": "淡金路二段357號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 318
+  },
+  {
+    "city": "新北市",
+    "district": "淡水區",
+    "name": "勤家捷奏",
+    "address": "崁頂三路167號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 161
+  },
+  {
+    "city": "新北市",
+    "district": "淡水區",
+    "name": "峇里VITA",
+    "address": "淡金路二段507號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 281
+  },
+  {
+    "city": "新北市",
+    "district": "淡水區",
+    "name": "佳順有囍",
+    "address": "新市二路二段2號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 151
+  },
+  {
+    "city": "新北市",
+    "district": "淡水區",
+    "name": "和合和丰",
+    "address": "新市二路二段56號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 168
+  },
+  {
+    "city": "新北市",
+    "district": "淡水區",
+    "name": "淡江豪景",
+    "address": "中正路二段22巷9號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 349
+  },
+  {
+    "city": "新北市",
+    "district": "淡水區",
+    "name": "謙樹",
+    "address": "新市三路一段302號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 202
+  },
+  {
+    "city": "新北市",
+    "district": "淡水區",
+    "name": "佳陞Park188",
+    "address": "新市二路三段36巷37弄28號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 115
+  },
+  {
+    "city": "新北市",
+    "district": "淡水區",
+    "name": "城堡花園",
+    "address": "新春街127號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 492
+  },
+  {
+    "city": "新北市",
+    "district": "淡水區",
+    "name": "新春第一景",
+    "address": "新春街125巷2號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 287
+  },
+  {
+    "city": "桃園市",
+    "district": "中壢區",
+    "name": "冠德青璞匯",
+    "address": "高鐵南路二段352號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 666
+  },
+  {
+    "city": "桃園市",
+    "district": "中壢區",
+    "name": "潤隆國家大院",
+    "address": "青峰路一段71號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 826
+  },
+  {
+    "city": "桃園市",
+    "district": "中壢區",
+    "name": "新潤明日朗朗",
+    "address": "永泰路81號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 388
+  },
+  {
+    "city": "桃園市",
+    "district": "中壢區",
+    "name": "威均天翔/國際商務城",
+    "address": "領航南路三段468號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 361
+  },
+  {
+    "city": "桃園市",
+    "district": "中壢區",
+    "name": "新森活",
+    "address": "永昌路133號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 345
+  },
+  {
+    "city": "桃園市",
+    "district": "中壢區",
+    "name": "實德璞園的家",
+    "address": "領航南路三段251號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 356
+  },
+  {
+    "city": "桃園市",
+    "district": "中壢區",
+    "name": "皇普園首之道",
+    "address": "青商路371號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 386
+  },
+  {
+    "city": "桃園市",
+    "district": "中壢區",
+    "name": "青之上河",
+    "address": "文發路11號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 184
+  },
+  {
+    "city": "桃園市",
+    "district": "中壢區",
+    "name": "玖都森學園/玖都銀座",
+    "address": "領航北路二段266號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 128
+  },
+  {
+    "city": "桃園市",
+    "district": "中壢區",
+    "name": "鉅陞永麗花園",
+    "address": "青境路2號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 260
+  },
+  {
+    "city": "桃園市",
+    "district": "中壢區",
+    "name": "聯上3Q",
+    "address": "領航北路二段216號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 226
+  },
+  {
+    "city": "桃園市",
+    "district": "中壢區",
+    "name": "麗江星漾",
+    "address": "青商路419號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 153
+  },
+  {
+    "city": "桃園市",
+    "district": "中壢區",
+    "name": "宏普光年世界館",
+    "address": "高鐵南路二段252號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 120
+  },
+  {
+    "city": "桃園市",
+    "district": "中壢區",
+    "name": "鉅陞日和花園",
+    "address": "青商路259號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 200
+  },
+  {
+    "city": "桃園市",
+    "district": "中壢區",
+    "name": "太子天廈",
+    "address": "中山東路三段55號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 390
+  },
+  {
+    "city": "桃園市",
+    "district": "中壢區",
+    "name": "上城捷境/國門晶站",
+    "address": "青商路1號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 117
+  },
+  {
+    "city": "桃園市",
+    "district": "中壢區",
+    "name": "新潤明日苑2國璽苑",
+    "address": "領航北路二段53號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 166
+  },
+  {
+    "city": "桃園市",
+    "district": "中壢區",
+    "name": "宏普光年2",
+    "address": "領航南路二段199號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 108
+  },
+  {
+    "city": "桃園市",
+    "district": "中壢區",
+    "name": "良茂詠恆詠美館",
+    "address": "領航南路二段350號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 348
+  },
+  {
+    "city": "桃園市",
+    "district": "中壢區",
+    "name": "鼎藏青境",
+    "address": "龍慈路51號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 319
+  },
+  {
+    "city": "桃園市",
+    "district": "龜山區",
+    "name": "鴻築金捷市",
+    "address": "文化一路388號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 778
+  },
+  {
+    "city": "桃園市",
+    "district": "龜山區",
+    "name": "鴻築捷市達",
+    "address": "文學路1號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 803
+  },
+  {
+    "city": "桃園市",
+    "district": "龜山區",
+    "name": "華悦城",
+    "address": "樂善三路85號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 784
+  },
+  {
+    "city": "桃園市",
+    "district": "龜山區",
+    "name": "鴻築樂捷市/AiCity樂捷市",
+    "address": "長慶三街18號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 346
+  },
+  {
+    "city": "桃園市",
+    "district": "龜山區",
+    "name": "維特魯威",
+    "address": "文桃路489號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 136
+  },
+  {
+    "city": "桃園市",
+    "district": "龜山區",
+    "name": "A7地王竹城甲子園",
+    "address": "文化一路196號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 1209
+  },
+  {
+    "city": "桃園市",
+    "district": "龜山區",
+    "name": "名軒快樂家",
+    "address": "文學路221號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 532
+  },
+  {
+    "city": "桃園市",
+    "district": "龜山區",
+    "name": "遠雄新未來3",
+    "address": "文桃路339號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 598
+  },
+  {
+    "city": "桃園市",
+    "district": "龜山區",
+    "name": "和境心見",
+    "address": "文桃路123號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 218
+  },
+  {
+    "city": "桃園市",
+    "district": "龜山區",
+    "name": "富御捷境",
+    "address": "牛角坡路290號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 339
+  },
+  {
+    "city": "桃園市",
+    "district": "龜山區",
+    "name": "智匯學",
+    "address": "牛角坡路31號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 145
+  },
+  {
+    "city": "桃園市",
+    "district": "龜山區",
+    "name": "富來舞綻",
+    "address": "樂善三路177號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 119
+  },
+  {
+    "city": "桃園市",
+    "district": "龜山區",
+    "name": "鴻承根津苑",
+    "address": "樂善三路102號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 228
+  },
+  {
+    "city": "桃園市",
+    "district": "龜山區",
+    "name": "頤昌筑岳",
+    "address": "牛角坡路91號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 142
+  },
+  {
+    "city": "桃園市",
+    "district": "桃園區",
+    "name": "冠倫大國",
+    "address": "大有路560號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 924
+  },
+  {
+    "city": "桃園市",
+    "district": "桃園區",
+    "name": "市政潤隆",
+    "address": "法院後街2號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 231
+  },
+  {
+    "city": "桃園市",
+    "district": "桃園區",
+    "name": "璟都柏悅/璟都創世紀",
+    "address": "吉安一街173號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 291
+  },
+  {
+    "city": "桃園市",
+    "district": "桃園區",
+    "name": "唯樂之丘",
+    "address": "文中三路18號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 319
+  },
+  {
+    "city": "桃園市",
+    "district": "桃園區",
+    "name": "台北東京",
+    "address": "大有路650號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 604
+  },
+  {
+    "city": "桃園市",
+    "district": "桃園區",
+    "name": "台北新都",
+    "address": "桃鶯路280號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 454
+  },
+  {
+    "city": "桃園市",
+    "district": "桃園區",
+    "name": "嘉璟一品硯",
+    "address": "溫州一路301號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 371
+  },
+  {
+    "city": "桃園市",
+    "district": "桃園區",
+    "name": "台北公園都市",
+    "address": "大有路632號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 317
+  },
+  {
+    "city": "桃園市",
+    "district": "桃園區",
+    "name": "東京貴族",
+    "address": "春日路1155號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 251
+  },
+  {
+    "city": "桃園市",
+    "district": "桃園區",
+    "name": "龍鎰善美館",
+    "address": "桃鶯路380號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 290
+  },
+  {
+    "city": "桃園市",
+    "district": "桃園區",
+    "name": "航空VISA大廈",
+    "address": "春日路1115號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 204
+  },
+  {
+    "city": "桃園市",
+    "district": "桃園區",
+    "name": "竹城表参道/竹城表參道",
+    "address": "幸福路228號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 399
+  },
+  {
+    "city": "桃園市",
+    "district": "桃園區",
+    "name": "國王之森",
+    "address": "春日路390號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 80
+  },
+  {
+    "city": "桃園市",
+    "district": "桃園區",
+    "name": "RV生活館",
+    "address": "春日路912號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 212
+  },
+  {
+    "city": "桃園市",
+    "district": "桃園區",
+    "name": "新捷市",
+    "address": "龍城一街51號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 312
+  },
+  {
+    "city": "桃園市",
+    "district": "桃園區",
+    "name": "合康檜邑",
+    "address": "日光路121號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 248
+  },
+  {
+    "city": "桃園市",
+    "district": "桃園區",
+    "name": "三本四季",
+    "address": "青溪一路100巷90號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 149
+  },
+  {
+    "city": "桃園市",
+    "district": "桃園區",
+    "name": "大曜金融天廈/大曜花園",
+    "address": "永安路189號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 148
+  },
+  {
+    "city": "桃園市",
+    "district": "桃園區",
+    "name": "羅丹藝術家/羅丹",
+    "address": "大有路500號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 148
+  },
+  {
+    "city": "桃園市",
+    "district": "桃園區",
+    "name": "長隆賓市",
+    "address": "大有路559號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 289
+  },
+  {
+    "city": "桃園市",
+    "district": "桃園區",
+    "name": "璟都杜拜美學",
+    "address": "大有路300巷11號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 296
+  },
+  {
+    "city": "桃園市",
+    "district": "桃園區",
+    "name": "福容佳麗堡",
+    "address": "春日路471號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 136
+  },
+  {
+    "city": "新北市",
+    "district": "五股區",
+    "name": "天空之邑",
+    "address": "新五路二段500號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 456
+  },
+  {
+    "city": "新北市",
+    "district": "五股區",
+    "name": "神采飛洋/好享家",
+    "address": "新城六路155號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 292
+  },
+  {
+    "city": "新北市",
+    "district": "五股區",
+    "name": "SKY1",
+    "address": "新五路三段167號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 317
+  },
+  {
+    "city": "新北市",
+    "district": "五股區",
+    "name": "上河園",
+    "address": "新城八路2號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 539
+  },
+  {
+    "city": "新北市",
+    "district": "五股區",
+    "name": "茂德正義聯盟",
+    "address": "芳洲二路29號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 205
+  },
+  {
+    "city": "新北市",
+    "district": "五股區",
+    "name": "新大直世界馥",
+    "address": "新城三路1號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 140
+  },
+  {
+    "city": "新北市",
+    "district": "五股區",
+    "name": "未來馥",
+    "address": "新城六路235號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 203
+  },
+  {
+    "city": "新北市",
+    "district": "五股區",
+    "name": "高第3米6之間",
+    "address": "新城三路25號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 108
+  },
+  {
+    "city": "新北市",
+    "district": "五股區",
+    "name": "令荷園/上河美/上河園2",
+    "address": "新五路三段172號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 193
+  },
+  {
+    "city": "新北市",
+    "district": "五股區",
+    "name": "勤樸天悅",
+    "address": "新城三路41號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 124
+  },
+  {
+    "city": "新北市",
+    "district": "五股區",
+    "name": "新五綻/天作之合",
+    "address": "新五路三段212號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 76
+  },
+  {
+    "city": "新北市",
+    "district": "五股區",
+    "name": "九揚薩爾茲堡",
+    "address": "新五路二段620號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 208
+  },
+  {
+    "city": "新北市",
+    "district": "五股區",
+    "name": "未來家/大河琉御",
+    "address": "新五路三段302號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 311
+  },
+  {
+    "city": "新北市",
+    "district": "五股區",
+    "name": "春城家",
+    "address": "新城六路125號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 50
+  },
+  {
+    "city": "新北市",
+    "district": "五股區",
+    "name": "蓬來新家",
+    "address": "蓬萊路8號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 65
+  },
+  {
+    "city": "新北市",
+    "district": "五股區",
+    "name": "神奇福人居",
+    "address": "蓬萊路24號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 184
+  },
+  {
+    "city": "新北市",
+    "district": "五股區",
+    "name": "上河苑",
+    "address": "新城三路36號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 21
+  },
+  {
+    "city": "新北市",
+    "district": "五股區",
+    "name": "宏筑",
+    "address": "新五路二段327號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 76
+  },
+  {
+    "city": "新北市",
+    "district": "五股區",
+    "name": "藍田御",
+    "address": "蓬萊路23號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 182
+  },
+  {
+    "city": "新北市",
+    "district": "五股區",
+    "name": "水沐芳華",
+    "address": "新五路二段570號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 99
+  },
+  {
+    "city": "新北市",
+    "district": "五股區",
+    "name": "麗寶微風天地",
+    "address": "新五路三段268號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 313
+  },
+  {
+    "city": "新北市",
+    "district": "五股區",
+    "name": "麗寶微風花園",
+    "address": "新五路二段281號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 227
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "麗寶豐洲",
+    "address": "建德路2號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 389
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "城中大璽",
+    "address": "中正一路21號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 202
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "麗寶青年時代",
+    "address": "豐德路232號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 619
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "遠雄艾菲爾",
+    "address": "豐德路330號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 363
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "宏普之星",
+    "address": "中正一路2號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 271
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "鵬程首捷",
+    "address": "中正一路120號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 155
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "皇翔百老匯",
+    "address": "建德路241號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 199
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "漢鼎雲詠",
+    "address": "仁德一路102號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 129
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "巴黎花都",
+    "address": "金和路111號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 357
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "佳陞墨爾本",
+    "address": "豐德路166號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 341
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "深耕十",
+    "address": "豐德路582號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 180
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "合雄M/合雄御璟2",
+    "address": "中正北路62號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 203
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "歐洲學苑",
+    "address": "金和路81號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 414
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "和毅品森活",
+    "address": "中正北路18號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 106
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "佳瑞遊city",
+    "address": "仁德一路33號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 195
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "麗寶FIKA",
+    "address": "建德路258號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 187
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "光合市沐曦區",
+    "address": "豐吉路138巷30號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 63
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "德億伊沐",
+    "address": "豐德路108號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 40
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "樂活市",
+    "address": "和平路1490號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 78
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "竹風鳳凰",
+    "address": "建德路500號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 205
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "泓瑞群英",
+    "address": "仁德一路41號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 208
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "廣豐公園2",
+    "address": "公園路51號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 201
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "桃大極2",
+    "address": "金和路2號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 359
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "桃大極",
+    "address": "金和路52號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 181
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "新潤御丰莊園/新潤明日匯2登峰苑",
+    "address": "建德路128號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 102
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "合雄MAX",
+    "address": "建德路182號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 168
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "光合市朝陽區",
+    "address": "豐吉路138巷9號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 80
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "三本世紀天廈",
+    "address": "和平路284號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 194
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "香榭儷舍",
+    "address": "和平路152號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 188
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "竹風鳳凰2",
+    "address": "仁德一路125號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 110
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "小資有約/親家",
+    "address": "和平路31號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 65
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "昇捷天沐",
+    "address": "建德路388號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 48
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "光合市植青區",
+    "address": "豐吉路138巷20弄13號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 99
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "双湖薈",
+    "address": "和平路413號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 51
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "新潤明日匯峰景苑",
+    "address": "建德路267號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 74
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "廣豐公園3",
+    "address": "公園路91號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 137
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "光合市氧森區",
+    "address": "豐吉路138巷20弄2號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 37
+  },
+  {
+    "city": "桃園市",
+    "district": "八德區",
+    "name": "山盈和平",
+    "address": "和平路528巷202弄77號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 5
+  },
+  {
+    "city": "新北市",
+    "district": "土城區",
+    "name": "金城舞2都心花園",
+    "address": "學士路137號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 607
+  },
+  {
+    "city": "新北市",
+    "district": "土城區",
+    "name": "四季平安/清水湛",
+    "address": "青隆街218號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 192
+  },
+  {
+    "city": "新北市",
+    "district": "土城區",
+    "name": "學府之森",
+    "address": "學府路一段98巷30-1號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 224
+  },
+  {
+    "city": "新北市",
+    "district": "土城區",
+    "name": "金城舞世界花園",
+    "address": "莊園街126號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 1663
+  },
+  {
+    "city": "新北市",
+    "district": "土城區",
+    "name": "新潤青樺",
+    "address": "學士路279號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 299
+  },
+  {
+    "city": "新北市",
+    "district": "土城區",
+    "name": "國泰金城",
+    "address": "學士路33巷2-1號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 65
+  },
+  {
+    "city": "新北市",
+    "district": "土城區",
+    "name": "金雞報喜",
+    "address": "學士路21號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 249
+  },
+  {
+    "city": "新北市",
+    "district": "土城區",
+    "name": "台信樂晴市樂多區",
+    "address": "青雲路411巷2號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 88
+  },
+  {
+    "city": "新北市",
+    "district": "土城區",
+    "name": "有富正旺璞玉",
+    "address": "學士路61巷58號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 102
+  },
+  {
+    "city": "新北市",
+    "district": "土城區",
+    "name": "國泰雕之森",
+    "address": "學士路12巷1號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 312
+  },
+  {
+    "city": "新北市",
+    "district": "土城區",
+    "name": "國泰富貴世家",
+    "address": "學士路35號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 87
+  },
+  {
+    "city": "新北市",
+    "district": "土城區",
+    "name": "大同莊園",
+    "address": "莊園街11號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 490
+  },
+  {
+    "city": "新北市",
+    "district": "土城區",
+    "name": "綠見竺",
+    "address": "學士路286號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 101
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "新外灘6立信帝國花園廣場",
+    "address": "華江一路111號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 1120
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "甲山林帝景5號",
+    "address": "華江九路35號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 336
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "聯上匯翠",
+    "address": "華江一路550號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 364
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "江滙Life",
+    "address": "華江一路21號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 259
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "文化風華",
+    "address": "文化路二段589號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 172
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "幸福法樂ME/湛然幸福時光",
+    "address": "光環路二段32號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 348
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "湛然新天地",
+    "address": "光環路二段8號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 277
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "麗寶北歐莊園芬蘭極光",
+    "address": "華江一路600號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 306
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "超級城市SUPER讚",
+    "address": "莊崑路67號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 300
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "新外灘雙江翠",
+    "address": "華江一路201號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 257
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "麗寶北歐莊園丹麥琥珀",
+    "address": "華江一路523號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 295
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "江南STAR",
+    "address": "華江三路259號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 173
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "達永冬慶",
+    "address": "文化路二段61號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 118
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "文化大人國",
+    "address": "文化路二段182巷3弄48號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 263
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "聯上涵翠",
+    "address": "華江一路500號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 234
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "高妍植3水璟苑",
+    "address": "板城路806號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 308
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "寶佳臻峰",
+    "address": "文化路二段111號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 185
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "新外灘3新月天地",
+    "address": "環河西路五段201號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 470
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "河藍灣",
+    "address": "華江三路32號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 159
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "上上禮",
+    "address": "華江一路265號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 108
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "觀翠/九欣觀翠",
+    "address": "華江一路515號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 58
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "台北溫哥華",
+    "address": "文化路二段481號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 222
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "捷運千禧",
+    "address": "文化路二段516號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 50
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "悠遊市",
+    "address": "文化路二段367號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 183
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "文化勳章",
+    "address": "文化路二段82號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 223
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "新外灘2仰真",
+    "address": "華江一路375號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 185
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "興富發大美",
+    "address": "華江九路1號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 136
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "立信吾界",
+    "address": "華江一路50號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 171
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "久泰翠品",
+    "address": "華江一路378號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 122
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "麗寶北歐莊園瑞典月灣",
+    "address": "環河西路五段151號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 150
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "新富時代",
+    "address": "文化路二段426號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 43
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "文化遠見",
+    "address": "文化路二段182巷1弄16號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 113
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "盈松華廈/懷德華廈",
+    "address": "文化路二段498號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 96
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "文化路二段475巷1號華廈",
+    "address": "文化路二段475巷1號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 19
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "第一天廈",
+    "address": "文化路二段385號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 205
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "文化風閣",
+    "address": "文化路二段441巷7號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 33
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "文化領袖",
+    "address": "文化路二段311號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 60
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "三輝都匯",
+    "address": "文化路二段182巷3弄46號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 61
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "勝輝鴻磐",
+    "address": "華江一路300號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 61
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "潤泰峰匯",
+    "address": "華江一路350號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 220
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "文化路二段263巷華廈",
+    "address": "文化路二段263巷12號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 18
+  },
+  {
+    "city": "新北市",
+    "district": "板橋區",
+    "name": "三輝玳門",
+    "address": "文化路二段288號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 173
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "鼎藏學苑",
+    "address": "金山街193號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 346
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "鼎藏大硯2",
+    "address": "青山一街123號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 321
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "X計劃明日城",
+    "address": "金山街298巷20號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 251
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "名座花園",
+    "address": "梅獅路二段249巷8號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 270
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "X計劃2智富城",
+    "address": "金山街300號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 205
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "X計劃3世紀城",
+    "address": "金山街368巷2號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 356
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "和發閱森活",
+    "address": "梅獅路二段251號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 210
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "玫瑰村",
+    "address": "中山北路一段390巷45弄32號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 288
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "邦國世紀新都",
+    "address": "梅獅路二段59號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 131
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "楊州花都",
+    "address": "金山街131號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 226
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "新都悅",
+    "address": "梅獅路二段188號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 258
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "華東映月/華東映玥",
+    "address": "青山一街205巷2號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 53
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "世紀花園廣場",
+    "address": "梅獅路二段154號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 232
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "藏疆",
+    "address": "金山街275巷2號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 197
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "麗盛真鑽",
+    "address": "青山一街63號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 226
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "甜蜜薪家",
+    "address": "梅獅路二段232巷37號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 58
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "協和涵美馥邑區",
+    "address": "梅獅路二段32號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 217
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "喆園/樂揚市",
+    "address": "金山街351號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 156
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "英捷雲集",
+    "address": "中山北路一段100號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 165
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "鎮揚新宿",
+    "address": "永平路158巷2號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 62
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "紐約時尚會館",
+    "address": "梅獅路二段166巷1號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 292
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "精品國宅",
+    "address": "梅獅路二段232巷46號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 64
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "協和星視界",
+    "address": "梅獅路二段79號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 159
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "奎富新宿2",
+    "address": "永平路180號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 20
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "有福同享",
+    "address": "永平路210巷1號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 88
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "和發學悅",
+    "address": "中山北路一段390巷77號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 81
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "璞心綻",
+    "address": "永平路216號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 75
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "鎮揚新宿3",
+    "address": "永平路158巷1號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 34
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "觀天下",
+    "address": "新梅六街46號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 140
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "富俋吉祥",
+    "address": "中山北路一段74巷11號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 56
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "明日之星",
+    "address": "金山街1號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 150
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "多福園",
+    "address": "中山北路一段390巷45弄31號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 94
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "集儷苑",
+    "address": "楊新路二段176巷106號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 65
+  },
+  {
+    "city": "桃園市",
+    "district": "楊梅區",
+    "name": "文生璞芯",
+    "address": "福羚路248巷28號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 150
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "東方京品",
+    "address": "福祥街80號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 74
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "丰閣大樓區",
+    "address": "福興街250號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 59
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "久春安和街華廈",
+    "address": "安和街209號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 19
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "找樂子",
+    "address": "中觀路二段185巷30號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 113
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "威泰錢都",
+    "address": "仁德街318號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 18
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "紐約幸運星大樓區",
+    "address": "中山路一段739巷8號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 72
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "幸福A+",
+    "address": "仁德街132號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 19
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "勝葳日光綠",
+    "address": "福祥街123號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 30
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "巴黎時尚",
+    "address": "福祥街127號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 112
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "威泰錢都12期CD區",
+    "address": "永吉街280號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 36
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "時尚君品5",
+    "address": "仁德街200號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 9
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "勝利組3",
+    "address": "仁德街157號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 25
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "傳佳優活郡",
+    "address": "福祥街98號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 105
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "昇美學",
+    "address": "長春街271號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 38
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "三禾苑福祥街109號華廈",
+    "address": "福祥街109號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 9
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "威泰錢都2",
+    "address": "安和街269號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 18
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "幸福雅御3期B區",
+    "address": "仁德街118號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 10
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "幸福雅御3期A區",
+    "address": "仁德街122號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 10
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "亞悅5",
+    "address": "民權路108號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 18
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "極美家",
+    "address": "福祥街97號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 17
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "薪世紀3",
+    "address": "福興街283號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 27
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "勝利組7",
+    "address": "福祥街57號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 31
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "RICH富都",
+    "address": "長春街30號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 10
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "青年成家",
+    "address": "仁德街58號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 13
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "耀承澄心大樓區",
+    "address": "福德街100號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 39
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "觀音青田",
+    "address": "中山路135巷1號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 32
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "發樂寶2",
+    "address": "長春街217號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 29
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "威泰錢都6",
+    "address": "仁德街156號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 27
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "勝利組",
+    "address": "長春街5號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 19
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "時尚君品2",
+    "address": "長春街149號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 18
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "快樂滿屋3",
+    "address": "永吉街70號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 18
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "快樂滿屋A棟",
+    "address": "長春街347號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 14
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "韋華吉品2",
+    "address": "長春街29號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 19
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "威泰錢都8",
+    "address": "仁德街306號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 18
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "昇悅家",
+    "address": "福德街182號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 13
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "米蘭之星1期2期",
+    "address": "長春街140號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 24
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "易品居",
+    "address": "民權路91號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 19
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "亞悅7",
+    "address": "永吉街169號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 9
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "勝利組5",
+    "address": "福祥街37號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 17
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "昇悅家2",
+    "address": "福德街361號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 12
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "群城新幸福2",
+    "address": "福祥街16號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 17
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "亞悅10",
+    "address": "永吉街193號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 9
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "享耀3",
+    "address": "仁德街53號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 19
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "NEW CITY新都",
+    "address": "仁德街211號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 9
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "樸美心世界",
+    "address": "福祥街18-8號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 9
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "友橋拾光",
+    "address": "長春街170-1號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 19
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "京峰夏戀",
+    "address": "仁德街108號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 19
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "友僑拾光2",
+    "address": "永吉街222號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 18
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "盛綻2華廈區",
+    "address": "福興街213號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 12
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "窩邊草",
+    "address": "福德街316號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 18
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "福興長春街148號華廈",
+    "address": "長春街148號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 9
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "捷弘永吉街華廈",
+    "address": "永吉街26號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 19
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "鴻翔居(永吉街)",
+    "address": "永吉街16號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 5
+  },
+  {
+    "city": "桃園市",
+    "district": "觀音區",
+    "name": "京峰珍心",
+    "address": "仁德街77號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 37
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "美麗山林華廈區",
+    "address": "水源路二段125巷8弄1號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 267
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "星野之森D區",
+    "address": "新台五路二段238巷31號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 351
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "超級花園/iCITY/新捷都",
+    "address": "樟樹二路89號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 638
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "星野之森B區",
+    "address": "新台五路二段238巷22號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 244
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "摩登家庭",
+    "address": "忠孝東路424號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 354
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "半島花園2期G棟",
+    "address": "樟樹二路378號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 68
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "忠孝大院",
+    "address": "忠孝東路415號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 231
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "半島花園BC棟",
+    "address": "樟樹二路420號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 175
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "漢諾瓦郡",
+    "address": "忠孝東路341號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 144
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "東城大境4冠東城",
+    "address": "康寧街459巷17號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 291
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "星野之森G區",
+    "address": "新台五路二段238巷82號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 160
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "綠園道",
+    "address": "樟樹二路330巷18號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 224
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "健弘新世界劍橋特區",
+    "address": "樟樹二路279號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 269
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "忠孝誠藝",
+    "address": "忠孝東路506號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 147
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "日成新世紀佳人區",
+    "address": "樟樹二路253號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 249
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "日成新世紀才子區",
+    "address": "樟樹二路280號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 266
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "健弘新世界牛津特區/牛津社區",
+    "address": "樟樹二路251巷12號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 145
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "福邸龍門A區",
+    "address": "樟樹二路295號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 125
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "四季晏A區",
+    "address": "樟樹二路167號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 52
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "星野之森C區",
+    "address": "新台五路二段238巷3號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 140
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "健弘新世界哈佛特區",
+    "address": "樟樹二路251巷1號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 76
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "福邸龍門B區",
+    "address": "樟樹二路289號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 83
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "半島花園A棟",
+    "address": "樟樹二路460號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 90
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "儷都花園",
+    "address": "樟樹二路108號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 164
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "儷都臻邸",
+    "address": "樟樹二路106巷2號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 71
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "城市公園",
+    "address": "樟樹二路330巷1號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 136
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "環瑋大地",
+    "address": "樟樹二路112號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 34
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "凱歌世界",
+    "address": "樟樹二路325號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 97
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "忠孝芳庭",
+    "address": "忠孝東路470號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 42
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "汐緻M House/矽緻",
+    "address": "忠孝東路480號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 40
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "綠色生活",
+    "address": "忠孝東路475號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 75
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "台北最愛",
+    "address": "樟樹二路120號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 20
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "綠意皇邑",
+    "address": "忠孝東路490號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 107
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "東城大境A區上東城",
+    "address": "康寧街459巷51號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 175
+  },
+  {
+    "city": "新北市",
+    "district": "汐止區",
+    "name": "一翔忠孝東路華廈",
+    "address": "忠孝東路485-1號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 9
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "新潤都峰苑",
+    "address": "新北大道四段179號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 294
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "超級城市SUPER2愛丁堡",
+    "address": "新崑路127號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 472
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "遠雄新宿",
+    "address": "新北大道四段51號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 292
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "鄉林淳青",
+    "address": "新北大道四段185號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 164
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "興富發捷仕堡",
+    "address": "龍安路13號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 420
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "富御匯/M ONE",
+    "address": "新北大道四段171號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 52
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "力麒家家富富/力麒PARK",
+    "address": "中環路二段220號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 134
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "新潤莫內花園",
+    "address": "新知三路61號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 365
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "遠雄國都",
+    "address": "新北大道四段205號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 203
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "冠德泰極",
+    "address": "福美街41號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 279
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "台北大道",
+    "address": "龍安路278巷2號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 162
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "幸福公園百合館",
+    "address": "福美街257號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 82
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "合康天賦",
+    "address": "福美街62巷2號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 85
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "遠雄國滙/遠雄國匯",
+    "address": "新北大道四段189號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 204
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "御春城",
+    "address": "福美街177號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 119
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "捷運GO境",
+    "address": "龍安路18號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 171
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "興天地",
+    "address": "福美街38號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 138
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "新泰美",
+    "address": "中環路二段453號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 156
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "榮馥大院",
+    "address": "中平路292巷1弄12號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 289
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "福恩樓",
+    "address": "龍安路477號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 21
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "龍騰四海",
+    "address": "龍安路527號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 476
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "新學友",
+    "address": "龍安路451號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 108
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "達麗首席",
+    "address": "福美街62巷11號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 148
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "鄉林淳風",
+    "address": "福美街128巷2號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 113
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "家一方",
+    "address": "福美街62巷55號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 102
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "亞昕采匯",
+    "address": "福美街128巷30號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 58
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "百城歡璽寶冠區",
+    "address": "龍安路69巷2號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 156
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "百城歡璽桂冠區",
+    "address": "龍安路69巷30號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 252
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "葉財記敦藏",
+    "address": "福美街170號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 40
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "七星峰知星",
+    "address": "福美街128巷25號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 33
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "天天開心",
+    "address": "龍安路278巷1號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 173
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "台北大富貴/荷意一品",
+    "address": "中平路292巷1弄1號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 90
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "文學苑(龍安路)",
+    "address": "龍安路85號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 99
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "龍長吟花園廣場",
+    "address": "龍安路108號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 298
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "捷運馥境",
+    "address": "龍安路9號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 76
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "富利天廈",
+    "address": "龍安路1號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 117
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "捷運吉境",
+    "address": "龍安路66-31號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 183
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "閱世界",
+    "address": "福美街172巷31號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 65
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "碧瑤峰範",
+    "address": "福美街16號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 40
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "捷匯",
+    "address": "龍安路66-28號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 20
+  },
+  {
+    "city": "新北市",
+    "district": "新莊區",
+    "name": "國美珩月",
+    "address": "福美街172巷2號",
+    "source": "樂居批次查證 2026-07-27(租賃聚落反查)",
+    "households": 91
   }
 ]
