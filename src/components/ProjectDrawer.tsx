@@ -33,7 +33,13 @@ type PDetail = {
   resales: Resale[];
   unit_doors?: UnitDoor[];
   rents?: RLease[];
-  materials: { sections: { title: string; body: string }[]; pdf_url: string | null } | null;
+  materials: {
+    sections: { title: string; body: string }[]; pdf_url: string | null;
+    facts: {
+      kitchen_brands: string[]; bath_brands: string[]; floor_materials: string[];
+      kitchen_tier: number | null; bath_tier: number | null; floor_tier: number | null;
+    } | null;
+  } | null;
 };
 
 type Resale = {
@@ -82,16 +88,54 @@ function ListParking({ deal }: { deal: PDeal }) {
   );
 }
 
+// 建材等級摘要:分類結果(etl/classify-materials.ts)。等級=契約品牌清單的最低階
+// (「A或B或C」建商可任選,顯示的是契約保證下限);tier 0 = 地板毛胚無鋪面
+const TIER_BADGE: Record<number, { label: string; cls: string }> = {
+  3: { label: "進口精品", cls: "bg-[#f4e4c5] text-[#785415]" },
+  2: { label: "中高階", cls: "bg-[#d9ece8] text-[#1d5c52]" },
+  1: { label: "標準", cls: "bg-[#e9edeb] text-ink-soft" },
+  0: { label: "毛胚無鋪面", cls: "bg-[#eee6e6] text-[#7a4444]" },
+};
+
+function FactRow({ label, tier, items }: { label: string; tier: number | null; items: string[] }) {
+  if (tier == null && !items.length) return null;
+  const badge = tier != null ? TIER_BADGE[tier] : null;
+  return (
+    <div className="flex items-start gap-2 py-1">
+      <span className="w-9 shrink-0 text-[10.5px] font-bold text-ink">{label}</span>
+      {badge && (
+        <b className={cn("shrink-0 rounded-full px-1.5 py-0.5 text-[8.5px]", badge.cls)}>{badge.label}</b>
+      )}
+      <span className="min-w-0 text-[10px] leading-relaxed text-ink-soft">{items.join("、")}</span>
+    </div>
+  );
+}
+
 // 建材與設備:契約附件六抽出的分節,預設收合,展開後每節可再展開看細目
-function MaterialsSection({ sections, pdfUrl }: {
+function MaterialsSection({ sections, pdfUrl, facts }: {
   sections: { title: string; body: string }[]; pdfUrl: string | null;
+  facts: {
+    kitchen_brands: string[]; bath_brands: string[]; floor_materials: string[];
+    kitchen_tier: number | null; bath_tier: number | null; floor_tier: number | null;
+  } | null;
 }) {
   const [open, setOpen] = useState<number | null>(0);
+  const hasFacts = facts && (facts.kitchen_tier != null || facts.bath_tier != null || facts.floor_tier != null);
   return (
     <section className="mt-[21px] border-t border-line pt-3.5">
       <div className="flex items-baseline gap-2.5 text-[13.5px] font-extrabold">建材與設備
         <span className="num text-[12.5px] text-teal">{sections.length} 項</span>
       </div>
+      {hasFacts && (
+        <div className="mt-2 rounded-[10px] border border-line bg-[#fbfcfb] px-3 py-1.5">
+          <FactRow label="衛浴" tier={facts.bath_tier} items={facts.bath_brands} />
+          <FactRow label="廚具" tier={facts.kitchen_tier} items={facts.kitchen_brands} />
+          <FactRow label="地板" tier={facts.floor_tier} items={facts.floor_materials} />
+          <div className="pb-1 pt-0.5 text-[8.5px] leading-normal text-ink-soft">
+            等級為契約品牌清單的保證下限(多品牌擇一時以最低階計),自動整理僅供參考。
+          </div>
+        </div>
+      )}
       <div className="mt-2 overflow-hidden rounded-[10px] border border-line">
         {sections.map((s, i) => (
           <div key={i} className="border-t border-line first:border-t-0">
@@ -399,7 +443,7 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
           )}
 
           {detail.materials && detail.materials.sections.length > 0 && (
-            <MaterialsSection sections={detail.materials.sections} pdfUrl={detail.materials.pdf_url} />
+            <MaterialsSection sections={detail.materials.sections} pdfUrl={detail.materials.pdf_url} facts={detail.materials.facts} />
           )}
 
           <div className="mt-[18px] border-t border-line pt-[11px] text-[9px] leading-normal text-ink-soft">

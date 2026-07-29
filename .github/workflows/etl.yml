@@ -89,3 +89,9 @@ jobs:
         run: pnpm etl:contracts -- --limit ${{ github.event.inputs.contracts_limit || '80' }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      # 建材分類(規則式,秒級):由 contract_materials 全量重建 contract_material_facts
+      - name: 建材分類(廚具/衛浴/地板等級)
+        run: pnpm etl:materials
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

@@ -34,6 +34,7 @@
     "etl:zone-bands": "tsx etl/compute-zone-bands.ts",
     "etl:quality": "tsx etl/quality-check.ts",
     "etl:contracts": "tsx etl/fetch-contract-materials.ts",
+    "etl:materials": "tsx etl/classify-materials.ts",
     "etl:all": "tsx etl/run-all.ts"
   },
   "dependencies": {

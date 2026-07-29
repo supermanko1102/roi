@@ -1,0 +1,593 @@
+{
+  "_readme": "建材品牌分級字典(classify-materials.ts 使用)。tier: 3=進口精品、2=中高階、1=國產標準。category: bath/kitchen/both;accessory=true 的品牌(暖風機/濾水器等配件)不參與等級計算。aliases 為 materials_text 中的比對字串(不分大小寫)。人工維護:新品牌跑完分類會列在 unknown_brands 報告,審核後補進來。 sub=cabinet 為廚具櫃體/系統品牌,廚具等級以櫃體優先(三機配件基本盤不拉低等級)。floor_materials 依特異度排序,比對首中即止。",
+  "brands": [
+    {
+      "name": "Villeroy&Boch",
+      "tier": 3,
+      "category": "bath",
+      "aliases": [
+        "Villeroy&Boch",
+        "Villeroy & Boch",
+        "V&B",
+        "德國V&B"
+      ]
+    },
+    {
+      "name": "GROHE",
+      "tier": 3,
+      "category": "bath",
+      "aliases": [
+        "GROHE",
+        "GORHE"
+      ]
+    },
+    {
+      "name": "HANSGROHE",
+      "tier": 3,
+      "category": "both",
+      "aliases": [
+        "HANSGROHE",
+        "Hansgrohe"
+      ]
+    },
+    {
+      "name": "KOHLER",
+      "tier": 3,
+      "category": "both",
+      "aliases": [
+        "KOHLER"
+      ]
+    },
+    {
+      "name": "DURAVIT",
+      "tier": 3,
+      "category": "bath",
+      "aliases": [
+        "DURAVIT",
+        "Duravit"
+      ]
+    },
+    {
+      "name": "AXENT",
+      "tier": 3,
+      "category": "bath",
+      "aliases": [
+        "AXENT"
+      ]
+    },
+    {
+      "name": "BETTE",
+      "tier": 3,
+      "category": "bath",
+      "aliases": [
+        "BETTE"
+      ]
+    },
+    {
+      "name": "ZUCCHETTI",
+      "tier": 3,
+      "category": "bath",
+      "aliases": [
+        "ZUCCHETTI"
+      ]
+    },
+    {
+      "name": "LAUFEN",
+      "tier": 3,
+      "category": "bath",
+      "aliases": [
+        "LAUFEN"
+      ]
+    },
+    {
+      "name": "Gessi",
+      "tier": 3,
+      "category": "bath",
+      "aliases": [
+        "GESSI"
+      ]
+    },
+    {
+      "name": "Geberit",
+      "tier": 3,
+      "category": "bath",
+      "aliases": [
+        "Geberit"
+      ]
+    },
+    {
+      "name": "Roca",
+      "tier": 2,
+      "category": "bath",
+      "aliases": [
+        "Roca"
+      ]
+    },
+    {
+      "name": "INAX",
+      "tier": 2,
+      "category": "bath",
+      "aliases": [
+        "INAX",
+        "伊奈"
+      ]
+    },
+    {
+      "name": "TOTO",
+      "tier": 2,
+      "category": "bath",
+      "aliases": [
+        "TOTO"
+      ]
+    },
+    {
+      "name": "BRAVAT",
+      "tier": 2,
+      "category": "bath",
+      "aliases": [
+        "BRAVAT",
+        "貝朗"
+      ]
+    },
+    {
+      "name": "American Standard",
+      "tier": 2,
+      "category": "bath",
+      "aliases": [
+        "American Standard",
+        "美標"
+      ]
+    },
+    {
+      "name": "Panasonic",
+      "tier": 2,
+      "category": "both",
+      "aliases": [
+        "Panasonic",
+        "PANASONIC",
+        "國際牌"
+      ]
+    },
+    {
+      "name": "HCG和成",
+      "tier": 1,
+      "category": "bath",
+      "aliases": [
+        "HCG",
+        "和成"
+      ]
+    },
+    {
+      "name": "凱撒",
+      "tier": 1,
+      "category": "bath",
+      "aliases": [
+        "凱撒",
+        "Caesar",
+        "CAESAR"
+      ]
+    },
+    {
+      "name": "德瑞克",
+      "tier": 1,
+      "category": "bath",
+      "aliases": [
+        "德瑞克",
+        "Derek"
+      ]
+    },
+    {
+      "name": "京典",
+      "tier": 1,
+      "category": "bath",
+      "aliases": [
+        "京典",
+        "OVO"
+      ]
+    },
+    {
+      "name": "KARAT",
+      "tier": 1,
+      "category": "bath",
+      "aliases": [
+        "KARAT",
+        "凱樂"
+      ]
+    },
+    {
+      "name": "INNOCI",
+      "tier": 2,
+      "category": "bath",
+      "aliases": [
+        "INNOCI"
+      ]
+    },
+    {
+      "name": "LEICHT",
+      "tier": 3,
+      "category": "kitchen",
+      "aliases": [
+        "LEICHT"
+      ],
+      "sub": "cabinet"
+    },
+    {
+      "name": "pronorm",
+      "tier": 3,
+      "category": "kitchen",
+      "aliases": [
+        "pronorm",
+        "PRONORM"
+      ],
+      "sub": "cabinet"
+    },
+    {
+      "name": "Poggenpohl",
+      "tier": 3,
+      "category": "kitchen",
+      "aliases": [
+        "Poggenpohl"
+      ],
+      "sub": "cabinet"
+    },
+    {
+      "name": "BERLONI",
+      "tier": 3,
+      "category": "kitchen",
+      "aliases": [
+        "BERLONI"
+      ],
+      "sub": "cabinet"
+    },
+    {
+      "name": "RATIONAL",
+      "tier": 3,
+      "category": "kitchen",
+      "aliases": [
+        "RATIONAL"
+      ],
+      "sub": "cabinet"
+    },
+    {
+      "name": "STORMER",
+      "tier": 3,
+      "category": "kitchen",
+      "aliases": [
+        "STORMER",
+        "Stormer"
+      ],
+      "sub": "cabinet"
+    },
+    {
+      "name": "Miele",
+      "tier": 3,
+      "category": "kitchen",
+      "aliases": [
+        "Miele",
+        "MIELE"
+      ]
+    },
+    {
+      "name": "Gaggenau",
+      "tier": 3,
+      "category": "kitchen",
+      "aliases": [
+        "Gaggenau"
+      ]
+    },
+    {
+      "name": "Bosch",
+      "tier": 3,
+      "category": "kitchen",
+      "aliases": [
+        "Bosch",
+        "BOSCH"
+      ]
+    },
+    {
+      "name": "SMEG",
+      "tier": 3,
+      "category": "kitchen",
+      "aliases": [
+        "SMEG"
+      ]
+    },
+    {
+      "name": "Electrolux",
+      "tier": 2,
+      "category": "kitchen",
+      "aliases": [
+        "Electrolux",
+        "伊萊克斯"
+      ]
+    },
+    {
+      "name": "Cleanup",
+      "tier": 3,
+      "category": "kitchen",
+      "aliases": [
+        "Cleanup",
+        "CLEANUP"
+      ],
+      "sub": "cabinet"
+    },
+    {
+      "name": "Takara",
+      "tier": 2,
+      "category": "kitchen",
+      "aliases": [
+        "Takara",
+        "Takara standard"
+      ],
+      "sub": "cabinet"
+    },
+    {
+      "name": "TOYOURA",
+      "tier": 2,
+      "category": "kitchen",
+      "aliases": [
+        "TOYOURA"
+      ]
+    },
+    {
+      "name": "BLANCO",
+      "tier": 3,
+      "category": "kitchen",
+      "aliases": [
+        "BLANCO"
+      ]
+    },
+    {
+      "name": "Franke",
+      "tier": 2,
+      "category": "kitchen",
+      "aliases": [
+        "Franke"
+      ]
+    },
+    {
+      "name": "雅登",
+      "tier": 2,
+      "category": "kitchen",
+      "aliases": [
+        "雅登",
+        "ODDO"
+      ],
+      "sub": "cabinet"
+    },
+    {
+      "name": "櫻花",
+      "tier": 1,
+      "category": "kitchen",
+      "aliases": [
+        "櫻花",
+        "SAKURA"
+      ]
+    },
+    {
+      "name": "林內",
+      "tier": 1,
+      "category": "kitchen",
+      "aliases": [
+        "林內",
+        "Rinnai",
+        "RINNAI"
+      ]
+    },
+    {
+      "name": "豪山",
+      "tier": 1,
+      "category": "kitchen",
+      "aliases": [
+        "豪山"
+      ]
+    },
+    {
+      "name": "喜特麗",
+      "tier": 1,
+      "category": "kitchen",
+      "aliases": [
+        "喜特麗"
+      ]
+    },
+    {
+      "name": "莊頭北",
+      "tier": 1,
+      "category": "kitchen",
+      "aliases": [
+        "莊頭北"
+      ]
+    },
+    {
+      "name": "BEST",
+      "tier": 2,
+      "category": "kitchen",
+      "aliases": [
+        "BEST",
+        "貝斯特"
+      ]
+    },
+    {
+      "name": "SVAGO",
+      "tier": 2,
+      "category": "kitchen",
+      "aliases": [
+        "SVAGO"
+      ]
+    },
+    {
+      "name": "樂奇",
+      "tier": 1,
+      "category": "bath",
+      "accessory": true,
+      "aliases": [
+        "樂奇"
+      ]
+    },
+    {
+      "name": "阿拉斯加",
+      "tier": 1,
+      "category": "bath",
+      "accessory": true,
+      "aliases": [
+        "阿拉斯加",
+        "ALASKA"
+      ]
+    },
+    {
+      "name": "康乃馨",
+      "tier": 1,
+      "category": "bath",
+      "accessory": true,
+      "aliases": [
+        "康乃馨",
+        "KNS"
+      ]
+    },
+    {
+      "name": "順光",
+      "tier": 1,
+      "category": "bath",
+      "accessory": true,
+      "aliases": [
+        "順光",
+        "SHUN KUANG"
+      ]
+    },
+    {
+      "name": "台達",
+      "tier": 1,
+      "category": "bath",
+      "accessory": true,
+      "aliases": [
+        "台達",
+        "DELTA"
+      ]
+    },
+    {
+      "name": "HUSKY",
+      "tier": 1,
+      "category": "bath",
+      "accessory": true,
+      "aliases": [
+        "HUSKY",
+        "哈適奇"
+      ]
+    },
+    {
+      "name": "三菱",
+      "tier": 2,
+      "category": "bath",
+      "accessory": true,
+      "aliases": [
+        "三菱"
+      ]
+    },
+    {
+      "name": "3M",
+      "tier": 1,
+      "category": "kitchen",
+      "accessory": true,
+      "aliases": [
+        "3M"
+      ]
+    },
+    {
+      "name": "BRITA",
+      "tier": 1,
+      "category": "kitchen",
+      "accessory": true,
+      "aliases": [
+        "BRITA"
+      ]
+    },
+    {
+      "name": "諾德",
+      "tier": 1,
+      "category": "kitchen",
+      "accessory": true,
+      "aliases": [
+        "諾德"
+      ]
+    }
+  ],
+  "floor_materials": [
+    {
+      "name": "粉光無鋪面",
+      "tier": 0,
+      "aliases": [
+        "粉光不鋪",
+        "僅施作粉光",
+        "不施作地坪鋪面",
+        "不鋪設地磚"
+      ]
+    },
+    {
+      "name": "天然石材/大理石",
+      "tier": 3,
+      "aliases": [
+        "大理石",
+        "天然石材"
+      ]
+    },
+    {
+      "name": "拋光石英磚",
+      "tier": 2,
+      "aliases": [
+        "拋光石英磚",
+        "抛光石英磚"
+      ]
+    },
+    {
+      "name": "海島型木地板",
+      "tier": 2,
+      "aliases": [
+        "海島型木地板",
+        "海島型"
+      ]
+    },
+    {
+      "name": "超耐磨木地板",
+      "tier": 2,
+      "aliases": [
+        "超耐磨木地板",
+        "超耐磨木紋地板",
+        "超耐磨地板"
+      ]
+    },
+    {
+      "name": "SPC石塑地板",
+      "tier": 1,
+      "aliases": [
+        "SPC",
+        "石塑地板"
+      ]
+    },
+    {
+      "name": "石英磚",
+      "tier": 2,
+      "aliases": [
+        "石英磚",
+        "石英磗"
+      ]
+    },
+    {
+      "name": "木地板",
+      "tier": 2,
+      "aliases": [
+        "木地板",
+        "木質地板",
+        "木紋地板"
+      ]
+    },
+    {
+      "name": "磁磚/地磚",
+      "tier": 1,
+      "aliases": [
+        "地磚",
+        "磁磚",
+        "地壁磚"
+      ]
+    }
+  ]
+}

@@ -387,6 +387,26 @@ export const contract_materials = pgTable("contract_materials", {
   unique("contract_materials_project_key").on(t.city, t.district, t.project_name),
 ]);
 
+// 建材分類結果(etl/classify-materials.ts 由 contract_materials 規則式抽取重建)
+// tier:3=進口精品、2=中高階、1=國產標準、0=特殊(如毛胚)、null=無法判定
+// 「A或B或C」品牌條款以清單中最低階計(建商可任選,契約保證下限)
+export const contract_material_facts = pgTable("contract_material_facts", {
+  id: serial("id").primaryKey(),
+  city: text("city").notNull(),
+  district: text("district").notNull(),
+  project_name: text("project_name").notNull(),
+  kitchen_brands: text("kitchen_brands"),   // JSON string[](字典正規化名)
+  bath_brands: text("bath_brands"),         // JSON string[]
+  floor_materials: text("floor_materials"), // JSON string[](居室主要地坪材質)
+  kitchen_tier: integer("kitchen_tier"),
+  bath_tier: integer("bath_tier"),
+  floor_tier: integer("floor_tier"),
+  unknown_brands: text("unknown_brands"),   // JSON string[]:命中品牌樣式但不在字典,待人工審核
+  extracted_at: timestamp("extracted_at", { withTimezone: true }).defaultNow(),
+}, (t) => [
+  unique("contract_material_facts_project_key").on(t.city, t.district, t.project_name),
+]);
+
 // 房數帶彙總(compute-stats 重建):格局篩選時覆寫點位的價格/總價/筆數
 // kind=resale 的 key 是 addr_key(含城市前綴);kind=presale 的 key 是 `${city}|${district}|${name}`
 export const room_stats = pgTable("room_stats", {

@@ -11,7 +11,7 @@
  *   4. 抓不到列(備查名與實登名不一致或尚未備查)記 no_case;PDF 無建材表記 no_materials。
  *      這兩類與 fetch_failed 超過 RETRY_DAYS 天後會重試。
  *
- * 用法:tsx etl/fetch-contract-materials.ts [--limit 60] [--city 桃園市] [--project 名稱] [--retry]
+ * 用法:tsx etl/fetch-contract-materials.ts [--limit 60] [--city 桃園市] [--project 名稱] [--retry] [--status fetch_failed]
  *   每旬 cron 帶預設值即可:先補新建案,舊失敗案慢慢重試,單次上限避免超時。
  */
 import fs from "node:fs";
@@ -34,6 +34,7 @@ const LIMIT = +(argOf("--limit") ?? 60);
 const WORKERS = +(argOf("--workers") ?? 4);
 const ONLY_CITY = argOf("--city");
 const ONLY_PROJECT = argOf("--project");
+const ONLY_STATUS = argOf("--status");   // 只重跑特定狀態(如 fetch_failed),避免 --retry 連 no_case 全撈
 const FORCE_RETRY = args.includes("--retry");
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -64,16 +65,27 @@ const headOf = (p: string) =>
  * (標題寫法各家不同:附件六建材設備表/附表四/建材設備表 單獨成行…),
  * 迄點=下一個「附件/附表」開頭的頁首;逐候選試切,取內容最長者。
  */
+// 建材表正文富含建材詞與品牌名;保固/違約條款頁只零星列舉且無品牌
+// (實測 ok 樣本建材詞 p5=19、條款誤抓中位數=5;精簡型品牌表建材詞少但品牌≥2)
+const MAT_KW = /廚|衛浴|馬桶|面盆|龍頭|門窗|地坪|地磚|磁磚|石英磚|油漆|乳膠漆|粉刷|天花板|電梯/g;
+const BRAND_KW = /TOTO|HCG|和成|凱撒|櫻花|林內|Rinnai|豪山|喜特麗|GROHE|KOHLER|DURAVIT|Villeroy|LAUFEN|Roca|BRAVAT|INAX|Panasonic|國際牌|Bosch|Electrolux|伊萊克斯|YKK|Cleanup|LEICHT|Takara|白馬|冠軍|羅特麗/gi;
+const matScore = (s: string) => (s.match(MAT_KW) ?? []).length;
+const brandScore = (s: string) => (s.match(BRAND_KW) ?? []).length;
+
 function extractMaterials(pdfPath: string): string | null {
   const text = execFileSync("pdftotext", ["-layout", pdfPath, "-"], {
     maxBuffer: 64 * 1024 * 1024,
   }).toString("utf-8");
   const pages = text.split("\f");
   const isClause = (h: string) => /第\s*[一二三四五六七八九十\d]+\s*條/.test(h);
+  // 非建材表的「建材設備」頁首:法定條文內文頁(一、賣方違反…,新北版型常出現在頁首)
+  // 與「建材設備選定辦理期限表」等同名異物附件。注意不可用「及其廠牌」一刀切——
+  // 部分建商的真建材表就以法定條文名「建材設備及其廠牌、規格」當附件標題。
+  const isFalseHead = (h: string) => isClause(h) || /賣方違反|選定辦理|期限表/.test(h);
   const candidates = pages
     .map((p, i) => ({ i, head: headOf(p) }))
-    .filter((x) => /建材設備/.test(x.head) && !isClause(x.head));
-  let best = "";
+    .filter((x) => /建材設備/.test(x.head) && !isFalseHead(x.head));
+  let best = "", bestScore = -1;
   for (const { i } of candidates) {
     const out = [pages[i]];
     for (let j = i + 1; j < pages.length; j++) {
@@ -82,9 +94,15 @@ function extractMaterials(pdfPath: string): string | null {
       out.push(pages[j]);
     }
     const body = out.join("\n").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-    if (body.length > best.length) best = body;
+    // 建材詞+品牌加權挑最佳候選:真表頁勝過附件目錄頁/條文尾註頁
+    const score = matScore(body) + brandScore(body) * 3;
+    if (score > bestScore || (score === bestScore && body.length > best.length)) {
+      best = body; bestScore = score;
+    }
   }
-  return best.length > 300 ? best : null; // 過短多半是留白範本頁
+  // 過短多半是留白範本頁;建材詞與品牌都少多半是誤抓的條款頁 → 回 null 讓呼叫端續試下一冊
+  const valid = best.length > 300 && (matScore(best) >= 12 || brandScore(best) >= 2);
+  return valid ? best : null;
 }
 
 /** 依「※分類標題」切節。※ 可能與附件標題同一行(附件六 建材設備表 ※結構),
@@ -204,6 +222,7 @@ async function main() {
         ON m.city = p.city AND m.district = p.district AND m.project_name = p.project_name
       WHERE p.project_name IS NOT NULL AND p.project_name <> ''
         AND (m.id IS NULL OR (m.status <> 'ok' AND (${FORCE_RETRY ? sql`true` : sql`m.fetched_at < ${cutoff}`})))
+        ${ONLY_STATUS ? sql`AND m.status = ${ONLY_STATUS}` : sql``}
         ${ONLY_CITY ? sql`AND p.city = ${ONLY_CITY}` : sql``}
         ${ONLY_PROJECT ? sql`AND p.project_name = ${ONLY_PROJECT}` : sql``}
       ORDER BY p.city, p.district, p.project_name

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, asc, desc, eq, gt, inArray, isNotNull, sql } from "drizzle-orm";
-import { db, building_community, communities, presale_deals, projects, rent_deals, sale_deals, contract_materials } from "@/lib/db";
+import { db, building_community, communities, presale_deals, projects, rent_deals, sale_deals, contract_materials, contract_material_facts } from "@/lib/db";
 import { ageBand } from "@/lib/age";
 import { DETAIL_CACHE_HEADERS, parseCity, validText } from "@/lib/api-params";
 
@@ -52,8 +52,30 @@ export async function GET(req: NextRequest) {
       eq(contract_materials.district, district),
       eq(contract_materials.status, "ok"),
     ));
+  // 建材分類摘要(etl/classify-materials.ts 產出;無資料時不回傳)
+  const [factRow] = await db.select({
+    kitchen_brands: contract_material_facts.kitchen_brands,
+    bath_brands: contract_material_facts.bath_brands,
+    floor_materials: contract_material_facts.floor_materials,
+    kitchen_tier: contract_material_facts.kitchen_tier,
+    bath_tier: contract_material_facts.bath_tier,
+    floor_tier: contract_material_facts.floor_tier,
+  }).from(contract_material_facts)
+    .where(and(
+      eq(contract_material_facts.project_name, name),
+      eq(contract_material_facts.city, city),
+      eq(contract_material_facts.district, district),
+    ));
+  const facts = factRow
+    ? {
+        kitchen_brands: JSON.parse(factRow.kitchen_brands ?? "[]") as string[],
+        bath_brands: JSON.parse(factRow.bath_brands ?? "[]") as string[],
+        floor_materials: JSON.parse(factRow.floor_materials ?? "[]") as string[],
+        kitchen_tier: factRow.kitchen_tier, bath_tier: factRow.bath_tier, floor_tier: factRow.floor_tier,
+      }
+    : null;
   const materials = mat
-    ? { sections: JSON.parse(mat.sections ?? "[]") as { title: string; body: string }[], pdf_url: mat.pdf_url }
+    ? { sections: JSON.parse(mat.sections ?? "[]") as { title: string; body: string }[], pdf_url: mat.pdf_url, facts }
     : null;
 
   const regDate = comm?.use_issue_date ?? comm?.first_reg;
