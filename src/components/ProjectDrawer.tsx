@@ -119,7 +119,8 @@ function MaterialsSection({ sections, pdfUrl, facts }: {
     kitchen_tier: number | null; bath_tier: number | null; floor_tier: number | null;
   } | null;
 }) {
-  const [open, setOpen] = useState<number | null>(0);
+  // 等級摘要當主角,分節原文預設全收合(摘要之外的細節按需展開)
+  const [open, setOpen] = useState<number | null>(null);
   const hasFacts = facts && (facts.kitchen_tier != null || facts.bath_tier != null || facts.floor_tier != null);
   return (
     <section className="mt-[21px] border-t border-line pt-3.5">
