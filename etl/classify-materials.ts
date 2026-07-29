@@ -3,7 +3,8 @@
  *
  * 規則式抽取,不需 LLM:
  *   1. 逐行掃 materials_text,行內建材詞(馬桶/瓦斯爐…)優先決定該行情境(衛浴/廚具),
- *      無行內詞時沿用最近的段落標題情境(■衛浴設備/※廚房…)。
+ *      無行內詞時沿用最近的段落標題情境(■衛浴設備/※廚房…)；明確的電梯品牌列
+ *      不列入住戶設備摘要。
  *   2. 品牌比對 etl/material-brand-tiers.json 的 aliases;不在字典的品牌樣式記
  *      unknown_brands 供人工審核補字典。
  *   3. 等級=該分類命中品牌(排除 accessory 配件)的最低 tier——「A或B或C」條款建商可
@@ -39,6 +40,7 @@ const NONLIVING = /浴|陽台|露台|梯廳|門廳|樓梯|車道|地下|屋頂|�
 const WALL_LINE = /牆面|壁磚|踢腳|平頂|天花/;
 // 店鋪/公設空間的配備不代表住家等級
 const NONRES_LINE = /店[鋪舖]|零售|公廁|無障礙廁所|管理室/;
+const ELEVATOR_LINE = /電梯|昇降機/;
 
 // 保固/違約條款的品牌列舉行(「固定建材及設備部分(如:門窗、粉刷、地磚…)」)不可計入
 const WARRANTY_LINE = /保固|違反|瑕疵|沒收|解除|賠償/;
@@ -87,6 +89,8 @@ export function classify(text: string, debug = false) {
 
     for (const b of DICT.brands) {
       if (!b.aliases.some((a) => line.toLowerCase().includes(a.toLowerCase()))) continue;
+      // 電梯品牌不代表戶內衛浴/廚房設備；例如「三菱」也可能是暖風機品牌。
+      if (ELEVATOR_LINE.test(hh)) continue;
       // 專屬分類品牌一律落自己的袋;both 品牌(HANSGROHE/KOHLER…)靠情境分袋,情境不明就略過
       const bucket = b.category !== "both" ? b.category
         : lineCtx === "bath" || lineCtx === "kitchen" ? lineCtx : null;

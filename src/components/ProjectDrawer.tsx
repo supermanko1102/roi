@@ -88,25 +88,12 @@ function ListParking({ deal }: { deal: PDeal }) {
   );
 }
 
-// 建材等級摘要:分類結果(etl/classify-materials.ts)。等級=契約品牌清單的最低階
-// (「A或B或C」建商可任選,顯示的是契約保證下限);tier 0 = 地板毛胚無鋪面
-const TIER_BADGE: Record<number, { label: string; cls: string }> = {
-  3: { label: "進口精品", cls: "bg-[#f4e4c5] text-[#785415]" },
-  2: { label: "中高階", cls: "bg-[#d9ece8] text-[#1d5c52]" },
-  1: { label: "標準", cls: "bg-[#e9edeb] text-ink-soft" },
-  0: { label: "毛胚無鋪面", cls: "bg-[#eee6e6] text-[#7a4444]" },
-};
-
-function FactRow({ label, tier, items }: { label: string; tier: number | null; items: string[] }) {
-  if (tier == null && !items.length) return null;
-  const badge = tier != null ? TIER_BADGE[tier] : null;
+function FactRow({ label, items }: { label: string; items: string[] }) {
+  if (!items.length) return null;
   return (
     <div className="flex items-start gap-2 py-1">
-      <span className="w-9 shrink-0 text-[10.5px] font-bold text-ink">{label}</span>
-      {badge && (
-        <b className={cn("shrink-0 rounded-full px-1.5 py-0.5 text-[8.5px]", badge.cls)}>{badge.label}</b>
-      )}
-      <span className="min-w-0 text-[10px] leading-relaxed text-ink-soft">{items.join("、")}</span>
+      <span className="w-12 shrink-0 text-[10.5px] font-bold text-ink">{label}</span>
+      <span className="min-w-0 text-[10.5px] leading-relaxed text-ink-soft">{items.join("、")}</span>
     </div>
   );
 }
@@ -119,21 +106,28 @@ function MaterialsSection({ sections, pdfUrl, facts }: {
     kitchen_tier: number | null; bath_tier: number | null; floor_tier: number | null;
   } | null;
 }) {
-  // 等級摘要當主角,分節原文預設全收合(摘要之外的細節按需展開)
+  // 契約摘要只呈現可核對的品牌/材質，不以品牌直接推論設備等級。
   const [open, setOpen] = useState<number | null>(null);
-  const hasFacts = facts && (facts.kitchen_tier != null || facts.bath_tier != null || facts.floor_tier != null);
+  const hasFacts = facts && (
+    facts.kitchen_brands.length > 0 ||
+    facts.bath_brands.length > 0 ||
+    facts.floor_materials.length > 0
+  );
   return (
     <section className="mt-[21px] border-t border-line pt-3.5">
       <div className="flex items-baseline gap-2.5 text-[13.5px] font-extrabold">建材與設備
-        <span className="num text-[12.5px] text-teal">{sections.length} 項</span>
+        <span className="num text-[11px] font-bold text-teal">{sections.length} 個契約章節</span>
       </div>
       {hasFacts && (
         <div className="mt-2 rounded-[10px] border border-line bg-[#fbfcfb] px-3 py-1.5">
-          <FactRow label="衛浴" tier={facts.bath_tier} items={facts.bath_brands} />
-          <FactRow label="廚具" tier={facts.kitchen_tier} items={facts.kitchen_brands} />
-          <FactRow label="地板" tier={facts.floor_tier} items={facts.floor_materials} />
-          <div className="pb-1 pt-0.5 text-[8.5px] leading-normal text-ink-soft">
-            等級為契約品牌清單的保證下限(多品牌擇一時以最低階計),自動整理僅供參考。
+          <div className="border-b border-line pb-1 text-[9px] font-bold tracking-[0.08em] text-teal">
+            契約設備摘要
+          </div>
+          <FactRow label="衛浴設備" items={facts.bath_brands} />
+          <FactRow label="廚房設備" items={facts.kitchen_brands} />
+          <FactRow label="室內地坪" items={facts.floor_materials} />
+          <div className="border-t border-line pb-1 pt-1.5 text-[8.5px] leading-normal text-ink-soft">
+            依契約原文自動整理；未載明型號與規格時不作等級判定，實際交付以契約全文為準。
           </div>
         </div>
       )}
