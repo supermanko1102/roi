@@ -1,9 +1,11 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { dealsTh, Fact, fmtP, LeaseTable, median, shortRocDate, type RLease } from "./drawer-kit";
 import BuildingGrid, { parseStack } from "./BuildingGrid";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { CITIES, cityDisplay } from "@/lib/cities";
 import { getParkingInfo } from "@/lib/deal-parking";
@@ -51,6 +53,10 @@ type Resale = {
 };
 
 type UnitDoor = { unit_id: string | null; addr: string | null; n: number };
+type DrawerSection = "overview" | "deals" | "rents" | "materials";
+
+const MOBILE_DEAL_PAGE_SIZE = 12;
+const DESKTOP_DEAL_PAGE_SIZE = 20;
 
 function unitLabel(unitId: string | null): string {
   const parsed = parseStack(unitId);
@@ -166,14 +172,27 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
 }) {
   const [detail, setDetail] = useState<PDetail | null>(null);
   const [err, setErr] = useState(false);
-  const [dealView, setDealView] = useState<"grid" | "list">("grid");
+  const [dealView, setDealView] = useState<"grid" | "list">("list");
+  const [dealPage, setDealPage] = useState(0);
+  const [section, setSection] = useState<DrawerSection>("overview");
+  const [isMobile, setIsMobile] = useState(false);
+  const drawerRef = useRef<HTMLElement>(null);
+  const tabsAnchorRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setDetail(null); setErr(false); setDealView("grid");
+    setDetail(null); setErr(false); setDealView("list"); setDealPage(0); setSection("overview");
     fetch(`/api/project-detail?city=${encodeURIComponent(city)}&district=${encodeURIComponent(district)}&name=${encodeURIComponent(name)}`)
       .then((r) => { if (!r.ok) throw 0; return r.json(); })
       .then(setDetail).catch(() => setErr(true));
   }, [city, district, name]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 720px)");
+    const sync = () => setIsMobile(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -213,6 +232,11 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
       ...r, unit_id: null, total_floors: null, is_cancelled: false, cancel_date: null, is_resale: true,
     })),
   ].sort((a, b) => +new Date(b.deal_date ?? 0) - +new Date(a.deal_date ?? 0)), [active, resales]);
+  const dealPageSize = isMobile ? MOBILE_DEAL_PAGE_SIZE : DESKTOP_DEAL_PAGE_SIZE;
+  const dealPageCount = Math.max(1, Math.ceil(listRows.length / dealPageSize));
+  const safeDealPage = Math.min(dealPage, dealPageCount - 1);
+  const dealPageStart = safeDealPage * dealPageSize;
+  const visibleListRows = listRows.slice(dealPageStart, dealPageStart + dealPageSize);
 
   // 本社區出租行情(排除社宅包租代管,以免拉低市場價;社宅件在租約區塊折疊另列)
   const marketRents = useMemo(
@@ -228,8 +252,28 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
     () => median(marketRents.map((r) => r.monthly_rent).filter((v): v is number => v != null).map(Number)),
     [marketRents]);
 
+  const scrollToTabs = () => {
+    requestAnimationFrame(() => {
+      const drawer = drawerRef.current;
+      const anchor = tabsAnchorRef.current;
+      if (drawer && anchor)
+        drawer.scrollTo({ top: Math.max(0, anchor.offsetTop - 8), behavior: "smooth" });
+    });
+  };
+
+  const selectSection = (value: string | number) => {
+    setSection(value as DrawerSection);
+    setDealPage(0);
+    scrollToTabs();
+  };
+
+  const changeDealPage = (page: number) => {
+    setDealPage(Math.max(0, Math.min(page, dealPageCount - 1)));
+    scrollToTabs();
+  };
+
   return (
-    <aside className="absolute inset-y-0 right-0 z-55 w-[min(480px,100%)] animate-drawer-in overflow-y-auto bg-surface px-6 pb-8 pt-6 shadow-[-12px_0_50px_rgba(18,47,40,.18)] max-mob:top-auto max-mob:h-[min(84%,760px)] max-mob:w-full max-mob:animate-drawer-up max-mob:rounded-t-[20px] max-mob:px-[18px] max-mob:pb-[88px] max-mob:pt-[25px] max-mob:before:absolute max-mob:before:left-1/2 max-mob:before:top-2 max-mob:before:h-1 max-mob:before:w-[42px] max-mob:before:-translate-x-1/2 max-mob:before:rounded-full max-mob:before:bg-[#ced6d2] max-mob:before:content-[''] max-tiny:px-[15px]"
+    <aside ref={drawerRef} className="absolute inset-y-0 right-0 z-55 w-[min(480px,100%)] animate-drawer-in overflow-y-auto bg-surface px-6 pb-8 pt-6 shadow-[-12px_0_50px_rgba(18,47,40,.18)] max-mob:top-auto max-mob:h-[min(84%,760px)] max-mob:w-full max-mob:animate-drawer-up max-mob:rounded-t-[20px] max-mob:px-[18px] max-mob:pb-[88px] max-mob:pt-[25px] max-mob:before:absolute max-mob:before:left-1/2 max-mob:before:top-2 max-mob:before:h-1 max-mob:before:w-[42px] max-mob:before:-translate-x-1/2 max-mob:before:rounded-full max-mob:before:bg-[#ced6d2] max-mob:before:content-[''] max-tiny:px-[15px]"
       aria-label={`${name}建案資料`}>
       <Button variant="ghost" size="icon-sm" className="absolute right-4 top-4 size-[31px] rounded-full bg-muted text-muted-foreground"
         onClick={onClose} aria-label="關閉">✕</Button>
@@ -301,20 +345,53 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
             )}
           </div>
 
-          <section className="mt-[21px]" aria-label="建案基本資料">
-            <div className="flex items-baseline justify-between text-[13.5px] font-extrabold">基本資料</div>
-            <div className="mt-[9px] grid grid-cols-2 gap-2">
-              <Fact label="戶數" value={detail.community?.households ? `${detail.community.households} 戶` : null} />
-              <Fact label="建造執照" value={detail.community?.permit_no} />
-              {detail.community?.use_issue_date
-                ? <Fact label="使照發照" value={detail.community.use_issue_date} />
-                : <Fact label="首次登記" value={detail.community?.first_reg} />}
-              <Fact label="申報備查" value={detail.community?.declare_date} />
-              <Fact label="成交筆數" value={`${active.length} 筆`} />
-              <Fact label="解約筆數" value={`${cancelled.length} 筆`} />
+          <Tabs value={section} onValueChange={selectSection} className="contents">
+            <div ref={tabsAnchorRef} className="h-0" aria-hidden="true" />
+            <div
+              className="sticky top-0 z-20 -mx-1 mb-1 block w-[calc(100%+8px)] rounded-[12px] border border-line bg-surface/95 shadow-[0_7px_22px_rgba(18,47,40,.12)] backdrop-blur-[14px]">
+              <TabsList className="h-auto w-full bg-transparent p-1" aria-label="建案資料分區">
+                <TabsTrigger id="project-tab-overview" value="overview" aria-controls="project-panel-overview"
+                  className="h-9 rounded-[9px] px-2 text-[11px] font-extrabold data-active:bg-teal data-active:text-white">
+                  總覽
+                </TabsTrigger>
+                <TabsTrigger id="project-tab-deals" value="deals" aria-controls="project-panel-deals"
+                  className="h-9 rounded-[9px] px-2 text-[11px] font-extrabold data-active:bg-teal data-active:text-white">
+                  成交 <span className="num text-[9px] opacity-70">{listRows.length}</span>
+                </TabsTrigger>
+                {(marketRents.length > 0 || socialRents.length > 0) && (
+                  <TabsTrigger id="project-tab-rents" value="rents" aria-controls="project-panel-rents"
+                    className="h-9 rounded-[9px] px-2 text-[11px] font-extrabold data-active:bg-teal data-active:text-white">
+                    租賃 <span className="num text-[9px] opacity-70">{marketRents.length}</span>
+                  </TabsTrigger>
+                )}
+                {detail.materials && detail.materials.sections.length > 0 && (
+                  <TabsTrigger id="project-tab-materials" value="materials" aria-controls="project-panel-materials"
+                    className="h-9 rounded-[9px] px-2 text-[11px] font-extrabold data-active:bg-teal data-active:text-white">
+                    建材 <span className="num text-[9px] opacity-70">{detail.materials.sections.length}</span>
+                  </TabsTrigger>
+                )}
+              </TabsList>
             </div>
-          </section>
 
+            <div id="project-panel-overview" role="tabpanel" aria-labelledby="project-tab-overview"
+              className={cn(section !== "overview" && "hidden")}>
+              <section className="mt-[21px]" aria-label="建案基本資料">
+                <div className="flex items-baseline justify-between text-[13.5px] font-extrabold">基本資料</div>
+                <div className="mt-[9px] grid grid-cols-2 gap-2">
+                  <Fact label="戶數" value={detail.community?.households ? `${detail.community.households} 戶` : null} />
+                  <Fact label="建造執照" value={detail.community?.permit_no} />
+                  {detail.community?.use_issue_date
+                    ? <Fact label="使照發照" value={detail.community.use_issue_date} />
+                    : <Fact label="首次登記" value={detail.community?.first_reg} />}
+                  <Fact label="申報備查" value={detail.community?.declare_date} />
+                  <Fact label="成交筆數" value={`${active.length} 筆`} />
+                  <Fact label="解約筆數" value={`${cancelled.length} 筆`} />
+                </div>
+              </section>
+            </div>
+
+            <div id="project-panel-deals" role="tabpanel" aria-labelledby="project-tab-deals"
+              className={cn(section !== "deals" && "hidden")}>
           <section className="mt-[21px]">
             <div className={cn("flex items-baseline text-[13.5px] font-extrabold", gridable ? "gap-2.5" : "justify-between")}>成交紀錄
               <span className="num text-[12.5px] text-teal">{listRows.length} 筆</span>
@@ -325,10 +402,10 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
                 <span className="ml-auto inline-flex overflow-hidden rounded-full border border-line" role="tablist" aria-label="成交紀錄顯示方式">
                   <button role="tab" aria-selected={view === "grid"}
                     className="border-0 bg-white px-[11px] py-1 text-[10.5px] font-extrabold text-ink-soft aria-selected:bg-teal aria-selected:text-white"
-                    onClick={() => setDealView("grid")}>棟別圖</button>
+                    onClick={() => { setDealView("grid"); setDealPage(0); }}>棟別圖</button>
                   <button role="tab" aria-selected={view === "list"}
                     className="border-0 bg-white px-[11px] py-1 text-[10.5px] font-extrabold text-ink-soft aria-selected:bg-teal aria-selected:text-white"
-                    onClick={() => setDealView("list")}>列表</button>
+                    onClick={() => { setDealView("list"); setDealPage(0); }}>列表</button>
                 </span>
               )}
             </div>
@@ -353,7 +430,7 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
                       </tr>
                     </thead>
                     <tbody>
-                      {listRows.slice(0, 40).map((d, i) => (
+                      {visibleListRows.map((d, i) => (
                         <tr key={i} className="align-top even:bg-[#f5f7f4]">
                           <td className="whitespace-nowrap p-1.5">
                             <span className="max-mob:hidden">{d.deal_date ?? "—"}</span>
@@ -388,36 +465,41 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
                     </tbody>
                   </table>
                 </div>
-                {listRows.length > 40 && <div className="mt-[7px] text-right text-[9px] text-ink-soft">顯示最近 40 筆</div>}
+                {dealPageCount > 1 && (
+                  <Pagination className="mt-3" aria-label="成交紀錄分頁">
+                    <PaginationContent className="w-full justify-between rounded-[10px] border border-line bg-[#fbfcfb] px-1.5 py-1">
+                      <PaginationItem>
+                        <Button variant="ghost" size="sm" disabled={safeDealPage === 0}
+                          onClick={() => changeDealPage(safeDealPage - 1)}>
+                          ‹ 上一頁
+                        </Button>
+                      </PaginationItem>
+                      <PaginationItem>
+                        <span className="num flex flex-col items-center px-2 text-[10px] font-bold leading-tight text-ink-soft"
+                          aria-live="polite">
+                          <span>
+                            {dealPageStart + 1}–{Math.min(dealPageStart + dealPageSize, listRows.length)}
+                            <span className="max-mob:hidden"> / 共 </span>
+                            <span className="hidden max-mob:inline"> / </span>
+                            {listRows.length} 筆
+                          </span>
+                          <small className="mt-0.5 text-[8px] font-bold opacity-70">
+                            第 {safeDealPage + 1} / {dealPageCount} 頁
+                          </small>
+                        </span>
+                      </PaginationItem>
+                      <PaginationItem>
+                        <Button variant="ghost" size="sm" disabled={safeDealPage >= dealPageCount - 1}
+                          onClick={() => changeDealPage(safeDealPage + 1)}>
+                          下一頁 ›
+                        </Button>
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                )}
               </>
             )}
           </section>
-
-          {(marketRents.length > 0 || socialRents.length > 0) && (
-            <section className="mt-[21px]">
-              <div className="flex items-baseline gap-2.5 text-[13.5px] font-extrabold">本社區租約
-                <span className="num text-[12.5px] text-teal">{marketRents.length} 筆</span>
-                {rentMedian != null && (
-                  <span className="num text-[9.5px] font-bold text-ink-soft">
-                    每坪月租中位 {Math.round(rentMedian).toLocaleString()} 元
-                  </span>
-                )}
-              </div>
-              {marketRents.length > 0 && <LeaseTable rows={marketRents} cap={40} />}
-              {socialRents.length > 0 && (
-                <details className="mt-2">
-                  <summary className="py-1.5 text-[11px] font-extrabold text-[#2f7d68]">
-                    社會住宅包租代管紀錄（{socialRents.length} 筆）
-                  </summary>
-                  <div className="mb-1 text-[9.5px] leading-normal text-ink-soft">
-                    社宅包租代管租金有政策折價，非市場行情，未計入出租中位數與各級行情統計。
-                  </div>
-                  <LeaseTable rows={socialRents} cap={20} />
-                </details>
-              )}
-            </section>
-          )}
-
           {cancelled.length > 0 && (
             <details className="mt-[18px] border-t border-line">
               <summary className="py-3 text-[11px] font-extrabold text-teal">解約紀錄（{cancelled.length} 筆）</summary>
@@ -436,10 +518,43 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
               </table>
             </details>
           )}
+            </div>
+
+          {(marketRents.length > 0 || socialRents.length > 0) && (
+            <div id="project-panel-rents" role="tabpanel" aria-labelledby="project-tab-rents"
+              className={cn(section !== "rents" && "hidden")}>
+              <section className="mt-[21px]">
+                <div className="flex items-baseline gap-2.5 text-[13.5px] font-extrabold">本社區租約
+                  <span className="num text-[12.5px] text-teal">{marketRents.length} 筆</span>
+                  {rentMedian != null && (
+                    <span className="num text-[9.5px] font-bold text-ink-soft">
+                      每坪月租中位 {Math.round(rentMedian).toLocaleString()} 元
+                    </span>
+                  )}
+                </div>
+                {marketRents.length > 0 && <LeaseTable rows={marketRents} cap={40} />}
+                {socialRents.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="py-1.5 text-[11px] font-extrabold text-[#2f7d68]">
+                      社會住宅包租代管紀錄（{socialRents.length} 筆）
+                    </summary>
+                    <div className="mb-1 text-[9.5px] leading-normal text-ink-soft">
+                      社宅包租代管租金有政策折價，非市場行情，未計入出租中位數與各級行情統計。
+                    </div>
+                    <LeaseTable rows={socialRents} cap={20} />
+                  </details>
+                )}
+              </section>
+            </div>
+          )}
 
           {detail.materials && detail.materials.sections.length > 0 && (
-            <MaterialsSection sections={detail.materials.sections} pdfUrl={detail.materials.pdf_url} facts={detail.materials.facts} />
+            <div id="project-panel-materials" role="tabpanel" aria-labelledby="project-tab-materials"
+              className={cn(section !== "materials" && "hidden")}>
+              <MaterialsSection sections={detail.materials.sections} pdfUrl={detail.materials.pdf_url} facts={detail.materials.facts} />
+            </div>
           )}
+          </Tabs>
 
           <div className="mt-[18px] border-t border-line pt-[11px] text-[9px] leading-normal text-ink-soft">
             格內單價已扣除車位價與車位坪數；成交總價仍包含車位。資料來源：內政部實價登錄。
