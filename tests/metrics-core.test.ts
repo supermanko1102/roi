@@ -93,3 +93,16 @@ test("quarter medians drop thin quarters", async () => {
   const points = quarterMedians(deals, 3);
   assert.deepEqual(points.map((p) => [p.label, p.price, p.n]), [["113年Q1", 32, 3], ["113年Q3", 43, 4]]);
 });
+
+test("交屋後首次過戶不算轉售,已有前手或超過觀察期才算", async () => {
+  const { isFirstHandTransfer } = await import("../src/lib/resale");
+  // 交屋後幾天、該戶第一次過戶 → 建商交屋
+  assert.equal(isFirstHandTransfer("2025-03-14", "2025-03-06", false), true);
+  // 同一戶先前已有買賣紀錄 → 真轉售
+  assert.equal(isFirstHandTransfer("2025-05-25", "2025-03-06", true), false);
+  // 交屋 10 個月後才分批過戶的第一手仍排除
+  assert.equal(isFirstHandTransfer("2026-01-22", "2025-03-06", false), true);
+  // 超過 30 個月的首筆紀錄(老社區、地主戶)照常算轉售
+  assert.equal(isFirstHandTransfer("2027-10-01", "2025-03-06", false), false);
+  assert.equal(isFirstHandTransfer(null, "2025-03-06", false), false);
+});

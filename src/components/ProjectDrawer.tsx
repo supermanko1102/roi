@@ -30,6 +30,7 @@ export type PDetail = {
     lat?: number | null;
   };
   matching?: { method: string | null; doors: number; min_confidence: number }[];
+  first_hand_excluded?: number;
   community: {
     households: number | null; street: string | null; permit_no: string | null;
     first_reg: string | null; declare_date: string | null;
@@ -419,7 +420,8 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
                   <Fact label="解約筆數" value={`${cancelled.length} 筆`} />
                 </div>
               </section>
-              <DataConfidence located={p.lat != null} matching={detail.matching ?? []} />
+              <DataConfidence located={p.lat != null} matching={detail.matching ?? []}
+                firstHandExcluded={detail.first_hand_excluded ?? 0} />
             </div>
 
             <div id="project-panel-deals" role="tabpanel" aria-labelledby="project-tab-deals"

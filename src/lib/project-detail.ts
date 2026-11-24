@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gt, inArray, isNotNull, sql } from "drizzle-orm";
 import { db, building_community, communities, presale_deals, projects, rent_deals, sale_deals, contract_materials, contract_material_facts } from "@/lib/db";
 import { ageBand } from "@/lib/age";
 import { getProjectMetrics, projectKey } from "@/lib/project-metrics";
+import { isFirstHandTransfer } from "@/lib/resale";
 
 // 建案詳情:彙總 + 備查資訊(戶數/建照/完工)+ 全部成交明細(含解約件,前端自行拆分計算)。
 // /api/project-detail(抽屜)與 /project/...(獨立頁,伺服器端直出)共用同一份資料。
@@ -78,6 +79,7 @@ export async function loadProjectDetail(city: string, district: string, name: st
 
   // 交屋後轉售:地號歸戶(building_community)把 a 檔門牌接回本案。
   // 只取交屋(使照/首次登記)之後的成交——預售期交易可能同時揭露在 a/b 檔,以日期切開避免重複。
+  // 交屋後一段時間內「該戶第一次過戶」是建商交屋(價格是幾年前的預售價),不算轉售,見 lib/resale.ts。
   // 門牌只留街道段(去掉城市+行政區前綴),給前端顯示與歸位用
   const stripAddr = (key: string | null) => key ? key.replace(city, "").replace(district, "") : null;
   // 店面判定:整棟型態建案的店面戶 building_type 仍是「住宅大樓」,以 1樓+0房 補判
@@ -93,6 +95,7 @@ export async function loadProjectDetail(city: string, district: string, name: st
   }[] = [];
   // 預售棟戶代號 ↔ 門牌:交屋辦移轉時同筆交易會在 a 檔以門牌再揭露(日期/樓層/總價相同),
   // 兩檔 self-join 即得對照錨點;前端按門牌多數決把轉售歸回棟別圖欄位。
+  let firstHandExcluded = 0;
   let unitDoors: { unit_id: string | null; addr: string | null; n: number }[] = [];
   const caseNos = comms.map((c) => c.case_no);
   if (completed && regDate && caseNos.length) {
@@ -104,11 +107,18 @@ export async function loadProjectDetail(city: string, district: string, name: st
       parking_count: sale_deals.parking_count, parking_type: sale_deals.parking_type,
       parking_price: sale_deals.parking_price, parking_area_ping: sale_deals.parking_area_ping,
       addr_key: sale_deals.addr_key, building_type: sale_deals.building_type,
+      // 同一戶(完整門牌)先前是否已有買賣紀錄;子查詢內一律寫死表名,避免 drizzle 欄位撞名
+      has_prior: sql<boolean>`EXISTS (
+        SELECT 1 FROM sale_deals prev
+        WHERE prev.addr_key = "sale_deals"."addr_key" AND prev.address = "sale_deals"."address"
+          AND prev.deal_date < "sale_deals"."deal_date")`,
     }).from(sale_deals)
       .innerJoin(building_community, eq(building_community.addr_key, sale_deals.addr_key))
       .where(and(inArray(building_community.case_no, caseNos), gt(sale_deals.deal_date, regDate)))
-      .orderBy(desc(sale_deals.deal_date)).limit(200);
-    resales = rows.map(({ addr_key, building_type, ...r }) => ({
+      .orderBy(desc(sale_deals.deal_date)).limit(3000);
+    const genuine = rows.filter((r) => !isFirstHandTransfer(r.deal_date, regDate, r.has_prior));
+    firstHandExcluded = rows.length - genuine.length;
+    resales = genuine.slice(0, 200).map(({ addr_key, building_type, has_prior, ...r }) => ({
       ...r, addr: stripAddr(addr_key), is_store: isStore({ building_type, floor_no: r.floor_no, rooms: r.rooms }),
     }));
 
@@ -214,6 +224,7 @@ export async function loadProjectDetail(city: string, district: string, name: st
     build_year: completed ? regYear : null,
     deals,
     resales,
+    first_hand_excluded: firstHandExcluded,
     unit_doors: unitDoors,
     rents,
     materials,

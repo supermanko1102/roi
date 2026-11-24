@@ -289,8 +289,9 @@ const MATCH_LABEL: Record<string, string> = {
 };
 
 /** 資料可信度:位置是否確認、轉售/租約是怎麼對到這個案的 */
-export function DataConfidence({ located, matching }: {
+export function DataConfidence({ located, matching, firstHandExcluded = 0 }: {
   located: boolean; matching: { method: string | null; doors: number; min_confidence: number }[];
+  firstHandExcluded?: number;
 }) {
   const doors = matching.reduce((sum, m) => sum + m.doors, 0);
   const weakest = matching.length ? Math.min(...matching.map((m) => m.min_confidence)) : 100;
@@ -311,6 +312,12 @@ export function DataConfidence({ located, matching }: {
             {weakest < 100
               ? ` 其中部分是依鄰近位置與完工年推定，把握度約 ${weakest}/100，可能混入隔壁棟。`
               : " 都是官方登錄可直接對應的門牌。"}
+          </li>
+        )}
+        {firstHandExcluded > 0 && (
+          <li className="rounded-[10px] border border-line bg-white px-3 py-2">
+            <b className="text-ink">轉售只算真的轉手。</b>另有 <b className="num text-ink">{firstHandExcluded}</b> 筆是交屋時建商過戶給原買方的紀錄，
+            價格是幾年前簽約時談的，不是現在的行情，所以沒有算進轉售。
           </li>
         )}
       </ul>
