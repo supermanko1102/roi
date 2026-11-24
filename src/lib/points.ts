@@ -2,6 +2,7 @@ import { and, eq, gte, isNotNull, lte, type SQL } from "drizzle-orm";
 import { db, buildings, building_community, communities, projects, room_stats } from "@/lib/db";
 import { ageBand, type AgeBand } from "@/lib/age";
 import type { RoomBand } from "@/lib/rooms";
+import type { ProjectMetrics } from "@/lib/metrics-core";
 
 // 統一點位:建案(presale_deals 彙總)與棟級(sale_deals 歸戶)合流成單一實體,
 // 屋齡帶是屬性不是頻道。/api/points 與 /api/zones 共用,口徑才不會漂移。
@@ -127,7 +128,19 @@ export async function loadUnifiedPoints(opts: { bbox?: Bbox; city?: string; dist
   return pts;
 }
 
-export function toFeatureCollection(pts: UnifiedPoint[]) {
+// metrics(key=城市|區|建案名)給定時,建案點附上判讀指標;null 值一律省略以控制 payload
+function metricProps(m: ProjectMetrics | undefined) {
+  if (!m) return {};
+  return {
+    ...(m.recent_n > 0 ? { recent_n: m.recent_n } : {}),
+    ...(m.last_deal ? { last_deal: m.last_deal } : {}),
+    ...(m.dev != null ? { dev: m.dev, dev_base: m.dev_base, dev_scope: m.dev_scope } : {}),
+    ...(m.yield_pct != null ? { yield_pct: m.yield_pct, yield_src: m.yield_src } : {}),
+    ...(m.cancel_rate != null && m.cancel_rate > 0 ? { cancel_rate: m.cancel_rate } : {}),
+  };
+}
+
+export function toFeatureCollection(pts: UnifiedPoint[], metrics?: Map<string, ProjectMetrics> | null) {
   // 部分地址只能定位到同一個道路/街廓中心，造成不同建案共用完全相同座標。
   // 群聚解除後若仍重疊，使用者會誤以為「2 筆」其實只有 1 案；僅在輸出地圖時環狀展開。
   const renderCoordinates = new Map<UnifiedPoint, [number, number]>();
@@ -170,6 +183,8 @@ export function toFeatureCollection(pts: UnifiedPoint[]) {
         ...(p.building_type ? { building_type: p.building_type } : {}),
         ...(p.build_year != null ? { build_year: p.build_year } : {}),
         ...(p.cancel_count > 0 ? { cancel_count: p.cancel_count } : {}),
+        ...(metrics && p.kind === "presale" && p.name
+          ? metricProps(metrics.get(`${p.city}|${p.district}|${p.name}`)) : {}),
       },
     })),
   };

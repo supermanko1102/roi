@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { loadUnifiedPoints, toFeatureCollection } from "@/lib/points";
 import { ROOM_BANDS, type RoomBand } from "@/lib/rooms";
 import { MAP_CACHE_HEADERS, parseBbox, parseCity, validText } from "@/lib/api-params";
+import { getProjectMetrics } from "@/lib/project-metrics";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,10 @@ export async function GET(req: NextRequest) {
   if (bboxResult.error) return NextResponse.json({ error: bboxResult.error }, { status: 400 });
   const bbox = bboxResult.value ?? undefined;
 
-  const pts = await loadUnifiedPoints({ city: cityResult.value ?? undefined, district, bbox, rooms, kind });
-  return NextResponse.json(toFeatureCollection(pts), { headers: MAP_CACHE_HEADERS });
+  // 判讀指標(比行情/租金回報/解約率)算不出來不該讓地圖點位跟著掛掉
+  const [pts, metrics] = await Promise.all([
+    loadUnifiedPoints({ city: cityResult.value ?? undefined, district, bbox, rooms, kind }),
+    getProjectMetrics().catch((e) => { console.error("[points] metrics failed", e); return null; }),
+  ]);
+  return NextResponse.json(toFeatureCollection(pts, metrics), { headers: MAP_CACHE_HEADERS });
 }

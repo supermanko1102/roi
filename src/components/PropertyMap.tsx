@@ -6,7 +6,7 @@ import RentalDrawer from "./RentalDrawer";
 import MapLegend from "./MapLegend";
 import MobileExplorer from "./MobileExplorer";
 import {
-  ComparePanel, FilterPanel, ProductHeader,
+  ComparePanel, DevBadge, FilterPanel, ProductHeader, ProjectListPanel,
   rentalSummaryFromFeature, summaryFromFeature,
   type MarketMode, type ProjectSummary, type RentalSummary,
 } from "./product-kit";
@@ -20,7 +20,10 @@ import {
   CITY_LABEL_ZOOM, DETAIL_ZOOM, POINT_ZOOM, PROJECT_ZOOM, SHOW_IC_M,
   SHOW_STATION_M, TOTAL_FILTERS, ZOOM_STEPS,
 } from "@/lib/map-const";
-import { buildSuggestions, enrichNearestTransport, filterPoints } from "@/lib/map-view";
+import {
+  buildSuggestions, enrichNearestTransport, filterPoints, sortSummaries, type ListSort, LIST_SORTS,
+} from "@/lib/map-view";
+import { cityDisplay } from "@/lib/cities";
 import type {
   DistrictFC, MapLabel, PresaleFC, PresaleProps, RentalFC, RentalProps,
   ProjectIndexEntry, SearchSuggestion, StationFC, TransportStop, ZoneFC,
@@ -37,6 +40,9 @@ type PresalePopupData = {
   price: number | null; median_total: number | null; median_area: number | null;
   band: string; build_year: number | null;
   cancel_count: number;
+  dev: number | null; dev_base: string | null;
+  yield_pct: number | null; yield_src: "community" | "nearby" | null;
+  recent_n: number;
   st_name: string | null; st_line: string | null; st_m: number | null; // 最近車站
   ic_name: string | null; ic_m: number | null;                          // 最近交流道
 };
@@ -48,6 +54,10 @@ type RentalPopupData = {
   area_ping: number; rent_per_ping: number; deal_count: number; last_deal: string | null;
   doors: number; is_social: boolean; social_count: number;
 };
+
+/** 膠囊上顯示哪個數字:單價(預設)/跟附近比/租金回報 */
+export type PillMode = "price" | "dev" | "yield";
+type Bounds = [number, number, number, number];
 
 // OpenFreeMap Positron 淺色底圖:CARTO Positron 的開源重製版,免 API key 且允許生產使用
 // (CARTO 免費圖磚自 2026-11 起要求 API key,磁磚會印上 API KEY REQUIRED 浮水印)
@@ -79,6 +89,12 @@ export default function PropertyMap() {
   const [nearMetro, setNearMetro] = useState(false);
   const [nearIC, setNearIC] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
+  const [activeOnly, setActiveOnly] = useState(false);
+  const [pillMode, setPillMode] = useState<PillMode>("price");
+  const [listOpen, setListOpen] = useState(false);
+  const [listSort, setListSort] = useState<ListSort>("recent");
+  const [scopeToView, setScopeToView] = useState(true);
+  const [viewBounds, setViewBounds] = useState<Bounds | null>(null);
   const [zoom, setZoom] = useState(initialView.zoom);
   const [points, setPoints] = useState<PresaleFC | null>(null);
   const [presalePopup, setPresalePopup] = useState<PresalePopupData | null>(null);
@@ -127,6 +143,13 @@ export default function PropertyMap() {
     setHouseholdMin(initialHouseholdMin); setHouseholdMax(initialHouseholdMax); setMarket(initialMarket);
     setQuery(qs.get("q") ?? ""); setNearMetro(qs.get("metro") === "1"); setNearIC(qs.get("ic") === "1");
     setShowCancel(qs.get("cancel") === "1");
+    setActiveOnly(qs.get("active") === "1");
+    const show = qs.get("show");
+    if (show === "dev" || show === "yield") setPillMode(show);
+    const sortParam = qs.get("sort");
+    if (LIST_SORTS.some((x) => x.key === sortParam)) setListSort(sortParam as ListSort);
+    // 桌機預設攤開清單:先給答案(排序好的候選),地圖是輔助;?list=0 可關
+    setListOpen(qs.get("list") === "1" || (qs.get("list") !== "0" && window.innerWidth >= 1100 && !qs.get("proj")));
     loadCatalog(initialRooms);
     loadProjectIndex();
     try {
@@ -162,9 +185,13 @@ export default function PropertyMap() {
       households_max: householdMax == null ? null : String(householdMax),
       metro: nearMetro ? "1" : null, ic: nearIC ? "1" : null,
       cancel: showCancel ? "1" : null,
+      active: activeOnly ? "1" : null,
+      show: pillMode === "price" ? null : pillMode,
+      sort: listSort === "recent" ? null : listSort,
       market: market === "rental" ? "rent" : null, rent: null, mode: null, view: null,
     });
-  }, [urlReady, query, totalBand, householdMin, householdMax, rooms, nearMetro, nearIC, showCancel, market]);
+  }, [urlReady, query, totalBand, householdMin, householdMax, rooms, nearMetro, nearIC, showCancel, activeOnly,
+    pillMode, listSort, market]);
 
   useEffect(() => {
     if (!urlReady) return;
@@ -239,14 +266,22 @@ export default function PropertyMap() {
   const enrichedPoints = useMemo(() => enrichNearestTransport(points, railIdx, icIdx), [points, railIdx, icIdx]);
   const enrichedCatalog = useMemo(() => enrichNearestTransport(catalog, railIdx, icIdx), [catalog, railIdx, icIdx]);
   const pointFilter = useMemo(
-    () => ({ totalBand, householdMin, householdMax, query, nearMetro, nearIC }),
-    [totalBand, householdMin, householdMax, query, nearMetro, nearIC],
+    () => ({ totalBand, householdMin, householdMax, query, nearMetro, nearIC, activeOnly }),
+    [totalBand, householdMin, householdMax, query, nearMetro, nearIC, activeOnly],
   );
   const visiblePoints = useMemo(() => filterPoints(enrichedPoints, pointFilter), [enrichedPoints, pointFilter]);
   const visibleCatalog = useMemo(() => filterPoints(enrichedCatalog, pointFilter), [enrichedCatalog, pointFilter]);
   const projectSummaries = useMemo(() => (visibleCatalog?.features ?? [])
     .map(summaryFromFeature)
     .sort((a, b) => a.name.localeCompare(b.name, "zh-Hant")), [visibleCatalog]);
+  // 桌機清單:篩選後 →(可選)限縮到目前地圖範圍 → 依選定的問題排序
+  const listProjects = useMemo(() => {
+    const scoped = scopeToView && viewBounds
+      ? projectSummaries.filter((p) =>
+          p.lng >= viewBounds[0] && p.lng <= viewBounds[2] && p.lat >= viewBounds[1] && p.lat <= viewBounds[3])
+      : projectSummaries;
+    return sortSummaries(scoped, listSort);
+  }, [projectSummaries, scopeToView, viewBounds, listSort]);
   // 市場件與社宅件分成兩個 Source:各自 cluster、各自配色,社宅不混進市場行情視覺
   const marketRentals = useMemo(() => rentals && ({
     ...rentals, features: rentals.features.filter((f) => !f.properties.is_social),
@@ -268,7 +303,7 @@ export default function PropertyMap() {
     return counts;
   }, [rentalSummaries]);
   const activeFilters = +(totalBand !== "all") + +(householdMin != null || householdMax != null)
-    + +(rooms !== "all") + +nearMetro + +nearIC + +showCancel;
+    + +(rooms !== "all") + +nearMetro + +nearIC + +showCancel + +activeOnly;
 
   // 解約標記:獨立於屋齡帶篩選,永遠拿全部點位過濾
   const cancelPoints = useMemo(() => {
@@ -395,6 +430,9 @@ export default function PropertyMap() {
       price: p.price ?? null, median_total: p.median_total ?? null,
       median_area: p.median_area ?? null, band: p.band, build_year: p.build_year ?? null,
       cancel_count: p.cancel_count ?? 0,
+      dev: p.dev ?? null, dev_base: p.dev_base ?? null,
+      yield_pct: p.yield_pct ?? null, yield_src: p.yield_src ?? null,
+      recent_n: p.recent_n ?? 0,
       st_name: p.st_name ?? null, st_line: p.st_line ?? null, st_m: p.st_m ?? null,
       ic_name: p.ic_name ?? null, ic_m: p.ic_m ?? null,
     });
@@ -465,7 +503,7 @@ export default function PropertyMap() {
   function resetFilters() {
     setTotalBand("all"); setHouseholdMin(null); setHouseholdMax(null);
     pickRooms("all"); setNearMetro(false); setNearIC(false);
-    setShowCancel(false);
+    setShowCancel(false); setActiveOnly(false);
   }
 
   async function shareCurrent() {
@@ -519,6 +557,8 @@ export default function PropertyMap() {
             });
           }, { passive: false });
           setZoom(e.target.getZoom());
+          const b0 = e.target.getBounds();
+          setViewBounds([b0.getWest(), b0.getSouth(), b0.getEast(), b0.getNorth()]);
           if (e.target.getZoom() >= DETAIL_ZOOM) {
             const b = e.target.getBounds();
             loadDetail([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
@@ -538,6 +578,8 @@ export default function PropertyMap() {
         }}
         onMoveEnd={(e) => {
           setZoom(e.viewState.zoom);
+          const vb = e.target.getBounds();
+          setViewBounds([vb.getWest(), vb.getSouth(), vb.getEast(), vb.getNorth()]);
           syncUrl({
             lng: e.viewState.longitude.toFixed(5), lat: e.viewState.latitude.toFixed(5),
             z: e.viewState.zoom.toFixed(2),
@@ -725,12 +767,32 @@ export default function PropertyMap() {
               layout={{
                 "icon-image": "pill",
                 "icon-text-fit": "both",
-                "text-field": (rooms !== "all"
+                // 膠囊數字跟著「看什麼」切換;沒有該數字的案顯示「—」而不是硬湊
+                "text-field": (pillMode === "dev"
+                  ? ["case", ["has", "dev"],
+                      ["concat", ["case", [">", ["get", "dev"], 0], "+", ""],
+                        ["to-string", ["round", ["get", "dev"]]], "%"], "—"]
+                  : pillMode === "yield"
+                  ? ["case", ["has", "yield_pct"],
+                      ["concat", ["to-string", ["/", ["round", ["*", ["get", "yield_pct"], 10]], 10]], "%"], "—"]
+                  : rooms !== "all"
                   ? ["concat", ["to-string", ["get", "median_total"]], "萬"]
                   : ["concat", "$", ["to-string", ["get", "price"]]]) as any,
                 "text-font": ["Noto Sans Bold"], "text-size": 12.5,
+                // 有數字的案優先佔位,避免被一堆「—」擠掉
+                "symbol-sort-key": (pillMode === "dev" ? ["case", ["has", "dev"], 0, 1]
+                  : pillMode === "yield" ? ["case", ["has", "yield_pct"], 0, 1] : 0) as any,
               }}
-              paint={{ "text-color": "#22303a" }} />
+              paint={{
+                // 貴=紅、便宜=綠(±3% 內不上色);只染文字,不染區塊
+                "text-color": (pillMode === "dev"
+                  ? ["case", ["!", ["has", "dev"]], "#9aa6a1",
+                      [">=", ["get", "dev"], 3], "#a23e2d",
+                      ["<=", ["get", "dev"], -3], "#0d5b4f", "#22303a"]
+                  : pillMode === "yield"
+                  ? ["case", ["has", "yield_pct"], "#22303a", "#9aa6a1"]
+                  : "#22303a") as any,
+              }} />
             <Layer id="pt-name" type="symbol" filter={["!", ["has", "point_count"]]}
               minzoom={POINT_ZOOM}
               layout={{
@@ -889,6 +951,16 @@ export default function PropertyMap() {
                     <>🛣️ {presalePopup.ic_name}約 {(presalePopup.ic_m / 1000).toFixed(1)} 公里</>}
                 </div>
               )}
+              {(presalePopup.dev != null || presalePopup.yield_pct != null) && (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <DevBadge dev={presalePopup.dev} base={presalePopup.dev_base} />
+                  {presalePopup.yield_pct != null && (
+                    <span className="num rounded-full border border-line bg-white px-[7px] py-[2px] text-[10px] font-bold text-ink">
+                      租金回報 {presalePopup.yield_pct.toFixed(1)}%
+                    </span>
+                  )}
+                </div>
+              )}
               {presalePopup.cancel_count > 0 && (
                 <div className="cancelnote">⚠ 本案曾有 {presalePopup.cancel_count} 筆解約(未計入價格統計)</div>
               )}
@@ -942,6 +1014,7 @@ export default function PropertyMap() {
           setExploreOpen((current) => !current);
           setFiltersOpen(false);
         }}
+        listOpen={listOpen} toggleList={() => setListOpen((current) => !current)}
         filtersOpen={filtersOpen} setFiltersOpen={(open) => {
           setFiltersOpen(open);
           if (open) setExploreOpen(false);
@@ -962,7 +1035,12 @@ export default function PropertyMap() {
           if (key) zoomToZone(key);
           else if (mobileDistrict) drill(mobileDistrict);
         }}
-        onChooseProject={openSummary} />}
+        onChooseProject={openSummary} sort={listSort} setSort={setListSort} />}
+
+      {market === "presale" && <ProjectListPanel open={listOpen} onClose={() => setListOpen(false)}
+        projects={listProjects} total={projectSummaries.length} loading={catalog == null}
+        sort={listSort} setSort={setListSort} scopeToView={scopeToView} setScopeToView={setScopeToView}
+        onOpen={openSummary} multiCity={(city) => (CITIES.length > 1 ? cityDisplay(city) : undefined)} />}
 
       {market === "presale" && <FilterPanel open={filtersOpen}
         totalBand={totalBand} setTotalBand={(v) => { setTotalBand(v); setPresalePopup(null); }}
@@ -972,6 +1050,7 @@ export default function PropertyMap() {
         }}
         rooms={rooms} setRooms={pickRooms} nearMetro={nearMetro} setNearMetro={setNearMetro}
         nearIC={nearIC} setNearIC={setNearIC} showCancel={showCancel} setShowCancel={setShowCancel}
+        activeOnly={activeOnly} setActiveOnly={(v) => { setActiveOnly(v); setPresalePopup(null); }}
         reset={resetFilters} />}
 
       <ComparePanel open={market === "presale" && compareOpen} saved={saved} onClose={() => setCompareOpen(false)}
@@ -992,9 +1071,10 @@ export default function PropertyMap() {
         }} />}
 
       <MapLegend market={market} rooms={rooms} nearMetro={nearMetro} nearIC={nearIC}
-        detail={detail} showStations={stations != null} />
+        detail={detail} showStations={stations != null}
+        pillMode={pillMode} setPillMode={setPillMode} shifted={market === "presale" && listOpen} />
 
-      {detail && <button className="backbtn" onClick={back}>← 返回{CITIES.length > 1 ? "全區" : "全市"}</button>}
+      {detail && <button className={`backbtn ${market === "presale" && listOpen ? "with-list" : ""}`} onClick={back}>← 返回{CITIES.length > 1 ? "全區" : "全市"}</button>}
       <div className="map-status">
         <strong>{market === "rental" ? rentalSummaries.length : zoneLevel ? "生活圈" : (projectSummaries.length || "—")}</strong>
         <span>{market === "rental"

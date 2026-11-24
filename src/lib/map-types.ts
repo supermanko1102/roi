@@ -22,6 +22,15 @@ export type PresaleProps = {
   building_type?: string;
   build_year?: number;
   cancel_count?: number;
+  // 判讀指標(lib/project-metrics;算不出來就省略)
+  recent_n?: number;              // 近一年成交筆數
+  last_deal?: string;             // 最近成交日
+  dev?: number;                   // 比同圈/同區其他預售案貴(+)便宜(−) %
+  dev_base?: string;              // 比較基準名稱
+  dev_scope?: "zone" | "district";
+  yield_pct?: number;             // 年租金 ÷ 總價 %
+  yield_src?: "community" | "nearby";
+  cancel_rate?: number;           // 解約率 %
   // 以下由前端 enrich 補上(最近車站/交流道)
   st_name?: string; st_line?: string; st_m?: number;
   ic_name?: string; ic_m?: number;

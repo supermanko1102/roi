@@ -6,7 +6,8 @@ import { CITIES, cityDisplay } from "@/lib/cities";
 import { distanceToGeomM } from "@/lib/geo";
 import { priceProp } from "@/lib/map-colors";
 import type { MapLabel, ZoneFC } from "@/lib/map-types";
-import type { ProjectSummary } from "./product-kit";
+import { ProjectRow, SortChips, type ProjectSummary } from "./product-kit";
+import { sortSummaries, type ListSort } from "@/lib/map-view";
 import {
   Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle,
 } from "@/components/ui/dialog";
@@ -26,6 +27,8 @@ type Props = {
   onChooseZone: (key: string | null) => void;
   onChooseProject: (project: ProjectSummary) => void;
   loading: boolean;
+  sort: ListSort;
+  setSort: (sort: ListSort) => void;
 };
 
 const zoneDistricts = (label: MapLabel) =>
@@ -34,7 +37,7 @@ const zoneDistricts = (label: MapLabel) =>
 export default function MobileExplorer({
   open, onClose, districts, zoneLabels, zones, projects,
   selectedDistrictKey, selectedZoneKey,
-  onChooseDistrict, onResetDistrict, onChooseZone, onChooseProject, loading,
+  onChooseDistrict, onResetDistrict, onChooseZone, onChooseProject, loading, sort, setSort,
 }: Props) {
   const [activeCity, setActiveCity] = useState(CITIES[0]?.name ?? "");
   const [needle, setNeedle] = useState("");
@@ -75,14 +78,18 @@ export default function MobileExplorer({
       `${project.name} ${project.district}`.toLocaleLowerCase("zh-Hant").includes(query));
     const feature = selectedZoneKey ? zones?.features.find((zone) =>
       (zone.properties.zone_key ?? zone.properties.name) === selectedZoneKey) : null;
+    // 選了生活圈:先取離它最近的一批,再依使用者選的問題排序
     if (feature) return result.sort((a, b) =>
       distanceToGeomM(a.lat, a.lng, feature.geometry) - distanceToGeomM(b.lat, b.lng, feature.geometry)
       || b.deals - a.deals || a.name.localeCompare(b.name, "zh-Hant"));
-    return result.sort((a, b) => b.deals - a.deals || a.name.localeCompare(b.name, "zh-Hant"));
-  }, [needle, projects, selectedDistrict, selectedZoneKey, zones]);
+    return sortSummaries(result, sort);
+  }, [needle, projects, selectedDistrict, selectedZoneKey, zones, sort]);
 
   const visibleLimit = selectedZone ? 24 : 80;
-  const visibleProjects = scopedProjects.slice(0, visibleLimit);
+  const visibleProjects = useMemo(() => {
+    const nearest = scopedProjects.slice(0, visibleLimit);
+    return selectedZone ? sortSummaries(nearest, sort) : nearest;
+  }, [scopedProjects, visibleLimit, selectedZone, sort]);
 
   function chooseDistrict(key: string) {
     setNeedle("");
@@ -196,6 +203,7 @@ export default function MobileExplorer({
               </button>}
             </label>
 
+            <SortChips sort={sort} setSort={setSort} className="mb-2.5" />
             <div className="mb-2 flex items-center justify-between">
               <strong className="text-[12px]">{selectedZone ? `${selectedZone.name}周邊優先` : "行政區全部建案"}</strong>
               <span className="num text-[10.5px] text-ink-soft">
@@ -215,21 +223,7 @@ export default function MobileExplorer({
             ) : (
               <div className="overflow-hidden rounded-[16px] border border-line bg-white">
                 {visibleProjects.map((project) => (
-                  <button key={project.key} type="button" onClick={() => onChooseProject(project)}
-                    className="group flex min-h-[70px] w-full items-center gap-3 border-0 border-b border-line/70 bg-white px-3 py-2.5 text-left last:border-b-0 active:bg-mint/50">
-                    <span className="min-w-0 flex-1">
-                      <b className="block truncate text-[13px]">{project.name}</b>
-                      <span className="mt-1 block truncate text-[10.5px] text-ink-soft">
-                        {project.deals} 筆成交
-                        {project.total != null ? `・總價約 ${Math.round(project.total).toLocaleString()} 萬` : ""}
-                      </span>
-                    </span>
-                    <span className="num flex-none text-right">
-                      <b className="block text-[13px] text-teal">{project.price == null ? "—" : project.price.toFixed(1)}</b>
-                      <small className="text-[9px] text-ink-soft">萬／坪</small>
-                    </span>
-                    <ChevronRight className="size-4 flex-none text-[#9aa6a1] group-active:translate-x-0.5" />
-                  </button>
+                  <ProjectRow key={project.key} project={project} onOpen={onChooseProject} />
                 ))}
               </div>
             )}
@@ -237,7 +231,7 @@ export default function MobileExplorer({
               <p className="mt-2 text-center text-[10px] text-ink-soft">
                 {selectedZone
                   ? `已依距離顯示最近的 ${visibleLimit} 案，可輸入名稱搜尋${selectedDistrict.name}全部建案。`
-                  : "先顯示成交較多的 80 案，可輸入建案名稱繼續找。"}
+                  : "先顯示排序最前面的 80 案，可輸入建案名稱繼續找。"}
               </p>
             )}
           </>

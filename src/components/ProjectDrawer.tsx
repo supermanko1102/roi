@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { dealsTh, Fact, fmtP, LeaseTable, median, shortRocDate, type RLease } from "./drawer-kit";
+import { dealsTh, Fact, fmtP, LeaseTable, median, ProjectInsights, shortRocDate, type RLease } from "./drawer-kit";
+import type { ProjectMetrics } from "@/lib/metrics-core";
 import BuildingGrid, { parseStack } from "./BuildingGrid";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,7 @@ type PDetail = {
     first_reg: string | null; declare_date: string | null;
     use_issue_date: string | null; phases: number;
   } | null;
+  metrics?: ProjectMetrics | null;
   band: string;
   build_year: number | null;
   deals: PDeal[];
@@ -344,6 +346,10 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
               </div>
             )}
           </div>
+
+          <ProjectInsights metrics={detail.metrics ?? null}
+            unitPrice={p.unit_price == null ? null : +p.unit_price}
+            deals={active.length} cancels={cancelled.length} />
 
           <Tabs value={section} onValueChange={selectSection} className="contents">
             <div ref={tabsAnchorRef} className="h-0" aria-hidden="true" />

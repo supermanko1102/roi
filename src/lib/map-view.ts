@@ -4,6 +4,7 @@ import { NEAR_IC_M, NEAR_METRO_M, TOTAL_FILTERS } from "@/lib/map-const";
 import type {
   MapLabel, PresaleFC, ProjectIndexEntry, RentalFC, SearchSuggestion, TransportStop,
 } from "@/lib/map-types";
+import type { ProjectSummary } from "@/components/product-kit";
 
 // 地圖點位的純運算(不碰 React/DOM),PropertyMap 只負責 memo 化與餵資料。
 
@@ -37,11 +38,36 @@ export type PointFilter = {
   query: string;
   nearMetro: boolean;
   nearIC: boolean;
+  activeOnly?: boolean;   // 只留近一年有成交的案(還在賣的)
 };
+
+/** 清單排序:每一種都對應買家的一個問題;沒有該數字的案一律排最後。 */
+export const LIST_SORTS = [
+  { key: "recent", label: "最近有成交" },
+  { key: "cheap", label: "比附近便宜" },
+  { key: "yield", label: "租金回報高" },
+  { key: "total", label: "總價低" },
+  { key: "price", label: "一坪價低" },
+] as const;
+export type ListSort = (typeof LIST_SORTS)[number]["key"];
+
+export function sortSummaries(list: ProjectSummary[], sort: ListSort): ProjectSummary[] {
+  const nullsLast = (a: number | null, b: number | null, dir: 1 | -1) =>
+    a == null ? (b == null ? 0 : 1) : b == null ? -1 : (a - b) * dir;
+  const byName = (a: ProjectSummary, b: ProjectSummary) => a.name.localeCompare(b.name, "zh-Hant");
+  const cmp: Record<ListSort, (a: ProjectSummary, b: ProjectSummary) => number> = {
+    recent: (a, b) => String(b.lastDeal ?? "").localeCompare(String(a.lastDeal ?? "")) || b.recentN - a.recentN,
+    cheap: (a, b) => nullsLast(a.dev, b.dev, 1),
+    yield: (a, b) => nullsLast(a.yieldPct, b.yieldPct, -1),
+    total: (a, b) => nullsLast(a.total, b.total, 1),
+    price: (a, b) => nullsLast(a.price, b.price, 1),
+  };
+  return [...list].sort((a, b) => cmp[sort](a, b) || byName(a, b));
+}
 
 /** 套用總價/總戶數/關鍵字/交通條件;query 同時當即時篩選。 */
 export function filterPoints(base: PresaleFC | null, {
-  totalBand, householdMin, householdMax, query, nearMetro, nearIC,
+  totalBand, householdMin, householdMax, query, nearMetro, nearIC, activeOnly,
 }: PointFilter): PresaleFC | null {
   if (!base) return null;
   const tf = TOTAL_FILTERS.find((t) => t.key === totalBand)!;
@@ -54,6 +80,7 @@ export function filterPoints(base: PresaleFC | null, {
       const households = f.properties.households;
       if (householdMin != null && (households == null || households < householdMin)) return false;
       if (householdMax != null && (households == null || households > householdMax)) return false;
+      if (activeOnly && !(f.properties.recent_n && f.properties.recent_n > 0)) return false;
       if (needle && !`${f.properties.name ?? ""} ${f.properties.district ?? ""}`.toLocaleLowerCase("zh-Hant").includes(needle)) return false;
       return true;
     })

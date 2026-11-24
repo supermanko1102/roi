@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gt, inArray, isNotNull, sql } from "drizzle-orm";
 import { db, building_community, communities, presale_deals, projects, rent_deals, sale_deals, contract_materials, contract_material_facts } from "@/lib/db";
 import { ageBand } from "@/lib/age";
 import { DETAIL_CACHE_HEADERS, parseCity, validText } from "@/lib/api-params";
+import { getProjectMetrics, projectKey } from "@/lib/project-metrics";
 
 export const dynamic = "force-dynamic";
 
@@ -200,8 +201,13 @@ export async function GET(req: NextRequest) {
     rents = rentRows.map(({ addr_key, ...r }) => ({ ...r, addr: stripAddr(addr_key) }));
   }
 
+  const metrics = await getProjectMetrics()
+    .then((m) => m.get(projectKey(city, district, name)) ?? null)
+    .catch((e) => { console.error("[project-detail] metrics failed", e); return null; });
+
   return NextResponse.json({
     project: p,
+    metrics,
     community: comm && {
       households: totalHouseholds, street: comm.street, permit_no: comm.permit_no,
       first_reg: comm.first_reg, declare_date: comm.declare_date,
