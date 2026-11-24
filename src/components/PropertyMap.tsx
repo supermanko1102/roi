@@ -49,26 +49,10 @@ type RentalPopupData = {
   doors: number; is_social: boolean; social_count: number;
 };
 
-// CARTO Positron 淺色底圖:極簡資料視覺化風格,CDN 快(NLSC 官方圖磚較慢且視覺雜訊多)
-const BASE_STYLE: any = {
-  version: 8,
-  glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
-  sources: {
-    carto: {
-      type: "raster",
-      tiles: ["a", "b", "c", "d"].map(
-        (s) => `https://${s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png`),
-      tileSize: 256,
-      maxzoom: 19,
-      attribution: "© OpenStreetMap contributors © CARTO・區界 © 內政部/g0v",
-    },
-  },
-  layers: [
-    // 底色墊在 raster 下:tile 未載入時顯示紙色,而不是透出頁面底色像破圖
-    { id: "bg", type: "background", paint: { "background-color": "#fafaf7" } },
-    { id: "carto", type: "raster", source: "carto" },
-  ],
-};
+// OpenFreeMap Positron 淺色底圖:CARTO Positron 的開源重製版,免 API key 且允許生產使用
+// (CARTO 免費圖磚自 2026-11 起要求 API key,磁磚會印上 API KEY REQUIRED 浮水印)
+// 疊加圖層的 text-font 必須用此 style 的 glyphs 端點有的字型(Noto Sans 系列)
+const BASE_STYLE = "https://tiles.openfreemap.org/styles/positron";
 
 function readInitialView() {
   if (typeof window === "undefined") return DEFAULT_VIEW;
@@ -615,7 +599,7 @@ export default function PropertyMap() {
         ]}
       >
         {districts && (
-          <Source id="districts" type="geojson" data={districts}>
+          <Source id="districts" type="geojson" data={districts} attribution="區界 © 內政部/g0v">
             <Layer id="district-fill" type="fill"
               paint={{
                 // 行政區只作導航，不把價格轉譯成色階；跨城市擴充時比較口徑才不會誤導。
@@ -731,7 +715,7 @@ export default function PropertyMap() {
             <Layer id="pt-cluster-count" type="symbol" filter={["has", "point_count"]}
               layout={{
                 "text-field": ["get", "point_count_abbreviated"],
-                "text-font": ["Open Sans Semibold"], "text-size": 13,
+                "text-font": ["Noto Sans Bold"], "text-size": 13,
               }}
               paint={{ "text-color": "#fff" }} />
             {/* 價格膠囊:白底圓角；格局篩選時顯示總價，否則顯示單價。
@@ -744,14 +728,14 @@ export default function PropertyMap() {
                 "text-field": (rooms !== "all"
                   ? ["concat", ["to-string", ["get", "median_total"]], "萬"]
                   : ["concat", "$", ["to-string", ["get", "price"]]]) as any,
-                "text-font": ["Open Sans Semibold"], "text-size": 12.5,
+                "text-font": ["Noto Sans Bold"], "text-size": 12.5,
               }}
               paint={{ "text-color": "#22303a" }} />
             <Layer id="pt-name" type="symbol" filter={["!", ["has", "point_count"]]}
               minzoom={POINT_ZOOM}
               layout={{
                 "text-field": ["get", "name"] as any,
-                "text-font": ["Open Sans Semibold"], "text-size": 11,
+                "text-font": ["Noto Sans Bold"], "text-size": 11,
                 "text-offset": [0, 1.5] as any, // 讓出膠囊高度
                 "text-anchor": "top",
                 "text-optional": true,
@@ -772,7 +756,7 @@ export default function PropertyMap() {
             <Layer id="cancel-label" type="symbol"
               layout={{
                 "text-field": ["concat", ["get", "name"], "\n解約 ", ["to-string", ["get", "cancel_count"]], " 筆"] as any,
-                "text-font": ["Open Sans Semibold"], "text-size": 11,
+                "text-font": ["Noto Sans Bold"], "text-size": 11,
                 "text-offset": [0, 1.6], "text-anchor": "top", "text-allow-overlap": true,
               }}
               paint={{ "text-color": "#b02a37", "text-halo-color": "#fff", "text-halo-width": 1.6 }} />
@@ -817,7 +801,7 @@ export default function PropertyMap() {
               layout={{
                 "text-field": ["case", ["==", ["get", "status"], "construction"],
                   ["concat", ["get", "name"], "(施工中)"], ["get", "name"]] as any,
-                "text-font": ["Open Sans Semibold"], "text-size": 11,
+                "text-font": ["Noto Sans Bold"], "text-size": 11,
                 "text-offset": [0, -1.4], "text-anchor": "bottom", "text-optional": true,
               }}
               paint={{
