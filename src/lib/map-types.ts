@@ -101,3 +101,29 @@ export type ProjectIndexEntry = {
   name: string; city: string; district: string;
   deal_count: number | null; unit_price: number | null; geo: boolean;
 };
+
+/** 地圖彈窗資料(點建案/租賃點時由 feature 屬性攤平) */
+export type PresalePopupData = {
+  lng: number; lat: number;
+  name: string; city: string; district: string; deal_count: number;
+  price: number | null; median_total: number | null; median_area: number | null;
+  band: string; build_year: number | null;
+  cancel_count: number;
+  dev: number | null; dev_base: string | null;
+  yield_pct: number | null; yield_src: "community" | "nearby" | null;
+  recent_n: number;
+  st_name: string | null; st_line: string | null; st_m: number | null; // 最近車站
+  ic_name: string | null; ic_m: number | null;                          // 最近交流道
+};
+
+export type RentalPopupData = {
+  lng: number; lat: number; key: string; name: string | null; district: string; address: string;
+  building_type: string; build_year: number; age: number; monthly_rent: number;
+  housing_rent: number; parking_rent: number | null;
+  area_ping: number; rent_per_ping: number; deal_count: number; last_deal: string | null;
+  doors: number; is_social: boolean; social_count: number;
+};
+
+/** 膠囊上顯示哪個數字:單價(預設)/跟附近比/租金回報 */
+export type PillMode = "price" | "dev" | "yield";
+export type Bounds = [number, number, number, number];

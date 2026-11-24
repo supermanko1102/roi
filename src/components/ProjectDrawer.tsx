@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { dealsTh, Fact, fmtP, LeaseTable, median, ProjectInsights, shortRocDate, type RLease } from "./drawer-kit";
+import {
+  DataConfidence, dealsTh, Fact, fmtP, LeaseTable, median, PriceTimeline, ProjectInsights, shortRocDate, type RLease,
+} from "./drawer-kit";
 import type { ProjectMetrics } from "@/lib/metrics-core";
 import BuildingGrid, { parseStack } from "./BuildingGrid";
 import { Button } from "@/components/ui/button";
@@ -25,7 +27,9 @@ export type PDetail = {
   project: {
     name: string; district: string; unit_price: number | null;
     median_total: number | null; median_area: number | null;
+    lat?: number | null;
   };
+  matching?: { method: string | null; doors: number; min_confidence: number }[];
   community: {
     households: number | null; street: string | null; permit_no: string | null;
     first_reg: string | null; declare_date: string | null;
@@ -368,7 +372,7 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
 
           <ProjectInsights metrics={detail.metrics ?? null}
             unitPrice={p.unit_price == null ? null : +p.unit_price}
-            deals={active.length} cancels={cancelled.length} />
+            deals={active.length} cancels={cancelled.length} located={p.lat != null} />
 
           <Tabs value={section} onValueChange={selectSection} className="contents">
             <div ref={tabsAnchorRef} className="h-0" aria-hidden="true" />
@@ -400,6 +404,8 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
 
             <div id="project-panel-overview" role="tabpanel" aria-labelledby="project-tab-overview"
               className={cn(section !== "overview" && "hidden")}>
+              <PriceTimeline deals={active} resales={homeResales}
+                handover={detail.community?.use_issue_date ?? detail.community?.first_reg ?? null} />
               <section className="mt-[21px]" aria-label="建案基本資料">
                 <div className="flex items-baseline justify-between text-[13.5px] font-extrabold">基本資料</div>
                 <div className="mt-[9px] grid grid-cols-2 gap-2">
@@ -413,6 +419,7 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
                   <Fact label="解約筆數" value={`${cancelled.length} 筆`} />
                 </div>
               </section>
+              <DataConfidence located={p.lat != null} matching={detail.matching ?? []} />
             </div>
 
             <div id="project-panel-deals" role="tabpanel" aria-labelledby="project-tab-deals"

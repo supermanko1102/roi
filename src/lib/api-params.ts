@@ -25,8 +25,10 @@ export function validText(value: string | null, maxLength: number) {
   return value != null && value.trim().length > 0 && value.length <= maxLength;
 }
 
+// 資料每天最多更新一次:CDN 新鮮 10 分鐘,之後一天內先回舊的、背景重算,
+// 使用者不會等到冷啟動的資料庫查詢。
 export const MAP_CACHE_HEADERS = {
-  "Cache-Control": "public, s-maxage=300, stale-while-revalidate=3600",
+  "Cache-Control": "public, s-maxage=600, stale-while-revalidate=86400",
 };
 
 export const DETAIL_CACHE_HEADERS = {

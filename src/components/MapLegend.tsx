@@ -2,7 +2,7 @@ import { LINE_COLOR } from "@/lib/map-colors";
 import { ROOM_LABEL, type RoomFilter } from "@/lib/rooms";
 import { CITIES } from "@/lib/cities";
 import type { MarketMode } from "./product-kit";
-import type { PillMode } from "./PropertyMap";
+import type { PillMode } from "@/lib/map-types";
 import { cn } from "@/lib/utils";
 
 const PILL_MODES: { key: PillMode; label: string; title: string }[] = [

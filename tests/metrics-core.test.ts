@@ -81,3 +81,15 @@ test("list sorting puts projects without the metric last", () => {
   assert.deepEqual(sortSummaries(list, "yield").map((p) => p.key), ["c", "a", "b"]);
   assert.deepEqual(sortSummaries(list, "recent").map((p) => p.key), ["c", "a", "b"]);
 });
+
+test("quarter medians drop thin quarters", async () => {
+  const { quarterMedians } = await import("../src/components/drawer-kit");
+  const deals = [
+    ...[30, 32, 34].map((unit_price) => ({ deal_date: "2024-02-10", unit_price })),
+    { deal_date: "2024-05-01", unit_price: 99 },
+    ...[40, 42, 44, 46].map((unit_price) => ({ deal_date: "2024-08-20", unit_price })),
+    { deal_date: null, unit_price: 50 },
+  ];
+  const points = quarterMedians(deals, 3);
+  assert.deepEqual(points.map((p) => [p.label, p.price, p.n]), [["113年Q1", 32, 3], ["113年Q3", 43, 4]]);
+});

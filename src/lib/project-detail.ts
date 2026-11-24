@@ -187,6 +187,17 @@ export async function loadProjectDetail(city: string, district: string, name: st
     rents = rentRows.map(({ addr_key, ...r }) => ({ ...r, addr: stripAddr(addr_key) }));
   }
 
+  // 轉售/租約是靠門牌歸戶接回本案的:把歸戶方式與信心一併交給前端,讓使用者知道這層對應有多可靠
+  const matching = caseNos.length
+    ? await db.select({
+        method: building_community.match_method,
+        doors: sql<number>`count(*)::int`,
+        min_confidence: sql<number>`min(coalesce("building_community"."confidence", 100))::int`,
+      }).from(building_community)
+        .where(inArray(building_community.case_no, caseNos))
+        .groupBy(building_community.match_method)
+    : [];
+
   const metrics = await getProjectMetrics()
     .then((m) => m.get(projectKey(city, district, name)) ?? null)
     .catch((e) => { console.error("[project-detail] metrics failed", e); return null; });
@@ -206,6 +217,7 @@ export async function loadProjectDetail(city: string, district: string, name: st
     unit_doors: unitDoors,
     rents,
     materials,
+    matching,
   };
 }
 

@@ -118,8 +118,8 @@ function InsightRow({ kicker, tone, headline, children }: {
  * 建案抽屜的三個判讀:跟附近比、出租回報、解約。
  * 每一列都寫明「跟誰比、幾筆樣本」;算不出來就直說原因,不顯示推估值。
  */
-export function ProjectInsights({ metrics, unitPrice, deals, cancels }: {
-  metrics: ProjectMetrics | null; unitPrice: number | null; deals: number; cancels: number;
+export function ProjectInsights({ metrics, unitPrice, deals, cancels, located }: {
+  metrics: ProjectMetrics | null; unitPrice: number | null; deals: number; cancels: number; located: boolean;
 }) {
   if (!metrics) return null;
   const m = metrics;
@@ -147,9 +147,11 @@ export function ProjectInsights({ metrics, unitPrice, deals, cancels }: {
         )}
       </InsightRow>
       <InsightRow kicker="買來出租" tone={m.yield_pct == null ? "muted" : undefined}
-        headline={m.yield_pct == null ? "附近租約太少，算不出來"
+        headline={m.yield_pct == null ? (located ? "附近租約太少，算不出來" : "位置未確認，算不出來")
           : <>一年租金約為房價的 <span className="num">{m.yield_pct.toFixed(1)}%</span></>}>
-        {m.yield_pct == null ? "本社區與附近 2.5 公里內，屋齡 1–10 年的住宅租約不到 5 筆。" : (
+        {m.yield_pct == null ? (located
+          ? "本社區與附近 2.5 公里內，屋齡 1–10 年的住宅租約不到 5 筆。"
+          : "這個案的位置還沒確認，沒辦法找附近的租約來換算。") : (
           <>
             {m.yield_src === "community"
               ? `本社區近三年實際租約 ${m.yield_n} 筆`
@@ -167,6 +169,151 @@ export function ProjectInsights({ metrics, unitPrice, deals, cancels }: {
           : total < CANCEL_MIN_TOTAL ? "成交筆數還少，比例僅供參考；明細在「成交」分頁最下方。"
           : "解約的成交不計入上面的價格；明細在「成交」分頁最下方。"}
       </InsightRow>
+    </section>
+  );
+}
+
+// ── 價格走勢:預售期逐季中位單價,交屋後接轉售,同一條時間軸 ──────────────
+
+type TimelineDeal = { deal_date: string | null; unit_price: number | null };
+type QuarterPoint = { t: number; label: string; price: number; n: number };
+
+/** 逐季中位單價;單季筆數不到 minN 就不畫,免得一兩筆高價戶做出假漲幅 */
+export function quarterMedians(deals: TimelineDeal[], minN: number): QuarterPoint[] {
+  const buckets = new Map<string, number[]>();
+  for (const d of deals) {
+    if (!d.deal_date || d.unit_price == null || +d.unit_price <= 0) continue;
+    const [y, m] = d.deal_date.split("-").map(Number);
+    if (!y || !m) continue;
+    const key = `${y}-${Math.floor((m - 1) / 3)}`;
+    (buckets.get(key) ?? buckets.set(key, []).get(key)!).push(+d.unit_price);
+  }
+  return [...buckets.entries()]
+    .filter(([, prices]) => prices.length >= minN)
+    .map(([key, prices]) => {
+      const [y, q] = key.split("-").map(Number);
+      return { t: y + (q + 0.5) / 4, label: `${y - 1911}年Q${q + 1}`, price: median(prices)!, n: prices.length };
+    })
+    .sort((a, b) => a.t - b.t);
+}
+
+const yearFraction = (iso: string) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return y + ((m - 1) + ((d || 15) - 1) / 31) / 12;
+};
+
+const TL = { w: 340, h: 132, l: 30, r: 12, t: 12, b: 22 };
+
+export function PriceTimeline({ deals, resales, handover }: {
+  deals: TimelineDeal[]; resales: TimelineDeal[]; handover: string | null;
+}) {
+  const pre = quarterMedians(deals, 3);
+  const post = quarterMedians(resales, 3);
+  const all = [...pre, ...post];
+  if (pre.length < 3 && (pre.length < 1 || post.length < 1)) return null;
+
+  const hx = handover && post.length ? yearFraction(handover) : null;
+  const t0 = Math.min(...all.map((p) => p.t)), t1 = Math.max(...all.map((p) => p.t), t0 + 0.5);
+  const lo = Math.min(...all.map((p) => p.price)), hi = Math.max(...all.map((p) => p.price));
+  const pad = Math.max((hi - lo) * 0.15, hi * 0.03);
+  const yMin = lo - pad, yMax = hi + pad;
+  const x = (t: number) => TL.l + ((t - t0) / (t1 - t0)) * (TL.w - TL.l - TL.r);
+  const y = (v: number) => TL.t + (1 - (v - yMin) / (yMax - yMin)) * (TL.h - TL.t - TL.b);
+  const line = (pts: QuarterPoint[]) => pts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.price).toFixed(1)}`).join(" ");
+  const years: number[] = [];
+  for (let yr = Math.ceil(t0); yr <= Math.floor(t1); yr++) years.push(yr);
+  const yearStep = Math.max(1, Math.ceil(years.length / 5));
+
+  const first = pre[0], last = pre[pre.length - 1];
+  const change = pre.length >= 2 ? (last.price / first.price - 1) * 100 : null;
+  const dir = change == null ? null : Math.abs(change) < 2 ? "幾乎沒變" : change > 0 ? "漲" : "跌";
+
+  return (
+    <section className="mt-[21px]" aria-label="價格走勢">
+      <div className="text-[13.5px] font-extrabold">價格怎麼走</div>
+      {change != null && (
+        <p className="mt-1.5 text-[11px] leading-[1.6] text-ink-soft">
+          預售期間一坪從 <b className="num text-ink">{fmtP(first.price)}</b> 萬（{first.label}）
+          {dir === "幾乎沒變" ? "到" : dir === "漲" ? "漲到" : "跌到"} <b className="num text-ink">{fmtP(last.price)}</b> 萬（{last.label}）
+          {dir !== "幾乎沒變" && <>，{dir}了 <b className="num text-ink">{Math.abs(change).toFixed(0)}%</b></>}。
+          {post.length > 0 && <> 交屋後轉手最近一季一坪約 <b className="num text-ink">{fmtP(post[post.length - 1].price)}</b> 萬。</>}
+        </p>
+      )}
+      <div className="mt-2 rounded-[12px] border border-line bg-white px-2 pb-1.5 pt-2">
+        <svg viewBox={`0 0 ${TL.w} ${TL.h}`} className="block w-full" role="img"
+          aria-label={`逐季成交單價:預售 ${pre.length} 季${post.length ? `、轉售 ${post.length} 季` : ""}`}>
+          {[yMin + pad, yMax - pad].map((v, i) => (
+            <g key={i}>
+              <line x1={TL.l} x2={TL.w - TL.r} y1={y(v)} y2={y(v)} stroke="#e8ece9" strokeWidth="1" />
+              <text x={TL.l - 5} y={y(v) + 3} textAnchor="end" fontSize="8.5" fill="#62716c">{fmtP(v)}</text>
+            </g>
+          ))}
+          {years.filter((_, i) => i % yearStep === 0).map((yr) => (
+            <text key={yr} x={x(yr)} y={TL.h - 7} textAnchor="middle" fontSize="8.5" fill="#62716c">{yr - 1911}年</text>
+          ))}
+          {hx != null && hx > t0 && hx < t1 && (
+            <g>
+              <line x1={x(hx)} x2={x(hx)} y1={TL.t} y2={TL.h - TL.b} stroke="#a76f1d" strokeWidth="1" strokeDasharray="3 3" />
+              <text x={x(hx) + 3} y={TL.t + 7} fontSize="8.5" fontWeight="700" fill="#a76f1d">交屋</text>
+            </g>
+          )}
+          {pre.length > 1 && <path d={line(pre)} fill="none" stroke="#0d5b4f" strokeWidth="1.8" strokeLinejoin="round" />}
+          {post.length > 1 && <path d={line(post)} fill="none" stroke="#a76f1d" strokeWidth="1.8" strokeLinejoin="round" />}
+          {pre.map((p) => (
+            <circle key={`a${p.t}`} cx={x(p.t)} cy={y(p.price)} r="2.6" fill="#0d5b4f">
+              <title>{`${p.label} 預售 ${fmtP(p.price)} 萬/坪(${p.n} 筆)`}</title>
+            </circle>
+          ))}
+          {post.map((p) => (
+            <circle key={`b${p.t}`} cx={x(p.t)} cy={y(p.price)} r="2.6" fill="#fff" stroke="#a76f1d" strokeWidth="1.8">
+              <title>{`${p.label} 轉售 ${fmtP(p.price)} 萬/坪(${p.n} 筆)`}</title>
+            </circle>
+          ))}
+        </svg>
+        <div className="flex flex-wrap items-center gap-x-3 px-1 text-[9px] text-ink-soft">
+          <span><i className="mr-1 inline-block size-[7px] rounded-full bg-teal align-middle" />預售成交</span>
+          {post.length > 0 && <span><i className="mr-1 inline-block size-[7px] rounded-full border-[1.5px] border-amber bg-white align-middle" />交屋後轉售</span>}
+          <span className="ml-auto">每點＝一季中位單價（萬／坪）</span>
+        </div>
+      </div>
+      <p className="mt-1.5 text-[9px] leading-normal text-ink-soft">
+        單季不到 3 筆的季別不畫。前後期賣的樓層與坪數可能不同，漲跌不等於同一戶的增值。
+      </p>
+    </section>
+  );
+}
+
+const MATCH_LABEL: Record<string, string> = {
+  parcel: "地號比對", "leju-door": "建案門牌查證", "presale-door": "預售登錄的門牌", "permit-door": "使用執照門牌清單",
+  neighbor: "鄰棟推定",
+};
+
+/** 資料可信度:位置是否確認、轉售/租約是怎麼對到這個案的 */
+export function DataConfidence({ located, matching }: {
+  located: boolean; matching: { method: string | null; doors: number; min_confidence: number }[];
+}) {
+  const doors = matching.reduce((sum, m) => sum + m.doors, 0);
+  const weakest = matching.length ? Math.min(...matching.map((m) => m.min_confidence)) : 100;
+  if (located && doors === 0) return null;
+  return (
+    <section className="mt-[21px]" aria-label="資料可信度">
+      <div className="text-[13.5px] font-extrabold">這些資料有多可靠</div>
+      <ul className="mt-2 space-y-1.5 text-[10.5px] leading-[1.65] text-ink-soft">
+        {!located && (
+          <li className="rounded-[10px] border border-[#ecdec2] bg-[#fffaf0] px-3 py-2 text-[#785415]">
+            <b>位置還沒確認。</b>登錄的地址只寫到路段或地號，找不到確切門牌，所以這個案不在地圖上；成交紀錄不受影響。
+          </li>
+        )}
+        {doors > 0 && (
+          <li className="rounded-[10px] border border-line bg-white px-3 py-2">
+            <b className="text-ink">轉售與租約是用門牌對回本案的</b>，共 <b className="num text-ink">{doors}</b> 個門牌（
+            {matching.map((m) => `${MATCH_LABEL[m.method ?? "parcel"] ?? m.method} ${m.doors}`).join("、")}）。
+            {weakest < 100
+              ? ` 其中部分是依鄰近位置與完工年推定，把握度約 ${weakest}/100，可能混入隔壁棟。`
+              : " 都是官方登錄可直接對應的門牌。"}
+          </li>
+        )}
+      </ul>
     </section>
   );
 }
