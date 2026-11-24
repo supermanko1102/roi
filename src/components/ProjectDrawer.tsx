@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { CITIES, cityDisplay } from "@/lib/cities";
 import { getParkingInfo } from "@/lib/deal-parking";
+import { projectPath } from "@/lib/project-url";
 
 type PDeal = {
   deal_date: string | null; total_price: number | null; area_ping: number | null;
@@ -20,7 +21,7 @@ type PDeal = {
   is_cancelled: boolean | null; cancel_date: string | null;
 };
 
-type PDetail = {
+export type PDetail = {
   project: {
     name: string; district: string; unit_price: number | null;
     median_total: number | null; median_area: number | null;
@@ -168,11 +169,15 @@ function MaterialsSection({ sections, pdfUrl, facts }: {
   );
 }
 
-export default function ProjectDrawer({ city, district, name, onClose, saved, onToggleSaved }: {
-  city: string; district: string; name: string; onClose: () => void;
-  saved: boolean; onToggleSaved: () => void;
+// variant="drawer":地圖右側抽屜(自己抓資料);variant="page":獨立頁的本體(伺服器已備好 initial)。
+// 兩者是同一個元件,內容與口徑不會分岔。
+export default function ProjectDrawer({ city, district, name, onClose, saved, onToggleSaved, variant = "drawer", initial }: {
+  city: string; district: string; name: string;
+  onClose?: () => void; saved?: boolean; onToggleSaved?: () => void;
+  variant?: "drawer" | "page"; initial?: PDetail;
 }) {
-  const [detail, setDetail] = useState<PDetail | null>(null);
+  const page = variant === "page";
+  const [detail, setDetail] = useState<PDetail | null>(initial ?? null);
   const [err, setErr] = useState(false);
   const [dealView, setDealView] = useState<"grid" | "list">("list");
   const [dealPage, setDealPage] = useState(0);
@@ -182,11 +187,12 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
   const tabsAnchorRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (initial) return;
     setDetail(null); setErr(false); setDealView("list"); setDealPage(0); setSection("overview");
     fetch(`/api/project-detail?city=${encodeURIComponent(city)}&district=${encodeURIComponent(district)}&name=${encodeURIComponent(name)}`)
       .then((r) => { if (!r.ok) throw 0; return r.json(); })
       .then(setDetail).catch(() => setErr(true));
-  }, [city, district, name]);
+  }, [city, district, name, initial]);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 720px)");
@@ -197,6 +203,7 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
   }, []);
 
   useEffect(() => {
+    if (!onClose) return;
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
@@ -209,6 +216,7 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
     .filter((d) => d.floor_no != null && parseStack(d.unit_id) != null).length >= 3, [detail]);
   const view = gridable ? dealView : "list";
 
+  const Heading = page ? "h1" : "h2";
   const p = detail?.project;
   const age = detail?.build_year ? new Date().getFullYear() - detail.build_year : null;
   const presale = detail?.band === "presale";
@@ -258,7 +266,8 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
     requestAnimationFrame(() => {
       const drawer = drawerRef.current;
       const anchor = tabsAnchorRef.current;
-      if (drawer && anchor)
+      if (page) anchor?.scrollIntoView({ behavior: "smooth", block: "start" });
+      else if (drawer && anchor)
         drawer.scrollTo({ top: Math.max(0, anchor.offsetTop - 8), behavior: "smooth" });
     });
   };
@@ -275,15 +284,17 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
   };
 
   return (
-    <aside ref={drawerRef} className="absolute inset-y-0 right-0 z-55 w-[min(480px,100%)] animate-drawer-in overflow-y-auto bg-surface px-6 pb-8 pt-6 shadow-[-12px_0_50px_rgba(18,47,40,.18)] max-mob:top-auto max-mob:h-[min(84%,760px)] max-mob:w-full max-mob:animate-drawer-up max-mob:rounded-t-[20px] max-mob:px-[18px] max-mob:pb-[88px] max-mob:pt-[25px] max-mob:before:absolute max-mob:before:left-1/2 max-mob:before:top-2 max-mob:before:h-1 max-mob:before:w-[42px] max-mob:before:-translate-x-1/2 max-mob:before:rounded-full max-mob:before:bg-[#ced6d2] max-mob:before:content-[''] max-tiny:px-[15px]"
+    <aside ref={drawerRef} className={page
+      ? "relative rounded-[18px] border border-line bg-surface px-6 pb-8 pt-6 max-mob:rounded-none max-mob:border-0 max-mob:px-[18px] max-tiny:px-[15px]"
+      : "absolute inset-y-0 right-0 z-55 w-[min(480px,100%)] animate-drawer-in overflow-y-auto bg-surface px-6 pb-8 pt-6 shadow-[-12px_0_50px_rgba(18,47,40,.18)] max-mob:top-auto max-mob:h-[min(84%,760px)] max-mob:w-full max-mob:animate-drawer-up max-mob:rounded-t-[20px] max-mob:px-[18px] max-mob:pb-[88px] max-mob:pt-[25px] max-mob:before:absolute max-mob:before:left-1/2 max-mob:before:top-2 max-mob:before:h-1 max-mob:before:w-[42px] max-mob:before:-translate-x-1/2 max-mob:before:rounded-full max-mob:before:bg-[#ced6d2] max-mob:before:content-[''] max-tiny:px-[15px]"}
       aria-label={`${name}建案資料`}>
-      <Button variant="ghost" size="icon-sm" className="absolute right-4 top-4 size-[31px] rounded-full bg-muted text-muted-foreground"
-        onClick={onClose} aria-label="關閉">✕</Button>
+      {onClose && <Button variant="ghost" size="icon-sm" className="absolute right-4 top-4 size-[31px] rounded-full bg-muted text-muted-foreground"
+        onClick={onClose} aria-label="關閉">✕</Button>}
       {err && <div className="py-[50px] text-center text-xs text-ink-soft">載入失敗，請重試。</div>}
       {!detail && !err && <div className="py-[50px] text-center text-xs text-ink-soft">載入中…</div>}
       {detail && p && (
         <>
-          <h2 className="my-0.5 mr-[34px] flex flex-wrap items-center gap-[7px] font-display text-[22px] font-bold leading-tight max-mob:text-xl">
+          <Heading className="my-0.5 mr-[34px] flex flex-wrap items-center gap-[7px] font-display text-[22px] font-bold leading-tight max-mob:text-xl">
             <span>{p.name}</span>
             <Badge className={cn(
               "h-auto flex-none rounded-full border-0 bg-[#e7f0ed] px-[9px] py-[3px] font-sans text-[10px] font-extrabold leading-[1.4] text-teal",
@@ -291,18 +302,26 @@ export default function ProjectDrawer({ city, district, name, onClose, saved, on
             )}>
               {presale ? "預售" : age != null && age <= 1 ? "新成屋" : `${age} 年屋`}
             </Badge>
-          </h2>
+          </Heading>
           <div className="mb-[13px] mt-[5px] text-[11px] leading-[1.6] text-ink-soft">
             {CITIES.length > 1 ? cityDisplay(city) : ""}{p.district}
             {detail.community?.street ? `・${detail.community.street}` : ""}
           </div>
 
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <Button variant="outline" aria-pressed={saved} onClick={onToggleSaved}
-              className="h-auto min-h-[34px] rounded-[9px] border-[#dec999] bg-[#fffaf0] px-[11px] py-[7px] text-[11px] font-extrabold text-[#83601e] hover:bg-[#fffaf0] aria-pressed:bg-[#a87520] aria-pressed:text-white aria-pressed:hover:bg-[#a87520]">
-              {saved ? "★ 已加入比較" : "☆ 加入比較"}
-            </Button>
-          </div>
+          {!page && (
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              {onToggleSaved && (
+                <Button variant="outline" aria-pressed={saved} onClick={onToggleSaved}
+                  className="h-auto min-h-[34px] rounded-[9px] border-[#dec999] bg-[#fffaf0] px-[11px] py-[7px] text-[11px] font-extrabold text-[#83601e] hover:bg-[#fffaf0] aria-pressed:bg-[#a87520] aria-pressed:text-white aria-pressed:hover:bg-[#a87520]">
+                  {saved ? "★ 已加入比較" : "☆ 加入比較"}
+                </Button>
+              )}
+              <a href={projectPath(city, district, name)} target="_blank" rel="noopener"
+                className="inline-flex min-h-[34px] items-center rounded-[9px] border border-line bg-white px-[11px] py-[7px] text-[11px] font-extrabold text-teal no-underline hover:bg-[#f5f7f4]">
+                開成獨立頁面 ↗
+              </a>
+            </div>
+          )}
 
           <div className="mb-[11px] rounded-[14px] border border-[#e4e8e5] bg-[#f4f6f3] p-4">
             <div className="text-xs text-ink-soft">成交單價中位數<b className="num mx-[3px] text-[31px] tracking-[-.04em] text-ink">{p.unit_price == null ? "—" : fmtP(+p.unit_price)}</b>萬／坪</div>
